@@ -6,6 +6,7 @@ using System.Buffers;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Threading;
 using Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Infrastructure;
 
 namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
@@ -35,6 +36,8 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
 
         public unsafe bool ParseRequestLine(TRequestHandler handler, in ReadOnlySequence<byte> buffer, out SequencePosition consumed, out SequencePosition examined)
         {
+            Thread.Sleep(10);
+            
             consumed = buffer.Start;
             examined = buffer.End;
 

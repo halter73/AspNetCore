@@ -106,4 +106,8 @@ Later on, this will be checked using this condition:
       Microsoft.AspNetCore.ResponseCompression;
     </PackagesInPatch>
   </PropertyGroup>
+  <PropertyGroup Condition=" '$(VersionPrefix)' == '2.2.14' ">
+    <PackagesInPatch>
+    </PackagesInPatch>
+  </PropertyGroup>
 </Project>

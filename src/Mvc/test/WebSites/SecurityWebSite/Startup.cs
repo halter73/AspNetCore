@@ -39,6 +39,7 @@ namespace SecurityWebSite
                     var policyProvider = context.RequestServices.GetRequiredService<IAuthorizationPolicyProvider>();
 
                     // We don't need to check which policy was selected by attributes/IAuthorizeData b/c there is none.
+                    // Actually, let's new up an AuthorizatiohnAttribute and call AuthorizationPolicy.CombineAsync instead
                     var fallbackPolicy = await policyProvider.GetFallbackPolicyAsync();
 
                     if (fallbackPolicy is null)

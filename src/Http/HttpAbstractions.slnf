@@ -15,6 +15,8 @@
       "src\\Http\\Http.Abstractions\\test\\Microsoft.AspNetCore.Http.Abstractions.Tests.csproj",
       "src\\Http\\Http.Api.Abstractions\\src\\Microsoft.AspNetCore.Http.Api.Abstractions.csproj",
       "src\\Http\\Http.Api.Abstractions\\test\\Microsoft.AspNetCore.Http.Api.Abstractions.Tests.csproj",
+      "src\\Http\\Http.Api\\src\\Microsoft.AspNetCore.Http.Api.csproj",
+      "src\\Http\\Http.Api\\test\\Microsoft.AspNetCore.Http.Api.Tests.csproj",
       "src\\Http\\Http.Extensions\\src\\Microsoft.AspNetCore.Http.Extensions.csproj",
       "src\\Http\\Http.Extensions\\test\\Microsoft.AspNetCore.Http.Extensions.Tests.csproj",
       "src\\Http\\Http.Features\\src\\Microsoft.AspNetCore.Http.Features.csproj",

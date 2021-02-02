@@ -46,6 +46,8 @@
     <AspNetCoreAppReference Include="Microsoft.AspNetCore.Authentication.Core" />
     <AspNetCoreAppReference Include="Microsoft.Net.Http.Headers" />
     <AspNetCoreAppReference Include="Microsoft.AspNetCore.Http.Abstractions" />
+    <AspNetCoreAppReference Include="Microsoft.AspNetCore.Http.Api.Abstractions" />
+    <AspNetCoreAppReference Include="Microsoft.AspNetCore.Http.Api" />
     <AspNetCoreAppReference Include="Microsoft.AspNetCore.Http.Extensions" />
     <AspNetCoreAppReference Include="Microsoft.AspNetCore.Http" />
     <AspNetCoreAppReference Include="Microsoft.AspNetCore.Routing.Abstractions" />

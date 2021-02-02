@@ -1,0 +1,3 @@
+#nullable enable
+Microsoft.AspNetCore.Builder.MapActionEndpointRouteBuilderExtensions
+static Microsoft.AspNetCore.Builder.MapActionEndpointRouteBuilderExtensions.MapAction(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints, System.Delegate! action) -> Microsoft.AspNetCore.Builder.IEndpointConventionBuilder!

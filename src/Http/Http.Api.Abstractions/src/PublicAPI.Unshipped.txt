@@ -2,3 +2,5 @@
 Microsoft.AspNetCore.Http.Api.Abstractions.IFromBodyAttribute
 Microsoft.AspNetCore.Http.Api.Abstractions.IFromRouteAttribute
 Microsoft.AspNetCore.Http.Api.Abstractions.IFromRouteAttribute.Name.get -> string!
+Microsoft.AspNetCore.Http.Api.Abstractions.IResult
+Microsoft.AspNetCore.Http.Api.Abstractions.IResult.WriteResponseAsync(Microsoft.AspNetCore.Http.HttpContext! httpContext) -> System.Threading.Tasks.ValueTask

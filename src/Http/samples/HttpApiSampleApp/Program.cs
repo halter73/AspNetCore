@@ -1,21 +1,26 @@
 using System;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.Extensions;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
-namespace SampleApp
+namespace HttpApiSampleApp
 {
     public class Program
     {
         public static void Main(string[] args)
         {
-            var query = new QueryBuilder()
-            {
-                { "hello", "world" }
-            }.ToQueryString();
-
-            var uri = UriHelper.BuildAbsolute("http", new HostString("contoso.com"), query: query);
-
-            Console.WriteLine(uri);
+            CreateHostBuilder(args).Build().Run();
         }
+
+        public static IHostBuilder CreateHostBuilder(string[] args) =>
+            Host.CreateDefaultBuilder(args)
+                .ConfigureWebHostDefaults(webBuilder =>
+                {
+                    webBuilder.UseStartup<Startup>();
+                });
     }
 }

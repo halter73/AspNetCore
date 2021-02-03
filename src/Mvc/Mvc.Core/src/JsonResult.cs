@@ -17,8 +17,6 @@ namespace Microsoft.AspNetCore.Mvc
     /// </summary>
     public class JsonResult : ActionResult, IResult, IStatusCodeActionResult
     {
-        private const string JsonContentType = "application/json";
-
         /// <summary>
         /// Creates a new <see cref="JsonResult"/> with the given <paramref name="value"/>.
         /// </summary>
@@ -93,7 +91,6 @@ namespace Microsoft.AspNetCore.Mvc
         /// <returns>A task that represents the asynchronous execute operation.</returns>
         public ValueTask WriteResponseAsync(HttpContext httpContext)
         {
-            httpContext.Response.Headers[HeaderNames.ContentType] = JsonContentType;
             return new ValueTask(httpContext.Response.WriteAsJsonAsync(Value));
         }
     }

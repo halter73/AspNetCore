@@ -1,13 +1,17 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>$(DefaultNetCoreTargetFramework)</TargetFramework>
-    <OutputType>Exe</OutputType>
   </PropertyGroup>
 
   <ItemGroup>
+    <Reference Include="Microsoft.AspNetCore" />
+    <Reference Include="Microsoft.AspNetCore.Diagnostics" />
+    <Reference Include="Microsoft.AspNetCore.Hosting" />
     <Reference Include="Microsoft.AspNetCore.Http.Api" />
-    <Reference Include="Microsoft.AspNetCore.Http.Extensions" />
+    <!-- Mvc.Core is referenced only for its attributes -->
+    <Reference Include="Microsoft.AspNetCore.Mvc.Core" />
+    <Reference Include="Microsoft.AspNetCore.Server.Kestrel" />
   </ItemGroup>
 
 </Project>

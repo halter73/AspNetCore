@@ -12,6 +12,7 @@
       "src\\DataProtection\\Cryptography.Internal\\src\\Microsoft.AspNetCore.Cryptography.Internal.csproj",
       "src\\DataProtection\\DataProtection\\src\\Microsoft.AspNetCore.DataProtection.csproj",
       "src\\DataProtection\\Extensions\\src\\Microsoft.AspNetCore.DataProtection.Extensions.csproj",
+      "src\\DefaultBuilder\\src\\Microsoft.AspNetCore.csproj",
       "src\\Features\\JsonPatch\\src\\Microsoft.AspNetCore.JsonPatch.csproj",
       "src\\FileProviders\\Embedded\\src\\Microsoft.Extensions.FileProviders.Embedded.csproj",
       "src\\Hosting\\Abstractions\\src\\Microsoft.AspNetCore.Hosting.Abstractions.csproj",

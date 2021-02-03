@@ -42,17 +42,28 @@ namespace Microsoft.AspNetCore.Mvc
                 throw new ArgumentNullException(nameof(context));
             }
 
-            var factory = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>();
+            Execute(context.HttpContext);
+        }
+
+        /// <summary>
+        /// Sets the status code on the HTTP response.
+        /// </summary>
+        /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
+        /// <returns>A task that represents the asynchronous execute operation.</returns>
+        public ValueTask WriteResponseAsync(HttpContext httpContext)
+        {
+            Execute(httpContext);
+            return default;
+        }
+
+        private void Execute(HttpContext httpContext)
+        {
+            var factory = httpContext.RequestServices.GetRequiredService<ILoggerFactory>();
             var logger = factory.CreateLogger<StatusCodeResult>();
 
             logger.HttpStatusCodeResultExecuting(StatusCode);
 
-            context.HttpContext.Response.StatusCode = StatusCode;
-        }
-
-        public Task WriteResponseAsync(HttpContext httpContext)
-        {
-            throw new NotImplementedException();
+            httpContext.Response.StatusCode = StatusCode;
         }
     }
 }

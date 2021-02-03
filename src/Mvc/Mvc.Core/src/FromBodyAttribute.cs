@@ -3,7 +3,7 @@
 
 using System;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
-using Microsoft.AspNetCore.Http.Api.Abstractions
+using Microsoft.AspNetCore.Http.Api.Abstractions;
 
 namespace Microsoft.AspNetCore.Mvc
 {

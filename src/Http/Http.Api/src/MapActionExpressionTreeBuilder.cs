@@ -27,58 +27,12 @@ namespace Microsoft.AspNetCore.Http.Api
         private static readonly MethodInfo StringResultWriteResponseAsync = GetMethodInfo<Func<HttpResponse, string, Task>>((response, text) => HttpResponseWritingExtensions.WriteAsync(response, text, default));
         private static readonly MethodInfo JsonResultWriteResponseAsync = GetMethodInfo<Func<HttpResponse, object, Task>>((response, value) => HttpResponseJsonExtensions.WriteAsJsonAsync(response, value, default));
 
-        private static readonly MemberInfo CompletedTaskMemberInfo = GetMemberInfo<Func<Task>>(() => Task.CompletedTask);
+       private static readonly ParameterExpression HttpContextParameter = Expression.Parameter(typeof(HttpContext), "httpContext");
 
-        //private static readonly ParameterExpression HttpContextParameter = Expression.Parameter(typeof(HttpContext), "httpContext");
-
-        //private static readonly MethodInfo ReadFromJsonAsyncMethodInfo =
-        //    typeof(HttpRequestJsonExtensions).GetMethod(nameof(HttpRequestJsonExtensions.ReadFromJsonAsync),
-        //        BindingFlags.Public, new Type[] { typeof(HttpRequest), typeof(CancellationToken) })!;
-
-        //private static Expression<Func<HttpContext, ValueTask>> BuildExpression(Delegate action)
-        //{
-        //    var methodInfo = action.GetMethodInfo();
-        //    var parameters = methodInfo.GetParameters();
-        //    var arguments = new Expression[parameters.Length];
-
-        //    var boundBody = false;
-
-        //    for (int i = 0; i < parameters.Length; i++)
-        //    {
-        //        var parameter = parameters[i];
-
-        //        foreach (var attribute in parameter.CustomAttributes)
-        //        {
-        //            if (attribute.AttributeType.IsAssignableTo(typeof(IFromBodyAttribute)))
-        //            {
-        //                if (boundBody)
-        //                {
-        //                    throw new InvalidOperationException("Action cannot have more than one FromBody attribute.");
-        //                }
-
-        //                arguments[i] = BuildJsonFromBodyArgument(parameter.ParameterType);
-        //                boundBody = true;
-        //                break;
-        //            }
-        //        }
-
-        //        if (arguments[i] is null)
-        //        {
-        //            throw new InvalidOperationException($"Could not bind parameter {i}: {parameter}");
-        //        }
-        //    }
-
-        //}
-
-        //private static Expression BuildJsonFromBodyArgument(Type parameterType)
-        //{
-        //    var request = Expression.Property(HttpContextParameter, nameof(HttpContext.Request));
-        //    var readMethod = ReadFromJsonAsyncMethodInfo.MakeGenericMethod(parameterType);
-        //    return Expression.Call(readMethod, request, Expression.Constant(CancellationToken.None));
-        //}
-
-        public static RequestDelegate BuildRequestDelegate(MethodInfo method)
+        public static RequestDelegate BuildRequestDelegate(Delegate action)
         {
+            var method = action.Method;
+
             var needForm = false;
             var needBody = false;
             Type? bodyType = null;
@@ -98,7 +52,8 @@ namespace Microsoft.AspNetCore.Http.Api
             //     return Task.CompletedTask;
             // }
 
-            var httpContextArg = Expression.Parameter(typeof(HttpContext), "httpContext");
+            var targetArg = Expression.Parameter(typeof(object), "target");
+            var httpContextArg = HttpContextParameter;
             // This argument represents the deserialized body returned from IHttpRequestReader
             // when the method has a FromBody attribute declared
             var deserializedBodyArg = Expression.Parameter(typeof(object), "bodyValue");
@@ -181,18 +136,22 @@ namespace Microsoft.AspNetCore.Http.Api
 
             Expression? body = null;
 
-            var methodCall = Expression.Call(method, args);
+            MethodCallExpression methodCall;
+
+            if (action.Target is null)
+            {
+                methodCall = Expression.Call(method, args);
+            }
+            else
+            {
+                var castedTarget = Expression.Convert(targetArg, action.Target.GetType());
+                methodCall = Expression.Call(castedTarget, method, args);
+            }
 
             // Exact request delegate match
             if (method.ReturnType == typeof(void))
             {
-                var bodyExpressions = new List<Expression>
-                    {
-                        methodCall,
-                        Expression.Property(null, (PropertyInfo)CompletedTaskMemberInfo)
-                    };
-
-                body = Expression.Block(bodyExpressions);
+                body = Expression.Constant(default(ValueTask));
             }
             else if (AwaitableInfo.IsTypeAwaitable(method.ReturnType, out var info))
             {
@@ -210,6 +169,7 @@ namespace Microsoft.AspNetCore.Http.Api
                         body = Expression.Call(
                                            ExecuteTaskResultOfTMethodInfo.MakeGenericMethod(typeArg),
                                            methodCall,
+                                           targetArg,
                                            httpContextArg);
                     }
                     else
@@ -218,6 +178,7 @@ namespace Microsoft.AspNetCore.Http.Api
                         body = Expression.Call(
                                            ExecuteTaskOfTMethodInfo.MakeGenericMethod(typeArg),
                                            methodCall,
+                                           targetArg,
                                            httpContextArg);
                     }
                 }
@@ -231,6 +192,7 @@ namespace Microsoft.AspNetCore.Http.Api
                         body = Expression.Call(
                                            ExecuteValueResultTaskOfTMethodInfo.MakeGenericMethod(typeArg),
                                            methodCall,
+                                           targetArg,
                                            httpContextArg);
                     }
                     else
@@ -239,6 +201,7 @@ namespace Microsoft.AspNetCore.Http.Api
                         body = Expression.Call(
                                        ExecuteValueTaskOfTMethodInfo.MakeGenericMethod(typeArg),
                                        methodCall,
+                                       targetArg,
                                        httpContextArg);
                     }
                 }
@@ -261,45 +224,48 @@ namespace Microsoft.AspNetCore.Http.Api
                 body = Expression.Call(JsonResultWriteResponseAsync, httpResponseExpr, methodCall, Expression.Constant(CancellationToken.None));
             }
 
-            RequestDelegate? requestDelegate = null;
+            Func<object?, HttpContext, ValueTask>? requestDelegate = null;
 
             if (needBody)
             {
                 // We need to generate the code for reading from the body before calling into the 
                 // delegate
-                var lambda = Expression.Lambda<Func<HttpContext, object?, Task>>(body, httpContextArg, deserializedBodyArg);
+                var lambda = Expression.Lambda<Func<object?, HttpContext, object?, ValueTask>>(body, targetArg, httpContextArg, deserializedBodyArg);
                 var invoker = lambda.Compile();
 
-                requestDelegate = async httpContext =>
+                requestDelegate = async (target, httpContext) =>
                 {
                     var bodyValue = await httpContext.Request.ReadFromJsonAsync(bodyType!);
 
-                    await invoker(httpContext, bodyValue);
+                    await invoker(target, httpContext, bodyValue);
                 };
             }
             else if (needForm)
             {
-                var lambda = Expression.Lambda<RequestDelegate>(body, httpContextArg);
+                var lambda = Expression.Lambda<Func<object?, HttpContext, ValueTask>>(body, targetArg, httpContextArg);
                 var invoker = lambda.Compile();
 
-                requestDelegate = async httpContext =>
+                requestDelegate = async (target, httpContext) =>
                 {
                         // Generating async code would just be insane so if the method needs the form populate it here
                         // so the within the method it's cached
                         await httpContext.Request.ReadFormAsync();
 
-                    await invoker(httpContext);
+                    await invoker(target, httpContext);
                 };
             }
             else
             {
-                var lambda = Expression.Lambda<RequestDelegate>(body, httpContextArg);
+                var lambda = Expression.Lambda<Func<object?, HttpContext, ValueTask>>(body, targetArg, httpContextArg);
                 var invoker = lambda.Compile();
 
                 requestDelegate = invoker;
             }
 
-            return requestDelegate;
+            return httpContext =>
+            {
+                return requestDelegate(action.Target, httpContext).AsTask();
+            };
         }
 
         private static Expression BindArgument(Expression sourceExpression, ParameterInfo parameter, string name)
@@ -309,9 +275,7 @@ namespace Microsoft.AspNetCore.Http.Api
             var valueArg = Expression.Convert(
                                 Expression.MakeIndex(sourceExpression,
                                                      sourceExpression.Type.GetProperty("Item"),
-                                                     new[] {
-                                                         Expression.Constant(key)
-                                                     }),
+                                                     new[] { Expression.Constant(key) }),
                                 typeof(string));
 
             MethodInfo parseMethod = (from m in type.GetMethods(BindingFlags.Public | BindingFlags.Static)

@@ -36,9 +36,9 @@ namespace Microsoft.AspNetCore.Builder
                 throw new ArgumentNullException(nameof(action));
             }
 
-            var requestDelegate = MapActionExpressionTreeBuilder.BuildRequestDelegate(action.Method);
+            var requestDelegate = MapActionExpressionTreeBuilder.BuildRequestDelegate(action);
 
-            var routeAttributes = action.Method.CustomAttributes.OfType<IRouteTemplateProvider>();
+            var routeAttributes = action.Method.GetCustomAttributes().OfType<IRouteTemplateProvider>();
             var conventionBuilders = new List<IEndpointConventionBuilder>();
 
             foreach (var routeAttribute in routeAttributes)
@@ -68,40 +68,6 @@ namespace Microsoft.AspNetCore.Builder
 
             return new CompositeEndpointConventionBuilder(conventionBuilders);
         }
-
-        //private static IEndpointConventionBuilder MapActionRoute(
-        //    IEndpointRouteBuilder endpoints,
-        //    IRouteTemplateProvider routeAttribute,
-        //    IEnumerable<Attribute> allAttributes,
-        //    RequestDelegate requestDelegate)
-        //{
-        //    const int defaultOrder = 0;
-
-        //    var pattern = RoutePatternFactory.Parse(routeAttribute.Template!);
-
-        //    var builder = new RouteEndpointBuilder(
-        //        requestDelegate,
-        //        pattern,
-        //        defaultOrder)
-        //    {
-        //        DisplayName = routeAttribute.Name ?? pattern.RawText,
-        //    };
-
-        //    foreach (var attribute in allAttributes)
-        //    {
-        //        builder.Metadata.Add(attribute);
-        //    }
-
-        //    var dataSource = endpoints.DataSources.OfType<ModelEndpointDataSource>().FirstOrDefault();
-        //    if (dataSource == null)
-        //    {
-        //        dataSource = new ModelEndpointDataSource();
-        //        endpoints.DataSources.Add(dataSource);
-        //    }
-
-        //    return dataSource.AddEndpointBuilder(builder);
-
-        //}
 
         private class CompositeEndpointConventionBuilder : IEndpointConventionBuilder
         {

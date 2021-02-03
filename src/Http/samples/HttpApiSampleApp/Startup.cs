@@ -32,6 +32,9 @@ namespace HttpApiSampleApp
 
             app.UseEndpoints(endpoints =>
             {
+                [HttpPost("/EchoTodo")]
+                JsonResult EchoTodo([FromBody] Todo todo) => new(todo);
+
                 endpoints.MapAction((Func<Todo, JsonResult>)EchoTodo);
 
                 endpoints.MapPost("/EchoTodoProto", async httpContext =>
@@ -54,8 +57,5 @@ namespace HttpApiSampleApp
                 });
             });
         }
-
-        [HttpPost("/EchoTodo")]
-        private JsonResult EchoTodo([FromBody] Todo todo) => new JsonResult(todo);
     }
 }

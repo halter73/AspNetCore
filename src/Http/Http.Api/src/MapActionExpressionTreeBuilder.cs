@@ -244,7 +244,7 @@ namespace Microsoft.AspNetCore.Http.Api
                 else
                 {
                     // TODO: Handle custom awaitables
-                    throw new NotSupportedException("Unsupported return type " + method.ReturnType);
+                    throw new NotSupportedException($"Unsupported return type: {method.ReturnType}");
                 }
             }
             else if (typeof(IResult).IsAssignableFrom(method.ReturnType))

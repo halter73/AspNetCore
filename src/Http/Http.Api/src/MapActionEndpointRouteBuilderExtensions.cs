@@ -2,6 +2,11 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using Microsoft.AspNetCore.Http.Api;
+using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.AspNetCore.Routing;
 
 namespace Microsoft.AspNetCore.Builder
@@ -21,7 +26,99 @@ namespace Microsoft.AspNetCore.Builder
             this IEndpointRouteBuilder endpoints,
             Delegate action)
         {
-            throw new NotImplementedException();
+            if (endpoints is null)
+            {
+                throw new ArgumentNullException(nameof(endpoints));
+            }
+
+            if (action is null)
+            {
+                throw new ArgumentNullException(nameof(action));
+            }
+
+            var requestDelegate = MapActionExpressionTreeBuilder.BuildRequestDelegate(action.Method);
+
+            var routeAttributes = action.Method.CustomAttributes.OfType<IRouteTemplateProvider>();
+            var conventionBuilders = new List<IEndpointConventionBuilder>();
+
+            foreach (var routeAttribute in routeAttributes)
+            {
+                if (routeAttribute.Template is null)
+                {
+                    continue;
+                }
+
+                var conventionBuilder = endpoints.Map(routeAttribute.Template, requestDelegate);
+
+                conventionBuilder.Add(endpointBuilder =>
+                {
+                    foreach (var attribute in action.Method.GetCustomAttributes())
+                    {
+                        endpointBuilder.Metadata.Add(attribute);
+                    }
+                });
+
+                conventionBuilders.Add(conventionBuilder);
+            }
+
+            if (conventionBuilders.Count == 0)
+            {
+                throw new InvalidOperationException("Action must have a pattern. Is it missing a Route attribute?");
+            }
+
+            return new CompositeEndpointConventionBuilder(conventionBuilders);
+        }
+
+        //private static IEndpointConventionBuilder MapActionRoute(
+        //    IEndpointRouteBuilder endpoints,
+        //    IRouteTemplateProvider routeAttribute,
+        //    IEnumerable<Attribute> allAttributes,
+        //    RequestDelegate requestDelegate)
+        //{
+        //    const int defaultOrder = 0;
+
+        //    var pattern = RoutePatternFactory.Parse(routeAttribute.Template!);
+
+        //    var builder = new RouteEndpointBuilder(
+        //        requestDelegate,
+        //        pattern,
+        //        defaultOrder)
+        //    {
+        //        DisplayName = routeAttribute.Name ?? pattern.RawText,
+        //    };
+
+        //    foreach (var attribute in allAttributes)
+        //    {
+        //        builder.Metadata.Add(attribute);
+        //    }
+
+        //    var dataSource = endpoints.DataSources.OfType<ModelEndpointDataSource>().FirstOrDefault();
+        //    if (dataSource == null)
+        //    {
+        //        dataSource = new ModelEndpointDataSource();
+        //        endpoints.DataSources.Add(dataSource);
+        //    }
+
+        //    return dataSource.AddEndpointBuilder(builder);
+
+        //}
+
+        private class CompositeEndpointConventionBuilder : IEndpointConventionBuilder
+        {
+            private readonly List<IEndpointConventionBuilder> _endpointConventionBuilders;
+
+            public CompositeEndpointConventionBuilder(List<IEndpointConventionBuilder> endpointConventionBuilders)
+            {
+                _endpointConventionBuilders = endpointConventionBuilders;
+            }
+
+            public void Add(Action<EndpointBuilder> convention)
+            {
+                foreach (var endpointConventionBuilder in _endpointConventionBuilders)
+                {
+                    endpointConventionBuilder.Add(convention);
+                }
+            }
         }
     }
 }

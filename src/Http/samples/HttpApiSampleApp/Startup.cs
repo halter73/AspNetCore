@@ -32,7 +32,7 @@ namespace HttpApiSampleApp
 
             app.UseEndpoints(endpoints =>
             {
-                //endpoints.MapAction((Func<Todo, JsonResult>)EchoTodo);
+                endpoints.MapAction((Func<Todo, JsonResult>)EchoTodo);
 
                 endpoints.MapPost("/EchoTodoProto", async httpContext =>
                 {

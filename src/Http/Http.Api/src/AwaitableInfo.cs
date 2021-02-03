@@ -14,7 +14,7 @@ namespace Microsoft.AspNetCore.Http.Api
         public PropertyInfo AwaiterIsCompletedProperty { get; }
         public MethodInfo AwaiterGetResultMethod { get; }
         public MethodInfo AwaiterOnCompletedMethod { get; }
-        public MethodInfo AwaiterUnsafeOnCompletedMethod { get; }
+        public MethodInfo? AwaiterUnsafeOnCompletedMethod { get; }
         public Type ResultType { get; }
         public MethodInfo GetAwaiterMethod { get; }
 
@@ -23,7 +23,7 @@ namespace Microsoft.AspNetCore.Http.Api
             PropertyInfo awaiterIsCompletedProperty,
             MethodInfo awaiterGetResultMethod,
             MethodInfo awaiterOnCompletedMethod,
-            MethodInfo awaiterUnsafeOnCompletedMethod,
+            MethodInfo? awaiterUnsafeOnCompletedMethod,
             Type resultType,
             MethodInfo getAwaiterMethod)
         {
@@ -42,7 +42,7 @@ namespace Microsoft.AspNetCore.Http.Api
 
             // Awaitable must have method matching "object GetAwaiter()"
             var getAwaiterMethod = type.GetMethods().FirstOrDefault(m =>
-                m.Name.Equals("GetAwaiter", StringComparison.OrdinalIgnoreCase)
+                m.Name.Equals("GetAwaiter", StringComparison.Ordinal)
                 && m.GetParameters().Length == 0
                 && m.ReturnType != null);
             if (getAwaiterMethod == null)
@@ -55,7 +55,7 @@ namespace Microsoft.AspNetCore.Http.Api
 
             // Awaiter must have property matching "bool IsCompleted { get; }"
             var isCompletedProperty = awaiterType.GetProperties().FirstOrDefault(p =>
-                p.Name.Equals("IsCompleted", StringComparison.OrdinalIgnoreCase)
+                p.Name.Equals("IsCompleted", StringComparison.Ordinal)
                 && p.PropertyType.Equals(typeof(bool))
                 && p.GetMethod != null);
             if (isCompletedProperty == null)
@@ -79,14 +79,14 @@ namespace Microsoft.AspNetCore.Http.Api
             //    .DeclaredMethods
             //    .GetRuntimeInterfaceMap(getType(typeof(INotifyCompletion)));
             var onCompletedMethod = awaiterType.GetMethods().Single(m =>
-                m.Name.Equals("OnCompleted", StringComparison.OrdinalIgnoreCase)
+                m.Name.Equals("OnCompleted", StringComparison.Ordinal)
                 && m.ReturnType.Equals(typeof(void))
                 && m.GetParameters().Length == 1
                 && m.GetParameters()[0].ParameterType.Equals(typeof(Action)));
 
             // Awaiter optionally implements ICriticalNotifyCompletion
             var implementsICriticalNotifyCompletion = awaiterInterfaces.Any(t => t.Equals(typeof(ICriticalNotifyCompletion)));
-            MethodInfo unsafeOnCompletedMethod;
+            MethodInfo? unsafeOnCompletedMethod;
             if (implementsICriticalNotifyCompletion)
             {
                 // ICriticalNotifyCompletion supplies a method matching "void UnsafeOnCompleted(Action action)"
@@ -94,7 +94,7 @@ namespace Microsoft.AspNetCore.Http.Api
                 //    .GetTypeInfo()
                 //    .GetRuntimeInterfaceMap(typeof(ICriticalNotifyCompletion));
                 unsafeOnCompletedMethod = awaiterType.GetMethods().Single(m =>
-                    m.Name.Equals("UnsafeOnCompleted", StringComparison.OrdinalIgnoreCase)
+                    m.Name.Equals("UnsafeOnCompleted", StringComparison.Ordinal)
                     && m.ReturnType.Equals(typeof(void))
                     && m.GetParameters().Length == 1
                     && m.GetParameters()[0].ParameterType.Equals(typeof(Action)));
@@ -106,7 +106,7 @@ namespace Microsoft.AspNetCore.Http.Api
 
             // Awaiter must have method matching "void GetResult" or "T GetResult()"
             var getResultMethod = awaiterType.GetMethods().FirstOrDefault(m =>
-                m.Name.Equals("GetResult")
+                m.Name.Equals("GetResult", StringComparison.Ordinal)
                 && m.GetParameters().Length == 0);
             if (getResultMethod == null)
             {

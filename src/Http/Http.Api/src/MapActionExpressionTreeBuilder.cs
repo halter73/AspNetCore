@@ -27,43 +27,42 @@ namespace Microsoft.AspNetCore.Http.Api
         private static readonly MethodInfo StringResultWriteResponseAsync = GetMethodInfo<Func<HttpResponse, string, Task>>((response, text) => HttpResponseWritingExtensions.WriteAsync(response, text, default));
         private static readonly MethodInfo JsonResultWriteResponseAsync = GetMethodInfo<Func<HttpResponse, object, Task>>((response, value) => HttpResponseJsonExtensions.WriteAsJsonAsync(response, value, default));
 
-       private static readonly ParameterExpression HttpContextParameter = Expression.Parameter(typeof(HttpContext), "httpContext");
+        private static readonly ParameterExpression TargetArg = Expression.Parameter(typeof(object), "target");
+        private static readonly ParameterExpression HttpContextParameter = Expression.Parameter(typeof(HttpContext), "httpContext");
+        private static readonly ParameterExpression DeserializedBodyArg = Expression.Parameter(typeof(object), "bodyValue");
+
+        private static readonly MemberExpression RequestServicesExpr = Expression.Property(HttpContextParameter, nameof(HttpContext.RequestServices));
+        private static readonly MemberExpression HttpRequestExpr = Expression.Property(HttpContextParameter, nameof(HttpContext.Request));
+        private static readonly MemberExpression HttpResponseExpr = Expression.Property(HttpContextParameter, nameof(HttpContext.Response));
 
         public static RequestDelegate BuildRequestDelegate(Delegate action)
         {
+            // Non void return type
+
+            // ValueTask Invoke(HttpContext httpContext)
+            // {
+            //     // Action parameters are bound from the request, services, etc... based on attribute and type information.
+            //     return ExecuteValueTask(action(...), httpContext);
+            // }
+
+            // void return type
+
+            // ValueTask Invoke(HttpContext httpContext)
+            // {
+            //     action(...);
+            //     return default;
+            // }
+
             var method = action.Method;
 
             var needForm = false;
             var needBody = false;
             Type? bodyType = null;
-            // Non void return type
 
-            // Task Invoke(HttpContext httpContext)
-            // {
-            //     // The type is activated via DI if it has args
-            //     return ExecuteResultAsync(new THttpHandler(...).Method(..), httpContext);
-            // }
-
-            // void return type
-
-            // Task Invoke(HttpContext httpContext)
-            // {
-            //     new THttpHandler(...).Method(..)
-            //     return Task.CompletedTask;
-            // }
-
-            var targetArg = Expression.Parameter(typeof(object), "target");
-            var httpContextArg = HttpContextParameter;
             // This argument represents the deserialized body returned from IHttpRequestReader
             // when the method has a FromBody attribute declared
-            var deserializedBodyArg = Expression.Parameter(typeof(object), "bodyValue");
-
-            var requestServicesExpr = Expression.Property(httpContextArg, nameof(HttpContext.RequestServices));
 
             var args = new List<Expression>();
-
-            var httpRequestExpr = Expression.Property(httpContextArg, nameof(HttpContext.Request));
-            var httpResponseExpr = Expression.Property(httpContextArg, nameof(HttpContext.Response));
 
             foreach (var parameter in method.GetParameters())
             {
@@ -72,22 +71,22 @@ namespace Microsoft.AspNetCore.Http.Api
                 //if (parameter.FromQuery != null)
                 //{
                 //    var queryProperty = Expression.Property(httpRequestExpr, nameof(HttpRequest.Query));
-                //    paramterExpression = BindArgument(queryProperty, parameter, parameter.FromQuery);
+                //    paramterExpression = BindParamenter(queryProperty, parameter, parameter.FromQuery);
                 //}
                 //else if (parameter.FromHeader != null)
                 //{
                 //    var headersProperty = Expression.Property(httpRequestExpr, nameof(HttpRequest.Headers));
-                //    paramterExpression = BindArgument(headersProperty, parameter, parameter.FromHeader);
+                //    paramterExpression = BindParamenter(headersProperty, parameter, parameter.FromHeader);
                 //}
                 //else if (parameter.FromRoute != null)
                 //{
                 //    var routeValuesProperty = Expression.Property(httpRequestExpr, nameof(HttpRequest.RouteValues));
-                //    paramterExpression = BindArgument(routeValuesProperty, parameter, parameter.FromRoute);
+                //    paramterExpression = BindParamenter(routeValuesProperty, parameter, parameter.FromRoute);
                 //}
                 //else if (parameter.FromCookie != null)
                 //{
                 //    var cookiesProperty = Expression.Property(httpRequestExpr, nameof(HttpRequest.Cookies));
-                //    paramterExpression = BindArgument(cookiesProperty, parameter, parameter.FromCookie);
+                //    paramterExpression = BindParamenter(cookiesProperty, parameter, parameter.FromCookie);
                 //}
                 //else if (parameter.FromServices)
                 //{
@@ -98,7 +97,7 @@ namespace Microsoft.AspNetCore.Http.Api
                 //    needForm = true;
 
                 //    var formProperty = Expression.Property(httpRequestExpr, nameof(HttpRequest.Form));
-                //    paramterExpression = BindArgument(formProperty, parameter, parameter.FromForm);
+                //    paramterExpression = BindParamenter(formProperty, parameter, parameter.FromForm);
                 //}
                 //else if (parameter.FromBody)
                 if (parameter.CustomAttributes.Any(a => typeof(IFromBodyAttribute).IsAssignableFrom(a.AttributeType)))
@@ -115,7 +114,7 @@ namespace Microsoft.AspNetCore.Http.Api
 
                     needBody = true;
                     bodyType = parameter.ParameterType;
-                    paramterExpression = Expression.Convert(deserializedBodyArg, bodyType);
+                    paramterExpression = Expression.Convert(DeserializedBodyArg, bodyType);
                 }
                 else
                 {
@@ -123,11 +122,11 @@ namespace Microsoft.AspNetCore.Http.Api
                     {
                         needForm = true;
 
-                        paramterExpression = Expression.Property(httpRequestExpr, nameof(HttpRequest.Form));
+                        paramterExpression = Expression.Property(HttpRequestExpr, nameof(HttpRequest.Form));
                     }
                     else if (parameter.ParameterType == typeof(HttpContext))
                     {
-                        paramterExpression = httpContextArg;
+                        paramterExpression = HttpContextParameter;
                     }
                 }
 
@@ -144,7 +143,7 @@ namespace Microsoft.AspNetCore.Http.Api
             }
             else
             {
-                var castedTarget = Expression.Convert(targetArg, action.Target.GetType());
+                var castedTarget = Expression.Convert(TargetArg, action.Target.GetType());
                 methodCall = Expression.Call(castedTarget, method, args);
             }
 
@@ -169,17 +168,17 @@ namespace Microsoft.AspNetCore.Http.Api
                         body = Expression.Call(
                                            ExecuteTaskResultOfTMethodInfo.MakeGenericMethod(typeArg),
                                            methodCall,
-                                           targetArg,
-                                           httpContextArg);
+                                           TargetArg,
+                                           HttpContextParameter);
                     }
                     else
                     {
-                        // ExecuteTask<T>(handler.Method(..), httpContext);
+                        // ExecuteTask<T>(action(..), httpContext);
                         body = Expression.Call(
                                            ExecuteTaskOfTMethodInfo.MakeGenericMethod(typeArg),
                                            methodCall,
-                                           targetArg,
-                                           httpContextArg);
+                                           TargetArg,
+                                           HttpContextParameter);
                     }
                 }
                 else if (method.ReturnType.IsGenericType &&
@@ -192,17 +191,17 @@ namespace Microsoft.AspNetCore.Http.Api
                         body = Expression.Call(
                                            ExecuteValueResultTaskOfTMethodInfo.MakeGenericMethod(typeArg),
                                            methodCall,
-                                           targetArg,
-                                           httpContextArg);
+                                           TargetArg,
+                                           HttpContextParameter);
                     }
                     else
                     {
-                        // ExecuteTask<T>(handler.Method(..), httpContext);
+                        // ExecuteTask<T>(action(..), httpContext);
                         body = Expression.Call(
                                        ExecuteValueTaskOfTMethodInfo.MakeGenericMethod(typeArg),
                                        methodCall,
-                                       targetArg,
-                                       httpContextArg);
+                                       TargetArg,
+                                       HttpContextParameter);
                     }
                 }
                 else
@@ -213,15 +212,15 @@ namespace Microsoft.AspNetCore.Http.Api
             }
             else if (typeof(IResult).IsAssignableFrom(method.ReturnType))
             {
-                body = Expression.Call(methodCall, ResultWriteResponseAsync, httpContextArg);
+                body = Expression.Call(methodCall, ResultWriteResponseAsync, HttpContextParameter);
             }
             else if (method.ReturnType == typeof(string))
             {
-                body = Expression.Call(StringResultWriteResponseAsync, httpResponseExpr, methodCall, Expression.Constant(CancellationToken.None));
+                body = Expression.Call(StringResultWriteResponseAsync, HttpResponseExpr, methodCall, Expression.Constant(CancellationToken.None));
             }
             else
             {
-                body = Expression.Call(JsonResultWriteResponseAsync, httpResponseExpr, methodCall, Expression.Constant(CancellationToken.None));
+                body = Expression.Call(JsonResultWriteResponseAsync, HttpResponseExpr, methodCall, Expression.Constant(CancellationToken.None));
             }
 
             Func<object?, HttpContext, ValueTask>? requestDelegate = null;
@@ -230,7 +229,7 @@ namespace Microsoft.AspNetCore.Http.Api
             {
                 // We need to generate the code for reading from the body before calling into the 
                 // delegate
-                var lambda = Expression.Lambda<Func<object?, HttpContext, object?, ValueTask>>(body, targetArg, httpContextArg, deserializedBodyArg);
+                var lambda = Expression.Lambda<Func<object?, HttpContext, object?, ValueTask>>(body, TargetArg, HttpContextParameter, DeserializedBodyArg);
                 var invoker = lambda.Compile();
 
                 requestDelegate = async (target, httpContext) =>
@@ -242,21 +241,21 @@ namespace Microsoft.AspNetCore.Http.Api
             }
             else if (needForm)
             {
-                var lambda = Expression.Lambda<Func<object?, HttpContext, ValueTask>>(body, targetArg, httpContextArg);
+                var lambda = Expression.Lambda<Func<object?, HttpContext, ValueTask>>(body, TargetArg, HttpContextParameter);
                 var invoker = lambda.Compile();
 
                 requestDelegate = async (target, httpContext) =>
                 {
-                        // Generating async code would just be insane so if the method needs the form populate it here
-                        // so the within the method it's cached
-                        await httpContext.Request.ReadFormAsync();
+                    // Generating async code would just be insane so if the method needs the form populate it here
+                    // so the within the method it's cached
+                    await httpContext.Request.ReadFormAsync();
 
                     await invoker(target, httpContext);
                 };
             }
             else
             {
-                var lambda = Expression.Lambda<Func<object?, HttpContext, ValueTask>>(body, targetArg, httpContextArg);
+                var lambda = Expression.Lambda<Func<object?, HttpContext, ValueTask>>(body, TargetArg, HttpContextParameter);
                 var invoker = lambda.Compile();
 
                 requestDelegate = invoker;
@@ -268,7 +267,7 @@ namespace Microsoft.AspNetCore.Http.Api
             };
         }
 
-        private static Expression BindArgument(Expression sourceExpression, ParameterInfo parameter, string name)
+        private static Expression BindParamenter(Expression sourceExpression, ParameterInfo parameter, string name)
         {
             var key = name ?? parameter.Name;
             var type = Nullable.GetUnderlyingType(parameter.ParameterType) ?? parameter.ParameterType;

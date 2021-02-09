@@ -41,6 +41,8 @@ namespace Microsoft.AspNetCore.Builder
             var routeAttributes = action.Method.GetCustomAttributes().OfType<IRouteTemplateProvider>();
             var conventionBuilders = new List<IEndpointConventionBuilder>();
 
+            const int defaultOrder = 0;
+
             foreach (var routeAttribute in routeAttributes)
             {
                 if (routeAttribute.Template is null)
@@ -56,6 +58,10 @@ namespace Microsoft.AspNetCore.Builder
                     {
                         endpointBuilder.Metadata.Add(attribute);
                     }
+
+                    endpointBuilder.DisplayName = routeAttribute.Name ?? routeAttribute.Template;
+
+                    ((RouteEndpointBuilder)endpointBuilder).Order = routeAttribute.Order ?? defaultOrder;
                 });
 
                 conventionBuilders.Add(conventionBuilder);

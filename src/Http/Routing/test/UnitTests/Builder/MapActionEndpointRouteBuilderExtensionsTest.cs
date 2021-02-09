@@ -29,43 +29,62 @@ namespace Microsoft.AspNetCore.Builder
         [Fact]
         public void MapAction_BuildsEndpointFromAttributes()
         {
-            const string customMethod = "CUSTOM_METHOD";
             const string customTemplate = "/CustomTemplate";
+            const string customMethod = "CUSTOM_METHOD";
 
-            [HttpMethods(new[] { customMethod }, customTemplate)]
-            void MyAction() { };
+            [HttpMethods(Template = customTemplate, Methods = new[] { customMethod })]
+            void TestAction() { };
 
             var builder = new DefaultEndpointRouteBuilder(Mock.Of<IApplicationBuilder>());
-            var endpointBuilder = builder.MapAction((Action)MyAction);
+            _ = builder.MapAction((Action)TestAction);
 
-            var dataSource = Assert.Single(builder.DataSources);
+            var routeEndpointBuilder = GetRouteEndpointBuilder(builder);
+            Assert.Equal(customTemplate, routeEndpointBuilder.RoutePattern.RawText);
+
+            var dataSource = GetBuilderEndpointDataSource(builder);
             var endpoint = Assert.Single(dataSource.Endpoints);
 
             var httpMethodMetadata = Assert.Single(endpoint.Metadata.OfType<IHttpMethodMetadata>());
             var method = Assert.Single(httpMethodMetadata.HttpMethods);
             Assert.Equal(customMethod, method);
-
-            var routeEndpointBuilder = GetRouteEndpointBuilder(builder);
-            Assert.Equal(customTemplate, routeEndpointBuilder.RoutePattern.RawText);
         }
 
-        private class HttpMethodsAttribute : Attribute, IRouteTemplateProvider, IHttpMethodMetadata
+        [Fact]
+        public void MapAction_BuildsEndpointWithRouteNameAndOrder()
         {
-            public HttpMethodsAttribute(string[] httpMethods, string? template)
-            {
-                HttpMethods = httpMethods;
-                Template = template;
-            }
+            const string customName = "Custom Name";
+            const int customOrder = 1337;
 
-            public string? Template { get; }
+            [HttpMethods(Name = customName, Order = customOrder)]
+            void TestAction() { };
 
-            public IReadOnlyList<string> HttpMethods { get; }
+            var builder = new DefaultEndpointRouteBuilder(Mock.Of<IApplicationBuilder>());
+            _ = builder.MapAction((Action)TestAction);
 
-            public int? Order => null;
+            var dataSource = GetBuilderEndpointDataSource(builder);
+            // Trigger Endpoint build by calling getter.
+            var endpoint = Assert.Single(dataSource.Endpoints);
 
-            public string? Name => null;
+            var routeEndpointBuilder = GetRouteEndpointBuilder(builder);
+            Assert.Equal(customName, routeEndpointBuilder.DisplayName);
+            Assert.Equal(customOrder, routeEndpointBuilder.Order);
+        }
+
+        private class HttpMethodsAttribute : Attribute, IHttpMethodMetadata, IRouteTemplateProvider
+        {
+            public string[] Methods { get; set; } = new[] { "GET" };
+
+            public string Template { get; set; } = "/";
+
+            public int Order { get; set; }
+
+            public string? Name { get; set; }
 
             public bool AcceptCorsPreflight => false;
+
+            IReadOnlyList<string> IHttpMethodMetadata.HttpMethods => Methods;
+
+            int? IRouteTemplateProvider.Order => Order;
         }
     }
 }

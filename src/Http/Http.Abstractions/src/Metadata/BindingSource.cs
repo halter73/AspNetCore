@@ -4,9 +4,16 @@
 namespace Microsoft.AspNetCore.Http.Metadata
 {
     /// <summary>
-    /// Interface marking attributes that specify a parameter or property should be bound using the request body.
+    /// A metadata enum representing a source of data for model binding.
     /// </summary>
-    public interface IFromBodyMetadata
+    public enum BindingSource
     {
+        Route,
+        Query,
+        Header,
+        Body,
+        Form,
+        Services,
+        Custom
     }
 }

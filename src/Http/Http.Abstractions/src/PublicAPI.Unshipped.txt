@@ -4,9 +4,16 @@
 *REMOVED*Microsoft.AspNetCore.Routing.RouteValueDictionary.TryAdd(string! key, object! value) -> bool
 *REMOVED*static Microsoft.AspNetCore.Builder.UseMiddlewareExtensions.UseMiddleware(this Microsoft.AspNetCore.Builder.IApplicationBuilder! app, System.Type! middleware, params object![]! args) -> Microsoft.AspNetCore.Builder.IApplicationBuilder!
 *REMOVED*static Microsoft.AspNetCore.Builder.UseMiddlewareExtensions.UseMiddleware<TMiddleware>(this Microsoft.AspNetCore.Builder.IApplicationBuilder! app, params object![]! args) -> Microsoft.AspNetCore.Builder.IApplicationBuilder!
-Microsoft.AspNetCore.Http.Metadata.IFromBodyMetadata
-Microsoft.AspNetCore.Http.Metadata.IFromRouteMetadata
-Microsoft.AspNetCore.Http.Metadata.IFromRouteMetadata.Name.get -> string!
+Microsoft.AspNetCore.Http.Metadata.BindingSource
+Microsoft.AspNetCore.Http.Metadata.BindingSource.Body = 3 -> Microsoft.AspNetCore.Http.Metadata.BindingSource
+Microsoft.AspNetCore.Http.Metadata.BindingSource.Custom = 6 -> Microsoft.AspNetCore.Http.Metadata.BindingSource
+Microsoft.AspNetCore.Http.Metadata.BindingSource.Form = 4 -> Microsoft.AspNetCore.Http.Metadata.BindingSource
+Microsoft.AspNetCore.Http.Metadata.BindingSource.Header = 2 -> Microsoft.AspNetCore.Http.Metadata.BindingSource
+Microsoft.AspNetCore.Http.Metadata.BindingSource.Query = 1 -> Microsoft.AspNetCore.Http.Metadata.BindingSource
+Microsoft.AspNetCore.Http.Metadata.BindingSource.Route = 0 -> Microsoft.AspNetCore.Http.Metadata.BindingSource
+Microsoft.AspNetCore.Http.Metadata.BindingSource.Services = 5 -> Microsoft.AspNetCore.Http.Metadata.BindingSource
+Microsoft.AspNetCore.Http.Metadata.IBindingSourceMetadata
+Microsoft.AspNetCore.Http.Metadata.IBindingSourceMetadata.BindingSource.get -> Microsoft.AspNetCore.Http.Metadata.BindingSource
 Microsoft.AspNetCore.Http.Metadata.IResult
 Microsoft.AspNetCore.Http.Metadata.IResult.ExecuteAsync(Microsoft.AspNetCore.Http.HttpContext! httpContext) -> System.Threading.Tasks.Task!
 Microsoft.AspNetCore.Http.Endpoint.Endpoint(Microsoft.AspNetCore.Http.RequestDelegate? requestDelegate, Microsoft.AspNetCore.Http.EndpointMetadataCollection? metadata, string? displayName) -> void

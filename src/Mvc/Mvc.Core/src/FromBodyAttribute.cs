@@ -3,7 +3,6 @@
 
 using System;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
-using Microsoft.AspNetCore.Http.Metadata;
 
 namespace Microsoft.AspNetCore.Mvc
 {
@@ -11,7 +10,7 @@ namespace Microsoft.AspNetCore.Mvc
     /// Specifies that a parameter or property should be bound using the request body.
     /// </summary>
     [AttributeUsage(AttributeTargets.Parameter | AttributeTargets.Property, AllowMultiple = false, Inherited = true)]
-    public class FromBodyAttribute : Attribute, IBindingSourceMetadata, IConfigureEmptyBodyBehavior, IFromBodyMetadata
+    public class FromBodyAttribute : Attribute, IBindingSourceMetadata, IConfigureEmptyBodyBehavior
     {
         /// <inheritdoc />
         public BindingSource BindingSource => BindingSource.Body;

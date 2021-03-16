@@ -1,26 +1,33 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.Configuration;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-namespace HttpApiSampleApp
-{
-    public class Program
+using var host = Host.CreateDefaultBuilder(args)
+    .ConfigureWebHostDefaults(webBuilder =>
     {
-        public static void Main(string[] args)
+        webBuilder.Configure(app =>
         {
-            CreateHostBuilder(args).Build().Run();
-        }
+            app.UseRouting();
 
-        public static IHostBuilder CreateHostBuilder(string[] args) =>
-            Host.CreateDefaultBuilder(args)
-                .ConfigureWebHostDefaults(webBuilder =>
-                {
-                    webBuilder.UseStartup<Startup>();
-                });
-    }
-}
+            app.UseEndpoints(endpoints =>
+            {
+                Todo EchoTodo([FromBody] Todo todo) => todo;
+                endpoints.MapPost("/EchoTodo", (Func<Todo, Todo>)EchoTodo);
+
+                string Plaintext() => "Hello, World!";
+                endpoints.MapGet("/plaintext", (Func<string>)Plaintext);
+
+                object Json() => new { message = "Hello, World!" };
+                endpoints.MapGet("/json", (Func<object>)Json);
+            });
+
+        });
+    })
+    .Build();
+
+await host.RunAsync();
+
+record Todo(int Id, string Name, bool IsComplete);

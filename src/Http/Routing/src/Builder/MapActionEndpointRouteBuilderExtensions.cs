@@ -46,10 +46,10 @@ namespace Microsoft.AspNetCore.Builder
         /// <param name="pattern">The route pattern.</param>
         /// <param name="action">The delegate executed when the endpoint is matched.</param>
         /// <returns>A <see cref="IEndpointConventionBuilder"/> that can be used to further customize the endpoint.</returns>
-        public static MapActionEndpointConventionBuilder MapPost(
+        public static MapActionEndpointConventionBuilder MapPost<T, TResult>(
             this IEndpointRouteBuilder endpoints,
             string pattern,
-            Delegate action)
+            Func<T, TResult> action)
         {
             return MapMethods(endpoints, pattern, PostVerb, action);
         }

@@ -30,7 +30,7 @@ namespace HttpApiSampleApp
             {
                 JsonResult EchoTodo([FromBody] Todo todo) => new(todo);
 
-                endpoints.MapPost("/EchoTodo", (Func<Todo, JsonResult>)EchoTodo);
+                endpoints.MapPost("/EchoTodo", EchoTodo);
 
                 endpoints.MapPost("/EchoTodoProto", async httpContext =>
                 {

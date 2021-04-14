@@ -7,10 +7,35 @@
 *REMOVED*~static Microsoft.Extensions.Hosting.GenericHostWebHostBuilderExtensions.ConfigureWebHost(this Microsoft.Extensions.Hosting.IHostBuilder builder, System.Action<Microsoft.AspNetCore.Hosting.IWebHostBuilder> configure, System.Action<Microsoft.Extensions.Hosting.WebHostBuilderOptions> configureWebHostBuilder) -> Microsoft.Extensions.Hosting.IHostBuilder
 *REMOVED*~virtual Microsoft.AspNetCore.Hosting.StartupBase.ConfigureServices(Microsoft.Extensions.DependencyInjection.IServiceCollection services) -> void
 *REMOVED*~virtual Microsoft.AspNetCore.Hosting.StartupBase.CreateServiceProvider(Microsoft.Extensions.DependencyInjection.IServiceCollection services) -> System.IServiceProvider
+Microsoft.AspNetCore.Builder.Configuration
+Microsoft.AspNetCore.Builder.Configuration.Configuration() -> void
+Microsoft.AspNetCore.Builder.Configuration.GetChildren() -> System.Collections.Generic.IEnumerable<Microsoft.Extensions.Configuration.IConfigurationSection!>!
+Microsoft.AspNetCore.Builder.Configuration.GetSection(string! key) -> Microsoft.Extensions.Configuration.IConfigurationSection!
+Microsoft.AspNetCore.Builder.Configuration.this[string! key].get -> string!
+Microsoft.AspNetCore.Builder.Configuration.this[string! key].set -> void
+Microsoft.AspNetCore.Builder.WebApplication
+Microsoft.AspNetCore.Builder.WebApplication.Addresses.get -> System.Collections.Generic.IEnumerable<string!>?
+Microsoft.AspNetCore.Builder.WebApplication.ApplicationLifetime.get -> Microsoft.Extensions.Hosting.IHostApplicationLifetime!
+Microsoft.AspNetCore.Builder.WebApplication.Configuration.get -> Microsoft.Extensions.Configuration.IConfiguration!
+Microsoft.AspNetCore.Builder.WebApplication.Dispose() -> void
+Microsoft.AspNetCore.Builder.WebApplication.Environment.get -> Microsoft.AspNetCore.Hosting.IWebHostEnvironment!
+Microsoft.AspNetCore.Builder.WebApplication.Listen(params string![]! urls) -> void
+Microsoft.AspNetCore.Builder.WebApplication.Logger.get -> Microsoft.Extensions.Logging.ILogger!
+Microsoft.AspNetCore.Builder.WebApplication.LoggerFactory.get -> Microsoft.Extensions.Logging.ILoggerFactory!
+Microsoft.AspNetCore.Builder.WebApplication.Run() -> void
+Microsoft.AspNetCore.Builder.WebApplication.RunAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Microsoft.AspNetCore.Builder.WebApplication.ServerFeatures.get -> Microsoft.AspNetCore.Http.Features.IFeatureCollection!
+Microsoft.AspNetCore.Builder.WebApplication.Services.get -> System.IServiceProvider!
+Microsoft.AspNetCore.Builder.WebApplication.StartAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Microsoft.AspNetCore.Builder.WebApplication.StopAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Microsoft.AspNetCore.Hosting.Builder.IApplicationBuilderFactory.CreateBuilder(Microsoft.AspNetCore.Http.Features.IFeatureCollection! serverFeatures) -> Microsoft.AspNetCore.Builder.IApplicationBuilder!
 Microsoft.AspNetCore.Hosting.StartupBase<TBuilder>.StartupBase(Microsoft.Extensions.DependencyInjection.IServiceProviderFactory<TBuilder>! factory) -> void
 abstract Microsoft.AspNetCore.Hosting.StartupBase.Configure(Microsoft.AspNetCore.Builder.IApplicationBuilder! app) -> void
 override Microsoft.AspNetCore.Hosting.StartupBase<TBuilder>.CreateServiceProvider(Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> System.IServiceProvider!
+static Microsoft.AspNetCore.Builder.WebApplication.Create() -> Microsoft.AspNetCore.Builder.WebApplication!
+static Microsoft.AspNetCore.Builder.WebApplication.Create(string![]! args) -> Microsoft.AspNetCore.Builder.WebApplication!
+static Microsoft.AspNetCore.Builder.WebApplication.CreateBuilder() -> Microsoft.AspNetCore.Builder.WebApplicationBuilder!
+static Microsoft.AspNetCore.Builder.WebApplication.CreateBuilder(string![]! args) -> Microsoft.AspNetCore.Builder.WebApplicationBuilder!
 static Microsoft.Extensions.Hosting.GenericHostWebHostBuilderExtensions.ConfigureWebHost(this Microsoft.Extensions.Hosting.IHostBuilder! builder, System.Action<Microsoft.AspNetCore.Hosting.IWebHostBuilder!>! configure) -> Microsoft.Extensions.Hosting.IHostBuilder!
 static Microsoft.Extensions.Hosting.GenericHostWebHostBuilderExtensions.ConfigureWebHost(this Microsoft.Extensions.Hosting.IHostBuilder! builder, System.Action<Microsoft.AspNetCore.Hosting.IWebHostBuilder!>! configure, System.Action<Microsoft.Extensions.Hosting.WebHostBuilderOptions!>! configureWebHostBuilder) -> Microsoft.Extensions.Hosting.IHostBuilder!
 virtual Microsoft.AspNetCore.Hosting.StartupBase.ConfigureServices(Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> void

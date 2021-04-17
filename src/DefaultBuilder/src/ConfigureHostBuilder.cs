@@ -28,13 +28,11 @@ namespace Microsoft.AspNetCore.Builder
         private readonly Configuration _configuration;
         private readonly IServiceCollection _services;
 
-        internal ConfigureHostBuilder(Configuration configuration, WebHostEnvironment environment, IServiceCollection services, string[]? args)
+        internal ConfigureHostBuilder(Configuration configuration, WebHostEnvironment environment, IServiceCollection services)
         {
             _configuration = configuration;
             _environment = environment;
             _services = services;
-
-            this.ConfigureDefaults(args);
         }
 
         IHost IHostBuilder.Build()

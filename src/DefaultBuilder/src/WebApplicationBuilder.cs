@@ -34,8 +34,12 @@ namespace Microsoft.AspNetCore.Builder
 
             Configuration = new Configuration();
 
-            // Run this inline to populate the configuration
-            new BootstrapHostBuilder(Configuration, Environment).ConfigureDefaults(args);
+            // Run methods to configure both generic and web host defaults early to populate config from appsettings.json
+            // environment variables (both DOTNET_ and ASPNETCORE_ prefixed) and other possible default sources to prepopulate
+            // the correct defaults.
+            var bootstrapBuilder = new BootstrapHostBuilder(Configuration, _environment);
+            bootstrapBuilder.ConfigureDefaults(args);
+            bootstrapBuilder.ConfigureWebHostDefaults(configure: _ => { });
 
             Configuration.SetBasePath(_environment.ContentRootPath);
             Logging = new LoggingBuilder(Services);
@@ -84,10 +88,7 @@ namespace Microsoft.AspNetCore.Builder
         public WebApplication Build()
         {
             _hostBuilder.ConfigureWebHostDefaults(ConfigureWebHost);
-            //_builtApplication = new WebApplication(_hostBuilder.Build());
-            var host = _hostBuilder.Build();
-            Configuration.AddConfiguration(host.Services.GetRequiredService<IConfiguration>());
-            _builtApplication = new WebApplication(host);
+            _builtApplication = new WebApplication(_hostBuilder.Build());
             return _builtApplication;
         }
 
@@ -176,21 +177,10 @@ namespace Microsoft.AspNetCore.Builder
                 }
             });
 
-            // Always reset ApplicationName on the builder because GenericWebHostBuilder.Configure() overrides the
-            // ApplicationNName with the name of the assembly declaring the callback, "Microsoft.AspNetCore".
-            genericWebHostBuilder.UseSetting(WebHostDefaults.ApplicationKey, Environment.ApplicationName);
-
-            // Mirror defaults configured by the GenericWebHostBuilder before creating the WebApplication.
-            genericWebHostBuilder.ConfigureServices((context, _) =>
-            {
-                //_environment.MirrorGenericWebHostEnvironment(context.HostingEnvironment);
-            });
-
-            // At this point, the final default environment should be 
-
             _deferredHostBuilder.ExecuteActions(_hostBuilder);
-
             _deferredWebHostBuilder.ExecuteActions(genericWebHostBuilder);
+
+            _environment.ApplyEnvironmentSettings(genericWebHostBuilder);
         }
 
         private class LoggingBuilder : ILoggingBuilder

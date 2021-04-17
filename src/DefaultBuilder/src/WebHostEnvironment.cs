@@ -15,17 +15,6 @@ namespace Microsoft.AspNetCore.Builder
     {
         private static readonly NullFileProvider NullFileProvider = new();
 
-        private string _applicationName = default!;
-        private string _environmentName = default!;
-        private string _contentRootPath = default!;
-        private string _webRootPath = default!;
-
-        private bool _trackModifications;
-        private bool _applicationNameModified;
-        private bool _environmentNameModified;
-        private bool _contentRootPathModified;
-        private bool _webRootPathModified;
-
         public WebHostEnvironment(Assembly? callingAssembly)
         {
             ContentRootPath = Directory.GetCurrentDirectory();
@@ -76,100 +65,21 @@ namespace Microsoft.AspNetCore.Builder
             WebRootFileProvider = genericWebHostEnvironment.WebRootFileProvider;
         }
 
-        public void StartTrackingModifications()
+        public void ApplyEnvironmentSettings(IWebHostBuilder genericWebHostBuilder)
         {
-            _trackModifications = true;
+            genericWebHostBuilder.UseSetting(WebHostDefaults.ApplicationKey, ApplicationName);
+            genericWebHostBuilder.UseSetting(WebHostDefaults.EnvironmentKey, EnvironmentName);
+            genericWebHostBuilder.UseSetting(WebHostDefaults.ContentRootKey, ContentRootPath);
+            genericWebHostBuilder.UseSetting(WebHostDefaults.WebRootKey, WebRootPath);
         }
 
-        public void ReconcileWebHostEnvironments(IWebHostBuilder builder)
-        {
-            // Always reset ApplicationName on the builder because GenericWebHostBuilder.Configure() overrides the
-            // ApplicationNName with the name of the assembly declaring the callback, "Microsoft.AspNetCore".
-
-            if (_applicationNameModified || builder.GetSetting(WebHostDefaults.ApplicationKey) == Assembly.GetExecutingAssembly()?.GetName()?.Name)
-            {
-                builder.UseSetting(WebHostDefaults.ApplicationKey, ApplicationName);
-            }
-
-            // Use the derived default EnvironementName from the GenericWebHostBuilder which can pick up
-            // config from "ASPNET_" Environment variables unless it has been custom-configured.
-            if (_environmentNameModified)
-            {
-                builder.UseSetting(WebHostDefaults.EnvironmentKey, _environmentName);
-            }
-            else if (builder.GetSetting(WebHostDefaults.EnvironmentKey) is string envName)
-            {
-                _environmentName = envName;
-            }
-
-            if (_contentRootPathModified)
-            {
-                builder.UseSetting(WebHostDefaults.ContentRootKey, _contentRootPath);
-            }
-
-            if (_webRootPathModified)
-            {
-                builder.UseSetting(WebHostDefaults.WebRootKey, _webRootPath);
-            }
-        }
-
-         public string ApplicationName 
-        {
-            get => _applicationName;
-            set
-            {
-                if (_trackModifications)
-                {
-                    _applicationNameModified = true;
-                }
-
-                _applicationName = value;
-            }
-        }
-
-        public string EnvironmentName
-        {
-            get => _environmentName;
-            set
-            {
-                if (_trackModifications)
-                {
-                    _environmentNameModified = true;
-                }
-
-                _environmentName = value;
-            }
-        }
-
-        public string ContentRootPath
-        {
-            get => _contentRootPath;
-            set
-            {
-                if (_trackModifications)
-                {
-                    _contentRootPathModified = true;
-                }
-
-                _contentRootPath = value;
-            }
-        }
-
-        public string WebRootPath
-        {
-            get => _webRootPath;
-            set
-            {
-                if (_trackModifications)
-                {
-                    _webRootPathModified = true;
-                }
-
-                _webRootPath = value;
-            }
-        }
+        public string ApplicationName { get; set; }
+        public string EnvironmentName { get; set; }
 
         public IFileProvider ContentRootFileProvider { get; set; }
+        public string ContentRootPath { get; set; }
+
         public IFileProvider WebRootFileProvider { get; set; }
+        public string WebRootPath { get; set; }
     }
 }

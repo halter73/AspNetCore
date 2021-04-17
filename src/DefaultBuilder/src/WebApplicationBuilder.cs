@@ -43,7 +43,6 @@ namespace Microsoft.AspNetCore.Builder
             Host = _deferredHostBuilder = new ConfigureHostBuilder(Configuration, _environment, Services);
 
             _deferredHostBuilder.ConfigureDefaults(args);
-            _environment.StopRecordingDefaultSettings();
         }
 
         /// <summary>
@@ -85,11 +84,14 @@ namespace Microsoft.AspNetCore.Builder
         public WebApplication Build()
         {
             _hostBuilder.ConfigureWebHostDefaults(ConfigureWebHost);
-            _builtApplication = new WebApplication(_hostBuilder.Build());
+            //_builtApplication = new WebApplication(_hostBuilder.Build());
+            var host = _hostBuilder.Build();
+            Configuration.AddConfiguration(host.Services.GetRequiredService<IConfiguration>());
+            _builtApplication = new WebApplication(host);
             return _builtApplication;
         }
 
-        private void ConfigureApplication(IApplicationBuilder app)
+        private void ConfigureApplication(WebHostBuilderContext context, IApplicationBuilder app)
         {
             Debug.Assert(_builtApplication is not null);
 
@@ -151,13 +153,14 @@ namespace Microsoft.AspNetCore.Builder
             {
                 app.Properties[item.Key] = item.Value;
             }
+
         }
 
         private void ConfigureWebHost(IWebHostBuilder genericWebHostBuilder)
         {
             genericWebHostBuilder.Configure(ConfigureApplication);
 
-            _hostBuilder.ConfigureServices(services =>
+            _hostBuilder.ConfigureServices((context, services) =>
             {
                 foreach (var s in Services)
                 {
@@ -173,12 +176,21 @@ namespace Microsoft.AspNetCore.Builder
                 }
             });
 
+            // Always reset ApplicationName on the builder because GenericWebHostBuilder.Configure() overrides the
+            // ApplicationNName with the name of the assembly declaring the callback, "Microsoft.AspNetCore".
+            genericWebHostBuilder.UseSetting(WebHostDefaults.ApplicationKey, Environment.ApplicationName);
+
+            // Mirror defaults configured by the GenericWebHostBuilder before creating the WebApplication.
+            genericWebHostBuilder.ConfigureServices((context, _) =>
+            {
+                //_environment.MirrorGenericWebHostEnvironment(context.HostingEnvironment);
+            });
+
+            // At this point, the final default environment should be 
+
             _deferredHostBuilder.ExecuteActions(_hostBuilder);
 
             _deferredWebHostBuilder.ExecuteActions(genericWebHostBuilder);
-
-            // Allow IWebHostEnvironment overrides
-            _environment.ApplySettings(genericWebHostBuilder);
         }
 
         private class LoggingBuilder : ILoggingBuilder

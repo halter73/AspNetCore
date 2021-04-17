@@ -21,6 +21,8 @@ namespace SampleApp
 
             webApp.MapGet("/", (Func<string>)(() => "Hello, World!"));
 
+            Console.WriteLine(webApp.Environment.EnvironmentName);
+
             await webApp.RunAsync();
         }
 

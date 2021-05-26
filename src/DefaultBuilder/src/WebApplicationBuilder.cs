@@ -37,7 +37,6 @@ namespace Microsoft.AspNetCore.Builder
             // the correct defaults.
             var bootstrapBuilder = new BootstrapHostBuilder(Configuration, _environment);
             bootstrapBuilder.ConfigureDefaults(args);
-            //AspNetCore.WebHost.ConfigureWebDefaults(bootstrapBuilder);
             bootstrapBuilder.ConfigureWebHostDefaults(configure: _ => { });
             bootstrapBuilder.ExecuteActions();
 
@@ -52,7 +51,7 @@ namespace Microsoft.AspNetCore.Builder
             _deferredHostBuilder.ConfigureDefaults(args);
             _deferredHostBuilder.ConfigureWebHostDefaults(configure: _ => { });
 
-            // This is important because:
+            // This is important because GenericWebHostBuilder does the following and we want to preserve the WebHostBuilderContext:
             // context.Properties[typeof(WebHostBuilderContext)] = webHostBuilderContext;
             // context.Properties[typeof(WebHostOptions)] = options;
             foreach (var (key, value) in _deferredHostBuilder.Properties)
@@ -106,12 +105,11 @@ namespace Microsoft.AspNetCore.Builder
         /// <returns>A configured <see cref="WebApplication"/>.</returns>
         public WebApplication Build()
         {
-            // We don't need to call ConfigureWebHostDefaults here because we already called ConfigureWebDefaults
-            // in the ctor on the ConfigureWebHostBuilder.
-            _hostBuilder.ConfigureWebHost(ConfigureWebHost);
-            //_hostBuilder.ConfigureWebHostDefaults(ConfigureWebHost);
-            _builtApplication = new WebApplication(_hostBuilder.Build());
-            return _builtApplication;
+            // We call ConfigureWebHostDefaults AGAIN because config might be added like "ForwardedHeaders_Enabled"
+            // which can add even more services. If not for that, we probably call _hostBuilder.ConfigureWebHost(ConfigureWebHost)
+            // instead in order to avoid duplicate service registration.
+            _hostBuilder.ConfigureWebHostDefaults(ConfigureWebHost);
+            return _builtApplication = new WebApplication(_hostBuilder.Build());
         }
 
         private void ConfigureApplication(WebHostBuilderContext context, IApplicationBuilder app)
@@ -209,15 +207,6 @@ namespace Microsoft.AspNetCore.Builder
 
             _deferredHostBuilder.ExecuteActions(_hostBuilder);
             _deferredWebHostBuilder.ExecuteActions(genericWebHostBuilder);
-
-            //_hostBuilder.ConfigureAppConfiguration((context, builder) =>
-            //{
-            //    context.HostingEnvironment.ApplicationName = _environment.ApplicationName;
-            //    context.HostingEnvironment.EnvironmentName = _environment.EnvironmentName;
-
-            //    context.HostingEnvironment.ContentRootPath = _environment.ContentRootPath;
-            //    context.HostingEnvironment.ContentRootFileProvider = _environment.ContentRootFileProvider;
-            //});
 
             genericWebHostBuilder.ConfigureAppConfiguration((context, builder) =>
             {

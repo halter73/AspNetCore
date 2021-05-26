@@ -11,17 +11,15 @@ using Microsoft.Extensions.Hosting;
 namespace Microsoft.AspNetCore.Hosting
 {
     // This exists solely to bootstrap the configuration
-    internal class BootstrapHostBuilder : IHostBuilder, IWebHostBuilder
+    internal class BootstrapHostBuilder : IHostBuilder
     {
         private readonly Configuration _configuration;
         private readonly WebHostEnvironment _environment;
 
         private readonly HostBuilderContext _hostContext;
-        private readonly WebHostBuilderContext _webHostContext;
 
         private readonly List<Action<IConfigurationBuilder>> _configureHostActions = new();
         private readonly List<Action<HostBuilderContext, IConfigurationBuilder>> _configureAppActions = new();
-        private readonly List<Action<WebHostBuilderContext, IConfigurationBuilder>> _configureWebHostAppActions = new();
 
         public BootstrapHostBuilder(Configuration configuration, WebHostEnvironment webHostEnvironment)
         {
@@ -32,12 +30,6 @@ namespace Microsoft.AspNetCore.Hosting
             {
                 Configuration = configuration,
                 HostingEnvironment = webHostEnvironment
-            };
-
-            _webHostContext = new WebHostBuilderContext
-            {
-                Configuration = configuration,
-                HostingEnvironment = webHostEnvironment,
             };
         }
 
@@ -52,12 +44,6 @@ namespace Microsoft.AspNetCore.Hosting
         public IHostBuilder ConfigureAppConfiguration(Action<HostBuilderContext, IConfigurationBuilder> configureDelegate)
         {
             _configureAppActions.Add(configureDelegate ?? throw new ArgumentNullException(nameof(configureDelegate)));
-            return this;
-        }
-
-        public IWebHostBuilder ConfigureAppConfiguration(Action<WebHostBuilderContext, IConfigurationBuilder> configureDelegate)
-        {
-            _configureWebHostAppActions.Add(configureDelegate ?? throw new ArgumentNullException(nameof(configureDelegate)));
             return this;
         }
 
@@ -79,29 +65,10 @@ namespace Microsoft.AspNetCore.Hosting
             return _configuration[key];
         }
 
-        public IWebHostBuilder UseSetting(string key, string? value)
-        {
-            // GenericWebHostBuilder doesn't check null either.
-            _configuration[key] = value!;
-            return this;
-        }
-
         public IHostBuilder ConfigureServices(Action<HostBuilderContext, IServiceCollection> configureDelegate)
         {
             // HostingHostBuilderExtensions.ConfigureDefaults calls this via ConfigureLogging
             // during the initial config stage. It should be called again later on the ConfigureHostBuilder.
-            return this;
-        }
-
-        public IWebHostBuilder ConfigureServices(Action<IServiceCollection> configureServices)
-        {
-            // This should be called again later on the ConfigureWebHostBuilder.
-            return this;
-        }
-
-        public IWebHostBuilder ConfigureServices(Action<WebHostBuilderContext, IServiceCollection> configureServices)
-        {
-            // This should be called again later on the ConfigureWebHostBuilder.
             return this;
         }
 
@@ -138,11 +105,6 @@ namespace Microsoft.AspNetCore.Hosting
 
             _configuration.Update();
             _environment.ApplyConfigurationSettings(_configuration);
-        }
-
-        IWebHost IWebHostBuilder.Build()
-        {
-            throw new NotImplementedException();
         }
     }
 }

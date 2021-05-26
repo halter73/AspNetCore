@@ -180,6 +180,9 @@ namespace Microsoft.AspNetCore.Builder
         {
             _hostBuilder.ConfigureHostConfiguration(builder =>
             {
+                // TODO: Use a ChainedConfigurationSource instead.
+                // See EnvironmentSpecificLoggingConfigurationSectionPassedToLoggerByDefault in WebApplicationFuncationalTests.
+
                 // All the sources in builder.Sources should be in Configuration.Sources
                 // already thanks to the BootstrapHostBuilder.
                 builder.Sources.Clear();
@@ -197,6 +200,16 @@ namespace Microsoft.AspNetCore.Builder
 
             genericWebHostBuilder.ConfigureServices((context, services) =>
             {
+                // We've only added services configured by the GenericWebHostBuilder and WebHost.ConfigureWebDefaults
+                // at this point. HostBuilder news up a new ServiceCollection in HostBuilder.Build() we haven't seen
+                // until now, so we cannot clear these services even though some are redundant because
+                // we called ConfigureWebHostDefaults on both the _deferredHostBuilder and _hostBuilder.
+
+                // Ideally, we'd only call _hostBuilder.ConfigureWebHost(ConfigureWebHost) instead of
+                // _hostBuilder.ConfigureWebHostDefaults(ConfigureWebHost) to avoid some duplicate service descriptors,
+                // but we want to add services in the WebApplicationBuilder constructor so code can inspect
+                // WebApplicationBuilder.Services. At the same time, we want to be able which services are loaded
+                // to react to config changes (e.g. ForwardedHeadersStartupFilter).
                 foreach (var s in Services)
                 {
                     services.Add(s);

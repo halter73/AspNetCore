@@ -15,8 +15,6 @@ namespace Microsoft.AspNetCore.Builder
     /// </summary>
     public sealed class ConfigureWebHostBuilder : IWebHostBuilder
     {
-        private Action<IWebHostBuilder>? _operations;
-
         private readonly WebHostEnvironment _environment;
         private readonly Configuration _configuration;
         private readonly Dictionary<string, string?> _settings = new(StringComparer.OrdinalIgnoreCase);
@@ -76,7 +74,6 @@ namespace Microsoft.AspNetCore.Builder
         public IWebHostBuilder UseSetting(string key, string? value)
         {
             _settings[key] = value;
-            _operations += b => b.UseSetting(key, value);
 
             // All properties on IWebHostEnvironment are non-nullable.
             if (value is null)
@@ -108,7 +105,10 @@ namespace Microsoft.AspNetCore.Builder
 
         internal void ExecuteActions(IWebHostBuilder webHostBuilder)
         {
-            _operations?.Invoke(webHostBuilder);
+            foreach (var (key, value) in _settings)
+            {
+                webHostBuilder.UseSetting(key, value);
+            }
         }
     }
 }

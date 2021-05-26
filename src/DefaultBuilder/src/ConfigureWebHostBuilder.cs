@@ -37,8 +37,6 @@ namespace Microsoft.AspNetCore.Builder
             };
         }
 
-        internal bool ConfigurationEnabled { get; set; }
-
         IWebHost IWebHostBuilder.Build()
         {
             throw new NotSupportedException($"Call {nameof(WebApplicationBuilder)}.{nameof(WebApplicationBuilder.Build)}() instead.");
@@ -47,13 +45,9 @@ namespace Microsoft.AspNetCore.Builder
         /// <inheritdoc />
         public IWebHostBuilder ConfigureAppConfiguration(Action<WebHostBuilderContext, IConfigurationBuilder> configureDelegate)
         {
-            if (ConfigurationEnabled)
-            {
-                // Run these immediately so that they are observable by the imperative code
-                configureDelegate(_context, _configuration);
-                _environment.ApplyConfigurationSettings(_configuration);
-            }
-
+            // Run these immediately so that they are observable by the imperative code
+            configureDelegate(_context, _configuration);
+            _environment.ApplyConfigurationSettings(_configuration);
             return this;
         }
 

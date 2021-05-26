@@ -64,7 +64,6 @@ namespace Microsoft.AspNetCore.Builder
             // Configuration changes made by ConfigureDefaults(args) were already picked up by the BootstrapHostBuilder,
             // so we ignore changes to config until ConfigureDefaults completes.
             _deferredHostBuilder.ConfigurationEnabled = true;
-            _deferredWebHostBuilder.ConfigurationEnabled = true;
             // Now that consuming code can start modifying Configuration, we need to automatically rebuild on modification.
             // To this point, we've been manually calling Configuration.UpdateConfiguration() only when needed to reduce I/O.
             Configuration.AutoUpdate = true;

@@ -51,7 +51,6 @@ namespace Microsoft.AspNetCore.Builder
             // Add default services
             _deferredHostBuilder.ConfigureDefaults(args);
             _deferredHostBuilder.ConfigureWebHostDefaults(configure: _ => { });
-            //AspNetCore.WebHost.ConfigureWebDefaults(_deferredWebHostBuilder);
 
             // This is important because:
             // context.Properties[typeof(WebHostBuilderContext)] = webHostBuilderContext;

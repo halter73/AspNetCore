@@ -208,18 +208,6 @@ namespace Microsoft.AspNetCore.Builder
             _deferredHostBuilder.ExecuteActions(_hostBuilder);
             _deferredWebHostBuilder.ExecuteActions(genericWebHostBuilder);
 
-            genericWebHostBuilder.ConfigureAppConfiguration((context, builder) =>
-            {
-                context.HostingEnvironment.ApplicationName = _environment.ApplicationName;
-                context.HostingEnvironment.EnvironmentName = _environment.EnvironmentName;
-
-                context.HostingEnvironment.ContentRootPath = _environment.ContentRootPath;
-                context.HostingEnvironment.ContentRootFileProvider = _environment.ContentRootFileProvider;
-
-                context.HostingEnvironment.WebRootPath = _environment.WebRootPath;
-                context.HostingEnvironment.WebRootFileProvider = _environment.WebRootFileProvider;
-            });
-
             _environment.ApplyEnvironmentSettings(genericWebHostBuilder);
         }
 

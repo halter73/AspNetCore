@@ -37,6 +37,7 @@ namespace Microsoft.AspNetCore.Builder
             // the correct defaults.
             var bootstrapBuilder = new BootstrapHostBuilder(Configuration, _environment);
             bootstrapBuilder.ConfigureDefaults(args);
+            //AspNetCore.WebHost.ConfigureWebDefaults(bootstrapBuilder);
             bootstrapBuilder.ConfigureWebHostDefaults(configure: _ => { });
             bootstrapBuilder.ExecuteActions();
 
@@ -49,10 +50,21 @@ namespace Microsoft.AspNetCore.Builder
 
             // Add default services
             _deferredHostBuilder.ConfigureDefaults(args);
+            _deferredHostBuilder.ConfigureWebHostDefaults(configure: _ => { });
+            //AspNetCore.WebHost.ConfigureWebDefaults(_deferredWebHostBuilder);
+
+            // This is important because:
+            // context.Properties[typeof(WebHostBuilderContext)] = webHostBuilderContext;
+            // context.Properties[typeof(WebHostOptions)] = options;
+            foreach (var (key, value) in _deferredHostBuilder.Properties)
+            {
+                _hostBuilder.Properties[key] = value;
+            }
 
             // Configuration changes made by ConfigureDefaults(args) were already picked up by the BootstrapHostBuilder,
             // so we ignore changes to config until ConfigureDefaults completes.
             _deferredHostBuilder.ConfigurationEnabled = true;
+            _deferredWebHostBuilder.ConfigurationEnabled = true;
             // Now that consuming code can start modifying Configuration, we need to automatically rebuild on modification.
             // To this point, we've been manually calling Configuration.UpdateConfiguration() only when needed to reduce I/O.
             Configuration.AutoUpdate = true;
@@ -96,7 +108,10 @@ namespace Microsoft.AspNetCore.Builder
         /// <returns>A configured <see cref="WebApplication"/>.</returns>
         public WebApplication Build()
         {
-            _hostBuilder.ConfigureWebHostDefaults(ConfigureWebHost);
+            // We don't need to call ConfigureWebHostDefaults here because we already called ConfigureWebDefaults
+            // in the ctor on the ConfigureWebHostBuilder.
+            _hostBuilder.ConfigureWebHost(ConfigureWebHost);
+            //_hostBuilder.ConfigureWebHostDefaults(ConfigureWebHost);
             _builtApplication = new WebApplication(_hostBuilder.Build());
             return _builtApplication;
         }
@@ -163,7 +178,6 @@ namespace Microsoft.AspNetCore.Builder
             {
                 app.Properties[item.Key] = item.Value;
             }
-
         }
 
         private void ConfigureWebHost(IWebHostBuilder genericWebHostBuilder)
@@ -174,13 +188,18 @@ namespace Microsoft.AspNetCore.Builder
                 // already thanks to the BootstrapHostBuilder.
                 builder.Sources.Clear();
 
+                foreach (var (key, value) in ((IConfigurationBuilder)Configuration).Properties)
+                {
+                    builder.Properties[key] = value;
+                }
+
                 foreach (var s in ((IConfigurationBuilder)Configuration).Sources)
                 {
                     builder.Sources.Add(s);
                 }
             });
 
-            _hostBuilder.ConfigureServices((context, services) =>
+            genericWebHostBuilder.ConfigureServices((context, services) =>
             {
                 foreach (var s in Services)
                 {
@@ -192,6 +211,27 @@ namespace Microsoft.AspNetCore.Builder
 
             _deferredHostBuilder.ExecuteActions(_hostBuilder);
             _deferredWebHostBuilder.ExecuteActions(genericWebHostBuilder);
+
+            //_hostBuilder.ConfigureAppConfiguration((context, builder) =>
+            //{
+            //    context.HostingEnvironment.ApplicationName = _environment.ApplicationName;
+            //    context.HostingEnvironment.EnvironmentName = _environment.EnvironmentName;
+
+            //    context.HostingEnvironment.ContentRootPath = _environment.ContentRootPath;
+            //    context.HostingEnvironment.ContentRootFileProvider = _environment.ContentRootFileProvider;
+            //});
+
+            genericWebHostBuilder.ConfigureAppConfiguration((context, builder) =>
+            {
+                context.HostingEnvironment.ApplicationName = _environment.ApplicationName;
+                context.HostingEnvironment.EnvironmentName = _environment.EnvironmentName;
+
+                context.HostingEnvironment.ContentRootPath = _environment.ContentRootPath;
+                context.HostingEnvironment.ContentRootFileProvider = _environment.ContentRootFileProvider;
+
+                context.HostingEnvironment.WebRootPath = _environment.WebRootPath;
+                context.HostingEnvironment.WebRootFileProvider = _environment.WebRootFileProvider;
+            });
 
             _environment.ApplyEnvironmentSettings(genericWebHostBuilder);
         }

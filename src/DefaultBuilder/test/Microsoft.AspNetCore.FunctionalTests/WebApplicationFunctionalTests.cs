@@ -67,7 +67,10 @@ namespace Microsoft.AspNetCore.Tests
     }
 }");
 
-                var app = WebApplication.Create(new[] { "--environment", "Development" });
+                //var app = WebApplication.Create(new[] { "--environment", "Development" });
+                var builder = WebApplication.CreateBuilder();
+                builder.Environment.EnvironmentName = "Development";
+                await using var app = builder.Build();
 
                 var factory = (ILoggerFactory)app.Services.GetService(typeof(ILoggerFactory));
                 var logger = factory.CreateLogger("Test");

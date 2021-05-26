@@ -22,12 +22,22 @@ namespace Microsoft.AspNetCore.Builder
         private readonly Dictionary<string, string?> _settings = new(StringComparer.OrdinalIgnoreCase);
         private readonly IServiceCollection _services;
 
+        private readonly WebHostBuilderContext _context;
+
         internal ConfigureWebHostBuilder(Configuration configuration, WebHostEnvironment environment, IServiceCollection services)
         {
             _configuration = configuration;
             _environment = environment;
             _services = services;
+
+            _context = new WebHostBuilderContext
+            {
+                Configuration = _configuration,
+                HostingEnvironment = _environment
+            };
         }
+
+        internal bool ConfigurationEnabled { get; set; }
 
         IWebHost IWebHostBuilder.Build()
         {
@@ -37,19 +47,21 @@ namespace Microsoft.AspNetCore.Builder
         /// <inheritdoc />
         public IWebHostBuilder ConfigureAppConfiguration(Action<WebHostBuilderContext, IConfigurationBuilder> configureDelegate)
         {
-            _operations += b => b.ConfigureAppConfiguration(configureDelegate);
+            if (ConfigurationEnabled)
+            {
+                // Run these immediately so that they are observable by the imperative code
+                configureDelegate(_context, _configuration);
+                _environment.ApplyConfigurationSettings(_configuration);
+            }
+
             return this;
         }
 
         /// <inheritdoc />
         public IWebHostBuilder ConfigureServices(Action<WebHostBuilderContext, IServiceCollection> configureServices)
         {
-            configureServices(new WebHostBuilderContext
-            {
-                Configuration = _configuration,
-                HostingEnvironment = _environment
-            },
-            _services);
+            // Run these immediately so that they are observable by the imperative code
+            configureServices(_context, _services);
             return this;
         }
 

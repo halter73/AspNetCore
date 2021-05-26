@@ -11,23 +11,33 @@ using Microsoft.Extensions.Hosting;
 namespace Microsoft.AspNetCore.Hosting
 {
     // This exists solely to bootstrap the configuration
-    internal class BootstrapHostBuilder : IHostBuilder
+    internal class BootstrapHostBuilder : IHostBuilder, IWebHostBuilder
     {
-        private readonly HostBuilderContext _context;
         private readonly Configuration _configuration;
         private readonly WebHostEnvironment _environment;
 
-        private readonly List<Action<IConfigurationBuilder>> _configureHostActions = new List<Action<IConfigurationBuilder>>();
-        private readonly List<Action<HostBuilderContext, IConfigurationBuilder>> _configureAppActions = new List<Action<HostBuilderContext, IConfigurationBuilder>>();
+        private readonly HostBuilderContext _hostContext;
+        private readonly WebHostBuilderContext _webHostContext;
+
+        private readonly List<Action<IConfigurationBuilder>> _configureHostActions = new();
+        private readonly List<Action<HostBuilderContext, IConfigurationBuilder>> _configureAppActions = new();
+        private readonly List<Action<WebHostBuilderContext, IConfigurationBuilder>> _configureWebHostAppActions = new();
 
         public BootstrapHostBuilder(Configuration configuration, WebHostEnvironment webHostEnvironment)
         {
             _configuration = configuration;
             _environment = webHostEnvironment;
-            _context = new HostBuilderContext(Properties)
+
+            _hostContext = new HostBuilderContext(Properties)
             {
                 Configuration = configuration,
                 HostingEnvironment = webHostEnvironment
+            };
+
+            _webHostContext = new WebHostBuilderContext
+            {
+                Configuration = configuration,
+                HostingEnvironment = webHostEnvironment,
             };
         }
 
@@ -45,6 +55,12 @@ namespace Microsoft.AspNetCore.Hosting
             return this;
         }
 
+        public IWebHostBuilder ConfigureAppConfiguration(Action<WebHostBuilderContext, IConfigurationBuilder> configureDelegate)
+        {
+            _configureWebHostAppActions.Add(configureDelegate ?? throw new ArgumentNullException(nameof(configureDelegate)));
+            return this;
+        }
+
         public IHostBuilder ConfigureContainer<TContainerBuilder>(Action<HostBuilderContext, TContainerBuilder> configureDelegate)
         {
             // This is not called by HostingHostBuilderExtensions.ConfigureDefaults currently, but that could change in the future.
@@ -58,10 +74,34 @@ namespace Microsoft.AspNetCore.Hosting
             return this;
         }
 
+        public string? GetSetting(string key)
+        {
+            return _configuration[key];
+        }
+
+        public IWebHostBuilder UseSetting(string key, string? value)
+        {
+            // GenericWebHostBuilder doesn't check null either.
+            _configuration[key] = value!;
+            return this;
+        }
+
         public IHostBuilder ConfigureServices(Action<HostBuilderContext, IServiceCollection> configureDelegate)
         {
             // HostingHostBuilderExtensions.ConfigureDefaults calls this via ConfigureLogging
             // during the initial config stage. It should be called again later on the ConfigureHostBuilder.
+            return this;
+        }
+
+        public IWebHostBuilder ConfigureServices(Action<IServiceCollection> configureServices)
+        {
+            // This should be called again later on the ConfigureWebHostBuilder.
+            return this;
+        }
+
+        public IWebHostBuilder ConfigureServices(Action<WebHostBuilderContext, IServiceCollection> configureServices)
+        {
+            // This should be called again later on the ConfigureWebHostBuilder.
             return this;
         }
 
@@ -93,11 +133,16 @@ namespace Microsoft.AspNetCore.Hosting
 
             foreach (var configureAppAction in _configureAppActions)
             {
-                configureAppAction(_context, _configuration);
+                configureAppAction(_hostContext, _configuration);
             }
 
             _configuration.Update();
             _environment.ApplyConfigurationSettings(_configuration);
+        }
+
+        IWebHost IWebHostBuilder.Build()
+        {
+            throw new NotImplementedException();
         }
     }
 }

@@ -34,14 +34,8 @@ namespace Microsoft.AspNetCore.Builder
             // Make sure there's some default storage since there are no default providers.
             this.AddInMemoryCollection();
 
-            Update();
+            NotifySourcesChanged();
         }
-
-        /// <summary>
-        /// Automatically update the <see cref="IConfiguration"/> on <see cref="IConfigurationBuilder"/> changes.
-        /// If <see langword="false"/>, <see cref="Update()"/> will manually update the <see cref="IConfiguration"/>.
-        /// </summary>
-        internal bool AutoUpdate { get; set; } = true;
 
         /// <inheritdoc />
         public string this[string key] { get => _configurationRoot[key]; set => _configurationRoot[key] = value; }
@@ -58,12 +52,8 @@ namespace Microsoft.AspNetCore.Builder
 
         IEnumerable<IConfigurationProvider> IConfigurationRoot.Providers => _configurationRoot.Providers;
 
-        /// <summary>
-        /// Manually update the <see cref="IConfiguration"/> to reflect <see cref="IConfigurationBuilder"/> changes.
-        /// It is not necessary to call this if <see cref="AutoUpdate"/> is <see langword="true"/>.
-        /// </summary>
         [MemberNotNull(nameof(_configurationRoot))]
-        internal void Update()
+        private void NotifySourcesChanged()
         {
             var newConfiguration = BuildConfigurationRoot();
             var prevConfiguration = _configurationRoot;
@@ -95,14 +85,6 @@ namespace Microsoft.AspNetCore.Builder
         IChangeToken IConfiguration.GetReloadToken() => _changeToken;
 
         void IConfigurationRoot.Reload() => _configurationRoot.Reload();
-
-        private void NotifySourcesChanged()
-        {
-            if (AutoUpdate)
-            {
-                Update();
-            }
-        }
 
         private ConfigurationRoot BuildConfigurationRoot()
         {

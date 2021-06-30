@@ -95,7 +95,7 @@ namespace Microsoft.AspNetCore.Hosting
 
             // Configuration doesn't auto-update during the bootstrap phase to reduce I/O,
             // but we do need to update between host and app configuration so the right environment is used.
-            _configuration.Update();
+            _configuration.NotifySourcesChanged();
             _environment.ApplyConfigurationSettings(_configuration);
 
             foreach (var configureAppAction in _configureAppActions)
@@ -103,7 +103,7 @@ namespace Microsoft.AspNetCore.Hosting
                 configureAppAction(_hostContext, _configuration);
             }
 
-            _configuration.Update();
+            _configuration.NotifySourcesChanged();
             _environment.ApplyConfigurationSettings(_configuration);
         }
     }

@@ -57,7 +57,7 @@ namespace Microsoft.AspNetCore.Tests
 
             Assert.Null(config["TestKey"]);
 
-            config.Update();
+            config.NotifySourcesChanged();
 
             Assert.Equal("TestValue", config["TestKey"]);
         }
@@ -76,7 +76,7 @@ namespace Microsoft.AspNetCore.Tests
 
             Assert.False(manualReloadToken.HasChanged);
 
-            config.Update();
+            config.NotifySourcesChanged();
 
             Assert.True(manualReloadToken.HasChanged);
         }

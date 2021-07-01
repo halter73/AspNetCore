@@ -11,11 +11,9 @@ namespace Microsoft.AspNetCore.Tests
     public class ConfigurationTests
     {
         [Fact]
-        public void AutoUpdatesByDefault()
+        public void AutoUpdates()
         {
             var config = new Configuration();
-
-            Assert.True(config.AutoUpdate);
 
             config.AddInMemoryCollection(new Dictionary<string, string>
             {
@@ -26,7 +24,7 @@ namespace Microsoft.AspNetCore.Tests
         }
 
         [Fact]
-        public void AutoUpdateTriggersReloadTokenOnSourceModification()
+        public void TriggersReloadTokenOnSourceAddition()
         {
             var config = new Configuration();
 
@@ -42,69 +40,22 @@ namespace Microsoft.AspNetCore.Tests
             Assert.True(reloadToken.HasChanged);
         }
 
+
         [Fact]
-        public void DoesNotAutoUpdateWhenAutoUpdateDisabled()
+        public void SettingValuesWorksWithoutManuallyAddingSource()
         {
             var config = new Configuration
             {
-                AutoUpdate = false,
-            };
-
-            config.AddInMemoryCollection(new Dictionary<string, string>
-            {
-                { "TestKey", "TestValue" },
-            });
-
-            Assert.Null(config["TestKey"]);
-
-            config.NotifySourcesChanged();
-
-            Assert.Equal("TestValue", config["TestKey"]);
-        }
-
-        [Theory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public void ManualUpdateTriggersReloadTokenWithOrWithoutAutoUpdate(bool autoUpdate)
-        {
-            var config = new Configuration
-            {
-                AutoUpdate = autoUpdate,
-            };
-
-            var manualReloadToken = ((IConfiguration)config).GetReloadToken();
-
-            Assert.False(manualReloadToken.HasChanged);
-
-            config.NotifySourcesChanged();
-
-            Assert.True(manualReloadToken.HasChanged);
-        }
-
-        [Theory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public void SettingValuesWorksWithOrWithoutAutoUpdate(bool autoUpdate)
-        {
-            var config = new Configuration
-            {
-                AutoUpdate = autoUpdate,
                 ["TestKey"] = "TestValue",
             };
 
             Assert.Equal("TestValue", config["TestKey"]);
         }
 
-        [Theory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public void SettingValuesDoesNotTriggerReloadTokenWithOrWithoutAutoUpdate(bool autoUpdate)
+        [Fact]
+        public void SettingValuesDoesNotTriggerReloadTokenWithOrWithoutAutoUpdate()
         {
-            var config = new Configuration
-            {
-                AutoUpdate = autoUpdate,
-            };
-
+            var config = new Configuration();
             var reloadToken = ((IConfiguration)config).GetReloadToken();
 
             config["TestKey"] = "TestValue";
@@ -116,15 +67,10 @@ namespace Microsoft.AspNetCore.Tests
             Assert.False(reloadToken.HasChanged);
         }
 
-        [Theory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public void SettingIConfigurationBuilderPropertiesWorksWithoutAutoUpdate(bool autoUpdate)
+        [Fact]
+        public void SettingIConfigurationBuilderPropertiesWorks()
         {
-            var config = new Configuration
-            {
-                AutoUpdate = autoUpdate,
-            };
+            var config = new Configuration();
 
             var configBuilder = (IConfigurationBuilder)config;
 

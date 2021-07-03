@@ -122,6 +122,52 @@ namespace Microsoft.AspNetCore.Tests
         }
 
         [Fact]
+        public void DisposesProvidersOnRemoval()
+        {
+            var provider1 = new TestConfigurationProvider("foo", "foo-value");
+            var provider2 = new DisposableTestConfigurationProvider("bar", "bar-value");
+            var provider3 = new TestConfigurationProvider("baz", "baz-value");
+            var provider4 = new DisposableTestConfigurationProvider("qux", "qux-value");
+            var provider5 = new DisposableTestConfigurationProvider("quux", "quux-value");
+
+            var source1 = new TestConfigurationSource(provider1);
+            var source2 = new TestConfigurationSource(provider2);
+            var source3 = new TestConfigurationSource(provider3);
+            var source4 = new TestConfigurationSource(provider4);
+            var source5 = new TestConfigurationSource(provider5);
+
+            var config = new Configuration();
+            IConfigurationBuilder builder = config;
+
+            builder.Add(source1);
+            builder.Add(source2);
+            builder.Add(source3);
+            builder.Add(source4);
+            builder.Add(source5);
+
+            Assert.Equal("foo-value", config["foo"]);
+            Assert.Equal("bar-value", config["bar"]);
+            Assert.Equal("baz-value", config["baz"]);
+            Assert.Equal("qux-value", config["qux"]);
+            Assert.Equal("quux-value", config["quux"]);
+
+            builder.Sources.Remove(source2);
+            builder.Sources.Remove(source4);
+
+            // While only provider2 and provider4 need to be disposed here, we do not assert provider5 is not disposed
+            // because even though it's unnecessary, Configuration disposes all providers on removal and rebuilds
+            // all the sources. While not optimal, this should be a pretty rare scenario.
+            Assert.True(provider2.IsDisposed);
+            Assert.True(provider4.IsDisposed);
+
+            config.Dispose();
+
+            Assert.True(provider2.IsDisposed);
+            Assert.True(provider4.IsDisposed);
+            Assert.True(provider5.IsDisposed);
+        }
+
+        [Fact]
         public void DisposesChangeTokenRegistrationsOnDispose()
         {
             var changeToken = new TestChangeToken();
@@ -135,6 +181,27 @@ namespace Microsoft.AspNetCore.Tests
             Assert.NotEmpty(changeToken.Callbacks);
 
             config.Dispose();
+
+            Assert.Empty(changeToken.Callbacks);
+        }
+
+        [Fact]
+        public void DisposesChangeTokenRegistrationsOnRemoval()
+        {
+            var changeToken = new TestChangeToken();
+            var providerMock = new Mock<IConfigurationProvider>();
+            providerMock.Setup(p => p.GetReloadToken()).Returns(changeToken);
+
+            var source = new TestConfigurationSource(providerMock.Object);
+
+            var config = new Configuration();
+            IConfigurationBuilder builder = config;
+
+            builder.Add(source);
+
+            Assert.NotEmpty(changeToken.Callbacks);
+
+            builder.Sources.Remove(source);
 
             Assert.Empty(changeToken.Callbacks);
         }

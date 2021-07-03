@@ -146,6 +146,23 @@ namespace Microsoft.AspNetCore.Builder
             previousToken.OnReload();
         }
 
+        // Don't rebuild and reload all providers in the common case when a source is simply added to the IList.
+        private void NotifySourceAdded(IConfigurationSource source)
+        {
+            lock (_providerLock)
+            {
+                var provider = source.Build(this);
+                _providers.Add(provider);
+
+                provider.Load();
+                _changeTokenRegistrations.Add(ChangeToken.OnChange(() => provider.GetReloadToken(), () => RaiseChanged()));
+            }
+
+            RaiseChanged();
+        }
+
+        // Something other than Add was called on IConfigurationBuilder.Sources.
+        // This is unusual, so we don't bother optimizing it.
         private void NotifySourcesChanged()
         {
             lock (_providerLock)
@@ -170,21 +187,6 @@ namespace Microsoft.AspNetCore.Builder
             RaiseChanged();
         }
 
-
-        // Don't rebuild and reload all providers in the common case when a source is simply added to the IList.
-        private void NotifySourceAdded(IConfigurationSource source)
-        {
-            lock (_providerLock)
-            {
-                var provider = source.Build(this);
-                _providers.Add(provider);
-
-                provider.Load();
-                _changeTokenRegistrations.Add(ChangeToken.OnChange(() => provider.GetReloadToken(), () => RaiseChanged()));
-            }
-
-            RaiseChanged();
-        }
 
         private void DisposeRegistrationsAndProvidersUnsynchronized()
         {

@@ -402,7 +402,7 @@ namespace Microsoft.AspNetCore.Tests
             configurationBuilder.Add(memConfigSrc2);
             configurationBuilder.Add(memConfigSrc3);
 
-            var dict = config.GetSection("Mem2").AsEnumerable(makePathsRelative: true).ToDictionary(k => k.Key, v => v.Value);
+            var dict = config.GetSection("Mem1").AsEnumerable(makePathsRelative: true).ToDictionary(k => k.Key, v => v.Value);
             Assert.Equal(3, dict.Count);
             Assert.Equal("NoKeyValue1", dict[""]);
             Assert.Equal("ValueInMem1", dict["KeyInMem1"]);
@@ -422,7 +422,6 @@ namespace Microsoft.AspNetCore.Tests
             Assert.Equal("ValueDeep3", dict3["KeyInMem3:Deep3"]);
             Assert.Equal("ValueDeep4", dict3["KeyInMem3:Deep4"]);
         }
-
 
         [Fact]
         public void NewConfigurationProviderOverridesOldOneWhenKeyIsDuplicated()

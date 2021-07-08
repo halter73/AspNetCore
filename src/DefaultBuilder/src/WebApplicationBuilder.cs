@@ -37,6 +37,9 @@ namespace Microsoft.AspNetCore.Builder
             // the correct defaults.
             var bootstrapBuilder = new BootstrapHostBuilder(Configuration, _environment);
             bootstrapBuilder.ConfigureDefaults(args);
+
+            Configuration.AddEnvironmentVariables(prefix: "ASPNETCORE_");
+
             bootstrapBuilder.ConfigureWebHostDefaults(configure: _ => { });
             bootstrapBuilder.RunConfigurationCallbacks();
 
@@ -105,7 +108,7 @@ namespace Microsoft.AspNetCore.Builder
             // We call ConfigureWebHostDefaults AGAIN because config might be added like "ForwardedHeaders_Enabled"
             // which can add even more services. If not for that, we probably call _hostBuilder.ConfigureWebHost(ConfigureWebHost)
             // instead in order to avoid duplicate service registration.
-            _hostBuilder.ConfigureWebHostDefaults(ConfigureWebHost);
+            _hostBuilder.ConfigureWebHost(ConfigureWebHost);
             return _builtApplication = new WebApplication(_hostBuilder.Build());
         }
 

@@ -23,11 +23,7 @@ namespace Microsoft.AspNetCore.Hosting
     {
         private readonly IHostBuilder _builder;
         private readonly IConfiguration _config;
-        private object? _startupObject;
-        private readonly object _startupKey = new object();
-
-        private AggregateException? _hostingStartupErrors;
-        private HostingStartupWebHostBuilder? _hostingStartupWebHostBuilder;
+        private readonly HostingStartupContext _startupContext;
 
         public GenericWebHostBuilder(IHostBuilder builder, WebHostBuilderOptions options)
         {
@@ -41,27 +37,23 @@ namespace Microsoft.AspNetCore.Hosting
             }
 
             _config = configBuilder.Build();
+            _startupContext = new HostingStartupContext();
 
-            _builder.ConfigureHostConfiguration(config =>
-            {
-                config.AddConfiguration(_config);
+            RegisterHostingStartups();
+            AddDefaultServices();
+        }
 
-                // We do this super early but still late enough that we can process the configuration
-                // wired up by calls to UseSetting
-                ExecuteHostingStartups();
-            });
+        // This is exclusively for WebApplicationBuilder which has already captured the config and services added by the other ctor.
+        // The config should already be loaded and the captured services will be manually added to the builder.
+        internal GenericWebHostBuilder(IHostBuilder builder, IConfiguration config, HostingStartupContext startupContext)
+        {
+            _builder = builder;
+            _config = config;
+            _startupContext = startupContext;
+        }
 
-            // IHostingStartup needs to be executed before any direct methods on the builder
-            // so register these callbacks first
-            _builder.ConfigureAppConfiguration((context, configurationBuilder) =>
-            {
-                if (_hostingStartupWebHostBuilder != null)
-                {
-                    var webhostContext = GetWebHostBuilderContext(context);
-                    _hostingStartupWebHostBuilder.ConfigureAppConfiguration(webhostContext, configurationBuilder);
-                }
-            });
-
+        internal void AddDefaultServices()
+        {
             _builder.ConfigureServices((context, services) =>
             {
                 var webhostContext = GetWebHostBuilderContext(context);
@@ -79,7 +71,7 @@ namespace Microsoft.AspNetCore.Hosting
                     // Set the options
                     options.WebHostOptions = webHostOptions;
                     // Store and forward any startup errors
-                    options.HostingStartupExceptions = _hostingStartupErrors;
+                    options.HostingStartupExceptions = _startupContext.HostingStartupErrors;
                 });
 
                 // REVIEW: This is bad since we don't own this type. Anybody could add one of these and it would mess things up
@@ -94,7 +86,7 @@ namespace Microsoft.AspNetCore.Hosting
                 services.TryAddSingleton<IApplicationBuilderFactory, ApplicationBuilderFactory>();
 
                 // IMPORTANT: This needs to run *before* direct calls on the builder (like UseStartup)
-                _hostingStartupWebHostBuilder?.ConfigureServices(webhostContext, services);
+                _startupContext.HostingStartupWebHostBuilder?.ConfigureServices(webhostContext, services);
 
                 // Support UseStartup(assemblyName)
                 if (!string.IsNullOrEmpty(webHostOptions.StartupAssembly))
@@ -117,6 +109,29 @@ namespace Microsoft.AspNetCore.Hosting
                             };
                         });
                     }
+                }
+            });
+        }
+
+        internal void RegisterHostingStartups()
+        {
+            _builder.ConfigureHostConfiguration(config =>
+            {
+                config.AddConfiguration(_config);
+
+                // We do this super early but still late enough that we can process the configuration
+                // wired up by calls to UseSetting
+                ExecuteHostingStartups();
+            });
+
+            // IHostingStartup needs to be executed before any direct methods on the builder
+            // so register these callbacks first
+            _builder.ConfigureAppConfiguration((context, configurationBuilder) =>
+            {
+                if (_startupContext.HostingStartupWebHostBuilder != null)
+                {
+                    var webhostContext = GetWebHostBuilderContext(context);
+                    _startupContext.HostingStartupWebHostBuilder.ConfigureAppConfiguration(webhostContext, configurationBuilder);
                 }
             });
         }
@@ -163,6 +178,7 @@ namespace Microsoft.AspNetCore.Hosting
 
             if (exceptions.Count > 0)
             {
+                // TODO: Make this work.
                 _hostingStartupErrors = new AggregateException(exceptions);
             }
         }

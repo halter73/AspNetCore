@@ -47,5 +47,7 @@ namespace Microsoft.Extensions.Hosting
             builder.ConfigureServices((context, services) => services.AddHostedService<GenericWebHostService>());
             return builder;
         }
+
+        internal static void ConfigureEmptyWebHost(this IHostBuilder)
     }
 }

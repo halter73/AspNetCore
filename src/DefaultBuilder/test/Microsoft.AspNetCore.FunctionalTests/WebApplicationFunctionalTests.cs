@@ -97,6 +97,5 @@ namespace Microsoft.AspNetCore.Tests
                 File.Delete("appsettings.json");
             }
         }
-
     }
 }

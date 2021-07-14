@@ -101,6 +101,7 @@ namespace Microsoft.AspNetCore.Builder
                 var targetValue = string.IsNullOrEmpty(value)
                     ? Directory.GetCurrentDirectory()
                     : ResolvePathToRoot(value, AppContext.BaseDirectory);
+
                 if (targetValue == _contentRootPath)
                 {
                     return;
@@ -113,6 +114,7 @@ namespace Microsoft.AspNetCore.Builder
                 {
                     _contentRootFileProvider = new PhysicalFileProvider(_contentRootPath);
                 }
+
                 if (Directory.Exists(WebRootPath))
                 {
                     _webRootFileProvider = new PhysicalFileProvider(WebRootPath);

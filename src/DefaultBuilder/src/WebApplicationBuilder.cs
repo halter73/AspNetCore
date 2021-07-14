@@ -18,9 +18,13 @@ namespace Microsoft.AspNetCore.Builder
     public sealed class WebApplicationBuilder
     {
         private readonly HostBuilder _hostBuilder = new();
+        private readonly GenericWebHostStartupContext _startupContext = new();
+
         private readonly ConfigureHostBuilder _deferredHostBuilder;
         private readonly ConfigureWebHostBuilder _deferredWebHostBuilder;
+
         private readonly WebHostEnvironment _environment;
+
         private WebApplication? _builtApplication;
 
         internal WebApplicationBuilder(Assembly? callingAssembly, string[]? args = null)

@@ -48,6 +48,7 @@ namespace Microsoft.Extensions.Hosting
             return builder;
         }
 
-        internal static void ConfigureEmptyWebHost(this IHostBuilder)
+        //public static void AddDefaultServices(IHostBuilder builder, Generi)
+        //internal static void ConfigureEmptyWebHost(this IHostBuilder)
     }
 }

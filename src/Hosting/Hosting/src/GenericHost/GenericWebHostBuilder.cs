@@ -23,7 +23,7 @@ namespace Microsoft.AspNetCore.Hosting
     {
         private readonly IHostBuilder _builder;
         private readonly IConfiguration _config;
-        private readonly HostingStartupContext _startupContext;
+        private readonly GenericWebHostStartupContext _startupContext;
 
         public GenericWebHostBuilder(IHostBuilder builder, WebHostBuilderOptions options)
         {
@@ -37,7 +37,7 @@ namespace Microsoft.AspNetCore.Hosting
             }
 
             _config = configBuilder.Build();
-            _startupContext = new HostingStartupContext();
+            _startupContext = new GenericWebHostStartupContext();
 
             RegisterHostingStartups();
             AddDefaultServices();
@@ -45,12 +45,14 @@ namespace Microsoft.AspNetCore.Hosting
 
         // This is exclusively for WebApplicationBuilder which has already captured the config and services added by the other ctor.
         // The config should already be loaded and the captured services will be manually added to the builder.
-        internal GenericWebHostBuilder(IHostBuilder builder, IConfiguration config, HostingStartupContext startupContext)
+        internal GenericWebHostBuilder(IHostBuilder builder, IConfiguration config, GenericWebHostStartupContext startupContext)
         {
             _builder = builder;
             _config = config;
             _startupContext = startupContext;
         }
+
+        internal void AddStatel
 
         internal void AddDefaultServices()
         {
@@ -71,7 +73,7 @@ namespace Microsoft.AspNetCore.Hosting
                     // Set the options
                     options.WebHostOptions = webHostOptions;
                     // Store and forward any startup errors
-                    options.HostingStartupExceptions = _startupContext.HostingStartupErrors;
+                    options.HostingStartupExceptions = _startupContext.Errors;
                 });
 
                 // REVIEW: This is bad since we don't own this type. Anybody could add one of these and it would mess things up
@@ -86,7 +88,8 @@ namespace Microsoft.AspNetCore.Hosting
                 services.TryAddSingleton<IApplicationBuilderFactory, ApplicationBuilderFactory>();
 
                 // IMPORTANT: This needs to run *before* direct calls on the builder (like UseStartup)
-                _startupContext.HostingStartupWebHostBuilder?.ConfigureServices(webhostContext, services);
+                var
+                _startupContext.WebHostBuilder?.ConfigureServices(webhostContext, services);
 
                 // Support UseStartup(assemblyName)
                 if (!string.IsNullOrEmpty(webHostOptions.StartupAssembly))
@@ -128,10 +131,10 @@ namespace Microsoft.AspNetCore.Hosting
             // so register these callbacks first
             _builder.ConfigureAppConfiguration((context, configurationBuilder) =>
             {
-                if (_startupContext.HostingStartupWebHostBuilder != null)
+                if (_startupContext.WebHostBuilder != null)
                 {
                     var webhostContext = GetWebHostBuilderContext(context);
-                    _startupContext.HostingStartupWebHostBuilder.ConfigureAppConfiguration(webhostContext, configurationBuilder);
+                    _startupContext.WebHostBuilder.ConfigureAppConfiguration(webhostContext, configurationBuilder);
                 }
             });
         }
@@ -148,7 +151,7 @@ namespace Microsoft.AspNetCore.Hosting
             var exceptions = new List<Exception>();
             var processed = new HashSet<Assembly>();
 
-            _hostingStartupWebHostBuilder = new HostingStartupWebHostBuilder(this);
+            _startupContext.WebHostBuilder = new HostingStartupWebHostBuilder(this);
 
             // Execute the hosting startup assemblies
             foreach (var assemblyName in webHostOptions.GetFinalHostingStartupAssemblies())
@@ -166,7 +169,7 @@ namespace Microsoft.AspNetCore.Hosting
                     foreach (var attribute in assembly.GetCustomAttributes<HostingStartupAttribute>())
                     {
                         var hostingStartup = (IHostingStartup)Activator.CreateInstance(attribute.HostingStartupType)!;
-                        hostingStartup.Configure(_hostingStartupWebHostBuilder);
+                        hostingStartup.Configure(_startupContext.WebHostBuilder);
                     }
                 }
                 catch (Exception ex)
@@ -178,8 +181,7 @@ namespace Microsoft.AspNetCore.Hosting
 
             if (exceptions.Count > 0)
             {
-                // TODO: Make this work.
-                _hostingStartupErrors = new AggregateException(exceptions);
+                _startupContext.Errors = new AggregateException(exceptions);
             }
         }
 
@@ -231,12 +233,12 @@ namespace Microsoft.AspNetCore.Hosting
         public IWebHostBuilder UseStartup([DynamicallyAccessedMembers(StartupLinkerOptions.Accessibility)] Type startupType)
         {
             // UseStartup can be called multiple times. Only run the last one.
-            _startupObject = startupType;
+            _startupContext.Object = startupType;
 
             _builder.ConfigureServices((context, services) =>
             {
                 // Run this delegate if the startup type matches
-                if (object.ReferenceEquals(_startupObject, startupType))
+                if (object.ReferenceEquals(_startupContext.Object, startupType))
                 {
                     UseStartup(startupType, context, services);
                 }
@@ -248,12 +250,12 @@ namespace Microsoft.AspNetCore.Hosting
         public IWebHostBuilder UseStartup<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods)]TStartup>(Func<WebHostBuilderContext, TStartup> startupFactory)
         {
             // Clear the startup type
-            _startupObject = startupFactory;
+            _startupContext.Object = startupFactory;
 
             _builder.ConfigureServices((context, services) =>
             {
                 // UseStartup can be called multiple times. Only run the last one.
-                if (object.ReferenceEquals(_startupObject, startupFactory))
+                if (object.ReferenceEquals(_startupContext.Object, startupFactory))
                 {
                     var webHostBuilderContext = GetWebHostBuilderContext(context);
                     var instance = startupFactory(webHostBuilderContext) ?? throw new InvalidOperationException("The specified factory returned null startup instance.");
@@ -286,7 +288,7 @@ namespace Microsoft.AspNetCore.Hosting
                 }
 
                 instance ??= ActivatorUtilities.CreateInstance(new HostServiceProvider(webHostBuilderContext), startupType);
-                context.Properties[_startupKey] = instance;
+                context.Properties[_startupContext.Key] = instance;
 
                 // Startup.ConfigureServices
                 var configureServicesBuilder = StartupLoader.FindConfigureServicesDelegate(startupType, context.HostingEnvironment.EnvironmentName);
@@ -343,7 +345,7 @@ namespace Microsoft.AspNetCore.Hosting
 
         private void ConfigureContainerImpl<TContainer>(HostBuilderContext context, TContainer container) where TContainer : notnull
         {
-            var instance = context.Properties[_startupKey];
+            var instance = context.Properties[_startupContext.Key];
             var builder = (ConfigureContainerBuilder)context.Properties[typeof(ConfigureContainerBuilder)];
             builder.Build(instance)(container);
         }
@@ -351,11 +353,11 @@ namespace Microsoft.AspNetCore.Hosting
         public IWebHostBuilder Configure(Action<WebHostBuilderContext, IApplicationBuilder> configure)
         {
             // Clear the startup type
-            _startupObject = configure;
+            _startupContext.Object = configure;
 
             _builder.ConfigureServices((context, services) =>
             {
-                if (object.ReferenceEquals(_startupObject, configure))
+                if (object.ReferenceEquals(_startupContext.Object, configure))
                 {
                     services.Configure<GenericWebHostServiceOptions>(options =>
                     {

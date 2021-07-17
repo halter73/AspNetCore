@@ -13,6 +13,9 @@
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
     <AnalysisLevel>latest</AnalysisLevel>
     <AnalysisMode>Default</AnalysisMode>
+    <RunAnalyzersDuringBuild>false</RunAnalyzersDuringBuild>
+    <!--<RunAnalyzersDuringLiveAnalysis>false</RunAnalyzersDuringLiveAnalysis>-->
+    <!--<RunAnalyzers>false</RunAnalyzers>-->
   </PropertyGroup>
 
   <!-- Defines project type conventions. -->

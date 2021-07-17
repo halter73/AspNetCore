@@ -4,6 +4,7 @@
 using System.Diagnostics;
 using System.Reflection;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -157,7 +158,11 @@ namespace Microsoft.AspNetCore.Builder
                     _builtApplication.UseEndpoints(_ => { });
 
                     // Wire the source pipeline to run in the destination pipeline
-                    app.Run(_builtApplication.BuildRequestDelegate());
+                    app.Use(next =>
+                    {
+                        _builtApplication.Run(next);
+                        return _builtApplication.BuildRequestDelegate();
+                    });
                 }
             }
             else
@@ -213,6 +218,25 @@ namespace Microsoft.AspNetCore.Builder
             _deferredWebHostBuilder.ApplySettings(genericWebHostBuilder);
 
             _environment.ApplyEnvironmentSettings(genericWebHostBuilder);
+        }
+
+        private static Task NotFoundTerminalMiddleware(HttpContext context)
+        {
+            // If we reach the end of the pipeline, but we have an endpoint, then something unexpected has happened.
+            // This could happen if user code sets an endpoint, but they forgot to add the UseEndpoint middleware.
+            var endpoint = context.GetEndpoint();
+            var endpointRequestDelegate = endpoint?.RequestDelegate;
+            if (endpointRequestDelegate != null)
+            {
+                var message =
+                    $"The request reached the end of the pipeline without executing the endpoint: '{endpoint!.DisplayName}'. " +
+                    $"Please register the EndpointMiddleware using '{nameof(IApplicationBuilder)}.UseEndpoints(...)' if using " +
+                    $"routing.";
+                throw new InvalidOperationException(message);
+            }
+
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
+            return Task.CompletedTask;
         }
 
         private class LoggingBuilder : ILoggingBuilder

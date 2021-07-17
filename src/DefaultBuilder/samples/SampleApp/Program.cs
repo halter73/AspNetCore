@@ -19,7 +19,12 @@ namespace SampleApp
             var app = WebApplication.Create(args);
 
             app.UseStaticFiles();
+
+            app.UseRouting();
+
             app.MapGet("/", (Func<string>)(() => "Hello, World!"));
+
+            //app.UseEndpoints(_ => { });
 
             app.Run();
         }

@@ -124,44 +124,34 @@ namespace Microsoft.AspNetCore.Builder
                 // destination.UseRouting()
                 // destination.Run(source)
                 // destination.UseEndpoints()
-                if (_builtApplication.RouteBuilder == null)
+
+                var targetRouteBuilder = _builtApplication.RouteBuilder;
+
+                if (targetRouteBuilder is null)
                 {
                     app.UseRouting();
 
                     // Copy the route data sources over to the destination pipeline, this should be available since we just called
                     // UseRouting()
-                    var routes = (IEndpointRouteBuilder)app.Properties[WebApplication.EndpointRouteBuilder]!;
-
-                    foreach (var ds in _builtApplication.DataSources)
-                    {
-                        routes.DataSources.Add(ds);
-                    }
-
-                    // Chain the execution of the source pipeline into the destination pipeline
-                    app.Use(next =>
-                    {
-                        _builtApplication.Run(next);
-                        return _builtApplication.BuildRequestDelegate();
-                    });
-
-                    // Add a UseEndpoints at the end
-                    app.UseEndpoints(e => { });
+                    targetRouteBuilder = (IEndpointRouteBuilder)app.Properties[WebApplication.EndpointRouteBuilder]!;
                 }
-                else
+
+                // Since we register routes into the source pipeline's route builder directly,
+                // we need to copy the data sources
+                foreach (var ds in _builtApplication.DataSources)
                 {
-                    // Since we register routes into the source pipeline's route builder directly,
-                    // if the user called UseRouting, we need to copy the data sources
-                    foreach (var ds in _builtApplication.DataSources)
-                    {
-                        _builtApplication.RouteBuilder.DataSources.Add(ds);
-                    }
-
-                    // We then implicitly call UseEndpoints at the end of the pipeline
-                    _builtApplication.UseEndpoints(_ => { });
-
-                    // Wire the source pipeline to run in the destination pipeline
-                    app.Run(_builtApplication.BuildRequestDelegate());
+                    targetRouteBuilder.DataSources.Add(ds);
                 }
+
+                // We then implicitly call UseEndpoints at the end of the pipeline
+                _builtApplication.UseEndpoints(_ => { });
+
+                // Wire the source pipeline to run in the destination pipeline
+                app.Use(next =>
+                {
+                    _builtApplication.Run(next);
+                    return _builtApplication.BuildRequestDelegate();
+                });
             }
             else
             {

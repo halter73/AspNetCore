@@ -13,7 +13,7 @@ namespace Microsoft.AspNetCore.Builder
     /// A non-buildable <see cref="IWebHostBuilder"/> for <see cref="WebApplicationBuilder"/>.
     /// Use <see cref="WebApplicationBuilder.Build"/> to build the <see cref="WebApplicationBuilder"/>.
     /// </summary>
-    public sealed class ConfigureWebHostBuilder : IWebHostBuilder
+    public sealed class ConfigureWebHostBuilder : IWebHostBuilder, IRejectStartup
     {
         private readonly IWebHostEnvironment _environment;
         private readonly ConfigurationManager _configuration;

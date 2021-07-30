@@ -3,7 +3,6 @@
 
 #nullable enable
 
-using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Microsoft.AspNetCore.Builder;
@@ -46,9 +45,14 @@ namespace Microsoft.AspNetCore.Hosting
 
         private static IWebHostBuilder Configure(this IWebHostBuilder hostBuilder, Action<WebHostBuilderContext, IApplicationBuilder> configureApp, string startupAssemblyName)
         {
-            if (configureApp == null)
+            if (configureApp is null)
             {
                 throw new ArgumentNullException(nameof(configureApp));
+            }
+
+            if (hostBuilder is IRejectStartup)
+            {
+                throw new NotSupportedException("This IWebHostBuilder does not support UseStartup.");
             }
 
             hostBuilder.UseSetting(WebHostDefaults.ApplicationKey, startupAssemblyName);
@@ -77,9 +81,14 @@ namespace Microsoft.AspNetCore.Hosting
         /// <remarks>When using the il linker, all public methods of <typeparamref name="TStartup"/> are preserved. This should match the Startup type directly (and not a base type).</remarks>
         public static IWebHostBuilder UseStartup<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods)]TStartup>(this IWebHostBuilder hostBuilder, Func<WebHostBuilderContext, TStartup> startupFactory) where TStartup : class
         {
-            if (startupFactory == null)
+            if (startupFactory is null)
             {
                 throw new ArgumentNullException(nameof(startupFactory));
+            }
+
+            if (hostBuilder is IRejectStartup)
+            {
+                throw new NotSupportedException("This IWebHostBuilder does not support UseStartup.");
             }
 
             var startupAssemblyName = startupFactory.GetMethodInfo().DeclaringType!.Assembly.GetName().Name;
@@ -120,9 +129,14 @@ namespace Microsoft.AspNetCore.Hosting
         /// <returns>The <see cref="IWebHostBuilder"/>.</returns>
         public static IWebHostBuilder UseStartup(this IWebHostBuilder hostBuilder, [DynamicallyAccessedMembers(StartupLinkerOptions.Accessibility)] Type startupType)
         {
-            if (startupType == null)
+            if (startupType is null)
             {
                 throw new ArgumentNullException(nameof(startupType));
+            }
+
+            if (hostBuilder is IRejectStartup)
+            {
+                throw new NotSupportedException("This IWebHostBuilder does not support UseStartup.");
             }
 
             var startupAssemblyName = startupType.Assembly.GetName().Name;

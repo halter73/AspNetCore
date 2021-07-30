@@ -12,7 +12,7 @@ namespace Microsoft.AspNetCore.Builder
     /// A non-buildable <see cref="IHostBuilder"/> for <see cref="WebApplicationBuilder"/>.
     /// Use <see cref="WebApplicationBuilder.Build"/> to build the <see cref="WebApplicationBuilder"/>.
     /// </summary>
-    public sealed class ConfigureHostBuilder : IHostBuilder
+    public sealed class ConfigureHostBuilder : IHostBuilder, IRejectStartup
     {
         private readonly ConfigurationManager _configuration;
         private readonly IWebHostEnvironment _environment;
@@ -82,17 +82,17 @@ namespace Microsoft.AspNetCore.Builder
             // and done other things based on environment name, application name or content root.
             if (!string.Equals(previousApplicationName, _configuration[HostDefaults.ApplicationKey], StringComparison.OrdinalIgnoreCase))
             {
-                throw new NotSupportedException("The application name changed. Changing the host configuration is not supported");
+                throw new NotSupportedException("The application name changed. Changing the host configuration is not supported.");
             }
 
             if (!string.Equals(previousContentRoot, _configuration[HostDefaults.ContentRootKey], StringComparison.OrdinalIgnoreCase))
             {
-                throw new NotSupportedException("The content root changed. Changing the host configuration is not supported");
+                throw new NotSupportedException("The content root changed. Changing the host configuration is not supported.");
             }
 
             if (!string.Equals(previousEnvironment, _configuration[HostDefaults.EnvironmentKey], StringComparison.OrdinalIgnoreCase))
             {
-                throw new NotSupportedException("The environment changed. Changing the host configuration is not supported");
+                throw new NotSupportedException("The environment changed. Changing the host configuration is not supported.");
             }
 
             return this;

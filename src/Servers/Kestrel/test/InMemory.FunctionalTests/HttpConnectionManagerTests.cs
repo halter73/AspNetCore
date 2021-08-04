@@ -1,15 +1,11 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System;
-using System.Diagnostics;
-using System.Threading;
-using System.Threading.Tasks;
+using System.Runtime.CompilerServices;
 using Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Infrastructure;
 using Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests.TestTransport;
 using Microsoft.AspNetCore.Testing;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Testing;
 using Moq;
 using Xunit;
 
@@ -20,14 +16,8 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
         // This test causes MemoryPoolBlocks to be finalized which in turn causes an assert failure in debug builds.
 #if !DEBUG
         [ConditionalFact]
-        [NoDebuggerCondition]
         public async Task CriticalErrorLoggedIfApplicationDoesntComplete()
         {
-            ////////////////////////////////////////////////////////////////////////////////////////
-            // WARNING: This test will fail under a debugger because Task.s_currentActiveTasks    //
-            //          roots HttpConnection.                                                     //
-            ////////////////////////////////////////////////////////////////////////////////////////
-
             var logWh = new SemaphoreSlim(0);
             var appStartedWh = new SemaphoreSlim(0);
 
@@ -42,11 +32,10 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
             var testContext = new TestServiceContext(new LoggerFactory(), mockTrace.Object);
             testContext.InitializeHeartbeat();
 
-            await using (var server = new TestServer(context =>
+            await using (var server = new TestServer(async context =>
                 {
                     appStartedWh.Release();
-                    var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-                    return tcs.Task;
+                    await new NeverCompleteAwaitable();
                 },
                 testContext))
             {
@@ -72,10 +61,26 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
         }
 #endif
 
-        private class NoDebuggerConditionAttribute : Attribute, ITestCondition
+        //////////////////////////////////////////////////////////////////////////////////////////
+        // WARNING: Use a custom awaitable instead of a TaskCompletionSource because            //
+        //          Task.s_currentActiveTasks roots HttpConnection under a debugger with a TCS. //
+        //////////////////////////////////////////////////////////////////////////////////////////
+        internal class NeverCompleteAwaitable : ICriticalNotifyCompletion
         {
-            public bool IsMet => !Debugger.IsAttached;
-            public string SkipReason => "A debugger is attached.";
+            public NeverCompleteAwaitable GetAwaiter() => this;
+            public bool IsCompleted => false;
+
+            public void GetResult()
+            {
+            }
+
+            public void OnCompleted(Action continuation)
+            {
+            }
+
+            public void UnsafeOnCompleted(Action continuation)
+            {
+            }
         }
     }
 }

@@ -438,7 +438,13 @@ namespace Microsoft.AspNetCore.SignalR.Tests
         }
     }
 
-    public class HubT : Hub<Test>
+    public class HubTBase<T> : Hub<T>
+        where T : class, Test
+    {
+
+    }
+
+    public class HubT : HubTBase<Test>
     {
         public override Task OnConnectedAsync()
         {
@@ -524,10 +530,18 @@ namespace Microsoft.AspNetCore.SignalR.Tests
         }
     }
 
+    public class HubTDerived : HubTBase<TestDerived>
+    {
+    }
+
     public interface Test
     {
         Task Send(string message);
         Task Broadcast(string message);
+    }
+
+    public interface TestDerived : Test
+    {
     }
 
     public class OnConnectedThrowsHub : Hub

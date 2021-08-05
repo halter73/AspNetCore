@@ -1,7 +1,5 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
-
-using System.Collections.Generic;
 
 namespace Microsoft.AspNetCore.SignalR
 {
@@ -9,7 +7,7 @@ namespace Microsoft.AspNetCore.SignalR
     /// An abstraction that provides access to client connections.
     /// </summary>
     /// <typeparam name="T">The client invoker type.</typeparam>
-    public interface IHubClients<T>
+    public interface IHubClients<out T>
     {
         /// <summary>
         /// Gets a <typeparamref name="T" /> that can be used to invoke methods on all clients connected to the hub.

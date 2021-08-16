@@ -18,9 +18,9 @@ namespace Microsoft.AspNetCore.Http
         /// Adds the <see cref="IExcludeFromDescriptionMetadata"/> to <see cref="EndpointBuilder.Metadata"/> for all builders
         /// produced by <paramref name="builder"/>.
         /// </summary>
-        /// <param name="builder">The <see cref="MinimalActionEndpointConventionBuilder"/>.</param>
-        /// <returns>A <see cref="MinimalActionEndpointConventionBuilder"/> that can be used to further customize the endpoint.</returns>
-        public static MinimalActionEndpointConventionBuilder ExcludeFromDescription(this MinimalActionEndpointConventionBuilder builder)
+        /// <param name="builder">The endpoint convention builder.</param>
+        /// <returns>The original convention builder parameter.</returns>
+        public static TBuilder ExcludeFromDescription<TBuilder>(this TBuilder builder) where TBuilder : IEndpointConventionBuilder
         {
             builder.WithMetadata(_excludeFromDescriptionMetadataAttribute);
 
@@ -31,18 +31,19 @@ namespace Microsoft.AspNetCore.Http
         /// Adds the <see cref="ProducesResponseTypeAttribute"/> to <see cref="EndpointBuilder.Metadata"/> for all builders
         /// produced by <paramref name="builder"/>.
         /// </summary>
+        /// <typeparam name="TBuilder">The concrete type of the <see cref="IEndpointConventionBuilder"/>.</typeparam>
         /// <typeparam name="TResponse">The type of the response.</typeparam>
-        /// <param name="builder">The <see cref="MinimalActionEndpointConventionBuilder"/>.</param>
+        /// <param name="builder">The endpoint convention builder.</param>
         /// <param name="statusCode">The response status code. Defaults to StatusCodes.Status200OK.</param>
         /// <param name="contentType">The response content type. Defaults to "application/json".</param>
         /// <param name="additionalContentTypes">Additional response content types the endpoint produces for the supplied status code.</param>
-        /// <returns>A <see cref="MinimalActionEndpointConventionBuilder"/> that can be used to further customize the endpoint.</returns>
+        /// <returns>The original convention builder parameter.</returns>
 #pragma warning disable RS0026
-        public static MinimalActionEndpointConventionBuilder Produces<TResponse>(this MinimalActionEndpointConventionBuilder builder,
+        public static TBuilder Produces<TBuilder, TResponse>(this TBuilder builder,
 #pragma warning restore RS0026
             int statusCode = StatusCodes.Status200OK,
             string? contentType =  null,
-            params string[] additionalContentTypes)
+            params string[] additionalContentTypes) where TBuilder : IEndpointConventionBuilder
         {
             return Produces(builder, statusCode, typeof(TResponse), contentType, additionalContentTypes);
         }
@@ -51,19 +52,19 @@ namespace Microsoft.AspNetCore.Http
         /// Adds the <see cref="ProducesResponseTypeAttribute"/> to <see cref="EndpointBuilder.Metadata"/> for all builders
         /// produced by <paramref name="builder"/>.
         /// </summary>
-        /// <param name="builder">The <see cref="MinimalActionEndpointConventionBuilder"/>.</param>
+        /// <param name="builder">The endpoint convention builder.</param>
         /// <param name="statusCode">The response status code.</param>
         /// <param name="responseType">The type of the response. Defaults to null.</param>
         /// <param name="contentType">The response content type. Defaults to "application/json" if responseType is not null, otherwise defaults to null.</param>
         /// <param name="additionalContentTypes">Additional response content types the endpoint produces for the supplied status code.</param>
-        /// <returns>A <see cref="MinimalActionEndpointConventionBuilder"/> that can be used to further customize the endpoint.</returns>
+        /// <returns>The original convention builder parameter.</returns>
 #pragma warning disable RS0026
-        public static MinimalActionEndpointConventionBuilder Produces(this MinimalActionEndpointConventionBuilder builder,
+        public static TBuilder Produces<TBuilder>(this TBuilder builder,
 #pragma warning restore RS0026
             int statusCode,
             Type? responseType = null,
             string? contentType = null,
-            params string[] additionalContentTypes)
+            params string[] additionalContentTypes) where TBuilder : IEndpointConventionBuilder
         {
             if (responseType is Type && string.IsNullOrEmpty(contentType))
             {
@@ -85,40 +86,40 @@ namespace Microsoft.AspNetCore.Http
         /// Adds the <see cref="ProducesResponseTypeAttribute"/> with a <see cref="ProblemDetails"/> type
         /// to <see cref="EndpointBuilder.Metadata"/> for all builders produced by <paramref name="builder"/>.
         /// </summary>
-        /// <param name="builder">The <see cref="MinimalActionEndpointConventionBuilder"/>.</param>
+        /// <param name="builder">The endpoint convention builder.</param>
         /// <param name="statusCode">The response status code.</param>
         /// <param name="contentType">The response content type. Defaults to "application/problem+json".</param>
-        /// <returns>A <see cref="MinimalActionEndpointConventionBuilder"/> that can be used to further customize the endpoint.</returns>
-        public static MinimalActionEndpointConventionBuilder ProducesProblem(this MinimalActionEndpointConventionBuilder builder,
+        /// <returns>The original convention builder parameter.</returns>
+        public static TBuilder ProducesProblem<TBuilder>(this TBuilder builder,
             int statusCode,
-            string? contentType = null)
+            string? contentType = null) where TBuilder : IEndpointConventionBuilder
         {
             if (string.IsNullOrEmpty(contentType))
             {
                 contentType = "application/problem+json";
             }
 
-            return Produces<ProblemDetails>(builder, statusCode, contentType);
+            return Produces<TBuilder, ProblemDetails>(builder, statusCode, contentType);
         }
 
         /// <summary>
         /// Adds the <see cref="ProducesResponseTypeAttribute"/> with a <see cref="HttpValidationProblemDetails"/> type
         /// to <see cref="EndpointBuilder.Metadata"/> for all builders produced by <paramref name="builder"/>.
         /// </summary>
-        /// <param name="builder">The <see cref="MinimalActionEndpointConventionBuilder"/>.</param>
+        /// <param name="builder">The endpoint convention builder.</param>
         /// <param name="statusCode">The response status code. Defaults to StatusCodes.Status400BadRequest.</param>
         /// <param name="contentType">The response content type. Defaults to "application/validationproblem+json".</param>
-        /// <returns>A <see cref="MinimalActionEndpointConventionBuilder"/> that can be used to further customize the endpoint.</returns>
-        public static MinimalActionEndpointConventionBuilder ProducesValidationProblem(this MinimalActionEndpointConventionBuilder builder,
+        /// <returns>The original convention builder parameter.</returns>
+        public static TBuilder ProducesValidationProblem<TBuilder>(this TBuilder builder,
             int statusCode = StatusCodes.Status400BadRequest,
-            string? contentType = null)
+            string? contentType = null) where TBuilder : IEndpointConventionBuilder
         {
             if (string.IsNullOrEmpty(contentType))
             {
                 contentType = "application/validationproblem+json";
             }
 
-            return Produces<HttpValidationProblemDetails>(builder, statusCode, contentType);
+            return Produces<TBuilder, HttpValidationProblemDetails>(builder, statusCode, contentType);
         }
     }
 }

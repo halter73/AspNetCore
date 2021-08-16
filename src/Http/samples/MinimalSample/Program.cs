@@ -4,6 +4,7 @@
 using System;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.DependencyInjection;
 
 var app = WebApplication.Create(args);
 
@@ -11,6 +12,8 @@ if (app.Environment.IsDevelopment())
 {
     app.UseDeveloperExceptionPage();
 }
+
+app.AddEndpointsApiExplorer();
 
 string Plaintext() => "Hello, World!";
 app.MapGet("/plaintext", (Func<string>)Plaintext);

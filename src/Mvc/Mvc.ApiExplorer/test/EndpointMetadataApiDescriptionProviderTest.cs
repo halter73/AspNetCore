@@ -67,7 +67,7 @@ namespace Microsoft.AspNetCore.Mvc.ApiExplorer
             }
 
             AssertJsonRequestFormat(GetApiDescription(
-                (InferredJsonClass fromBody) => { }));
+                (Todo fromBody) => { }));
 
             AssertJsonRequestFormat(GetApiDescription(
                 ([FromBody] int fromBody) => { }));
@@ -85,7 +85,7 @@ namespace Microsoft.AspNetCore.Mvc.ApiExplorer
 
             AssertCustomRequestFormat(GetApiDescription(
                 [Consumes("application/custom")]
-            (InferredJsonClass fromBody) =>
+            (Todo fromBody) =>
                 { }));
 
             AssertCustomRequestFormat(GetApiDescription(
@@ -99,7 +99,7 @@ namespace Microsoft.AspNetCore.Mvc.ApiExplorer
         {
             var apiDescription = GetApiDescription(
                 [Consumes("application/custom0", "application/custom1")]
-            (InferredJsonClass fromBody) =>
+            (Todo fromBody) =>
                 { });
 
             Assert.Equal(2, apiDescription.SupportedRequestFormats.Count);
@@ -128,7 +128,7 @@ namespace Microsoft.AspNetCore.Mvc.ApiExplorer
                 Assert.Null(responseFormat.Formatter);
             }
 
-            AssertJsonResponse(GetApiDescription(() => new InferredJsonClass()), typeof(InferredJsonClass));
+            AssertJsonResponse(GetApiDescription(() => new Todo()), typeof(Todo));
             AssertJsonResponse(GetApiDescription(() => (IInferredJsonInterface)null), typeof(IInferredJsonInterface));
         }
 
@@ -171,7 +171,7 @@ namespace Microsoft.AspNetCore.Mvc.ApiExplorer
             var apiDescription = GetApiDescription(
                 [ProducesResponseType(typeof(TimeSpan), StatusCodes.Status201Created)]
             [Produces("application/custom")]
-            () => new InferredJsonClass());
+            () => new Todo());
 
             var responseType = Assert.Single(apiDescription.SupportedResponseTypes);
 
@@ -189,7 +189,7 @@ namespace Microsoft.AspNetCore.Mvc.ApiExplorer
             var apiDescription = GetApiDescription(
                 [ProducesResponseType(typeof(TimeSpan), StatusCodes.Status201Created)]
             [ProducesResponseType(StatusCodes.Status400BadRequest)]
-            () => new InferredJsonClass());
+            () => new Todo());
 
             Assert.Equal(2, apiDescription.SupportedResponseTypes.Count);
 
@@ -205,8 +205,8 @@ namespace Microsoft.AspNetCore.Mvc.ApiExplorer
             var badRequestResponseType = apiDescription.SupportedResponseTypes[1];
 
             Assert.Equal(400, badRequestResponseType.StatusCode);
-            Assert.Equal(typeof(InferredJsonClass), badRequestResponseType.Type);
-            Assert.Equal(typeof(InferredJsonClass), badRequestResponseType.ModelMetadata.ModelType);
+            Assert.Equal(typeof(Todo), badRequestResponseType.Type);
+            Assert.Equal(typeof(Todo), badRequestResponseType.ModelMetadata.ModelType);
 
             var badRequestResponseFormat = Assert.Single(badRequestResponseType.ApiResponseFormats);
             Assert.Equal("application/json", badRequestResponseFormat.MediaType);
@@ -216,17 +216,17 @@ namespace Microsoft.AspNetCore.Mvc.ApiExplorer
         public void AddsMultipleResponseFormatsFromMetadataWithIResult()
         {
             var apiDescription = GetApiDescription(
-                [ProducesResponseType(typeof(InferredJsonClass), StatusCodes.Status201Created)]
+                [ProducesResponseType(typeof(Todo), StatusCodes.Status201Created)]
             [ProducesResponseType(StatusCodes.Status400BadRequest)]
-            () => Results.Ok(new InferredJsonClass()));
+            () => Results.Ok(new Todo()));
 
             Assert.Equal(2, apiDescription.SupportedResponseTypes.Count);
 
             var createdResponseType = apiDescription.SupportedResponseTypes[0];
 
             Assert.Equal(201, createdResponseType.StatusCode);
-            Assert.Equal(typeof(InferredJsonClass), createdResponseType.Type);
-            Assert.Equal(typeof(InferredJsonClass), createdResponseType.ModelMetadata.ModelType);
+            Assert.Equal(typeof(Todo), createdResponseType.Type);
+            Assert.Equal(typeof(Todo), createdResponseType.ModelMetadata.ModelType);
 
             var createdResponseFormat = Assert.Single(createdResponseType.ApiResponseFormats);
             Assert.Equal("application/json", createdResponseFormat.MediaType);
@@ -304,7 +304,7 @@ namespace Microsoft.AspNetCore.Mvc.ApiExplorer
                 Assert.Equal(BindingSource.Body, param.Source);
             }
 
-            AssertBodyParameter(GetApiDescription((InferredJsonClass foo) => { }), typeof(InferredJsonClass));
+            AssertBodyParameter(GetApiDescription((Todo foo) => { }), typeof(Todo));
             AssertBodyParameter(GetApiDescription(([FromBody] int foo) => { }), typeof(int));
         }
 
@@ -320,7 +320,7 @@ namespace Microsoft.AspNetCore.Mvc.ApiExplorer
         [Fact]
         public void AddsMultipleParameters()
         {
-            var apiDescription = GetApiDescription(([FromRoute] int foo, int bar, InferredJsonClass fromBody) => { });
+            var apiDescription = GetApiDescription(([FromRoute] int foo, int bar, Todo fromBody) => { });
             Assert.Equal(3, apiDescription.ParameterDescriptions.Count);
 
             var fooParam = apiDescription.ParameterDescriptions[0];
@@ -336,8 +336,8 @@ namespace Microsoft.AspNetCore.Mvc.ApiExplorer
             Assert.True(barParam.IsRequired);
 
             var fromBodyParam = apiDescription.ParameterDescriptions[2];
-            Assert.Equal(typeof(InferredJsonClass), fromBodyParam.Type);
-            Assert.Equal(typeof(InferredJsonClass), fromBodyParam.ModelMetadata.ModelType);
+            Assert.Equal(typeof(Todo), fromBodyParam.Type);
+            Assert.Equal(typeof(Todo), fromBodyParam.ModelMetadata.ModelType);
             Assert.Equal(BindingSource.Body, fromBodyParam.Source);
             Assert.True(fromBodyParam.IsRequired);
         }
@@ -366,20 +366,20 @@ namespace Microsoft.AspNetCore.Mvc.ApiExplorer
         [Fact]
         public void TestIsRequiredFromBody()
         {
-            var apiDescription0 = GetApiDescription(([FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] InferredJsonClass fromBody) => { });
-            var apiDescription1 = GetApiDescription((InferredJsonClass? fromBody) => { });
+            var apiDescription0 = GetApiDescription(([FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] Todo fromBody) => { });
+            var apiDescription1 = GetApiDescription((Todo? fromBody) => { });
             Assert.Equal(1, apiDescription0.ParameterDescriptions.Count);
             Assert.Equal(1, apiDescription1.ParameterDescriptions.Count);
 
             var fromBodyParam0 = apiDescription0.ParameterDescriptions[0];
-            Assert.Equal(typeof(InferredJsonClass), fromBodyParam0.Type);
-            Assert.Equal(typeof(InferredJsonClass), fromBodyParam0.ModelMetadata.ModelType);
+            Assert.Equal(typeof(Todo), fromBodyParam0.Type);
+            Assert.Equal(typeof(Todo), fromBodyParam0.ModelMetadata.ModelType);
             Assert.Equal(BindingSource.Body, fromBodyParam0.Source);
             Assert.False(fromBodyParam0.IsRequired);
 
             var fromBodyParam1 = apiDescription1.ParameterDescriptions[0];
-            Assert.Equal(typeof(InferredJsonClass), fromBodyParam1.Type);
-            Assert.Equal(typeof(InferredJsonClass), fromBodyParam1.ModelMetadata.ModelType);
+            Assert.Equal(typeof(Todo), fromBodyParam1.Type);
+            Assert.Equal(typeof(Todo), fromBodyParam1.ModelMetadata.ModelType);
             Assert.Equal(BindingSource.Body, fromBodyParam1.Source);
             Assert.False(fromBodyParam1.IsRequired);
         }
@@ -442,7 +442,7 @@ namespace Microsoft.AspNetCore.Mvc.ApiExplorer
             // Arrange
             var endpointGroupName = "SomeEndpointGroupName";
             var builder = new TestEndpointRouteBuilder(new ApplicationBuilder(null));
-            builder.MapGet("/api/todos", () => "").Produces<InferredJsonClass>().WithGroupName(endpointGroupName);
+            builder.MapGet("/api/todos", () => "").Produces<Todo>().WithGroupName(endpointGroupName);
             var context = new ApiDescriptionProviderContext(Array.Empty<ActionDescriptor>());
 
             var endpointDataSource = builder.DataSources.OfType<EndpointDataSource>().Single();
@@ -458,7 +458,7 @@ namespace Microsoft.AspNetCore.Mvc.ApiExplorer
             // Assert
             var apiDescription = Assert.Single(context.Results);
             var responseTypes = Assert.Single(apiDescription.SupportedResponseTypes);
-            Assert.Equal(typeof(InferredJsonClass), responseTypes.Type);
+            Assert.Equal(typeof(Todo), responseTypes.Type);
             Assert.Equal(endpointGroupName, apiDescription.GroupName);
         }
 
@@ -467,7 +467,7 @@ namespace Microsoft.AspNetCore.Mvc.ApiExplorer
         {
             // Arrange
             var builder = new TestEndpointRouteBuilder(new ApplicationBuilder(null));
-            builder.MapGet("/api/todos", () => "").Produces<InferredJsonClass>().ExcludeFromDescription();
+            builder.MapGet("/api/todos", () => "").Produces<Todo>().ExcludeFromDescription();
             var context = new ApiDescriptionProviderContext(Array.Empty<ActionDescriptor>());
 
             var endpointDataSource = builder.DataSources.OfType<EndpointDataSource>().Single();
@@ -490,7 +490,7 @@ namespace Microsoft.AspNetCore.Mvc.ApiExplorer
             // Arrange
             var builder = new TestEndpointRouteBuilder(new ApplicationBuilder(null));
             builder.MapGet("/api/todos", () => "")
-                .Produces<InferredJsonClass>(StatusCodes.Status200OK)
+                .Produces<Todo>(StatusCodes.Status200OK)
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status404NotFound)
                 .ProducesProblem(StatusCodes.Status409Conflict);
@@ -512,7 +512,7 @@ namespace Microsoft.AspNetCore.Mvc.ApiExplorer
                 context.Results.SelectMany(r => r.SupportedResponseTypes).OrderBy(r => r.StatusCode),
                 responseType =>
                 {
-                    Assert.Equal(typeof(InferredJsonClass), responseType.Type);
+                    Assert.Equal(typeof(Todo), responseType.Type);
                     Assert.Equal(200, responseType.StatusCode);
                     Assert.Equal(new[] { "application/json" }, GetSortedMediaTypes(responseType));
 
@@ -541,10 +541,35 @@ namespace Microsoft.AspNetCore.Mvc.ApiExplorer
         public void HandleMultipleProduces()
         {
             // Arrange
-            var builder = new TestEndpointRouteBuilder(new ApplicationBuilder(null));
-            builder.MapGet("/api/todos", () => "")
-                .Produces<InferredJsonClass>(StatusCodes.Status200OK)
-                .Produces<InferredJsonClass>(StatusCodes.Status201Created);
+            var app = new TestEndpointRouteBuilder(new ApplicationBuilder(null));
+
+            app.MapGet("/todo/{id}", (int id) =>
+                {
+                    if (id != 0)
+                    {
+                        return Results.NotFound();
+                    }
+
+                    return Results.Ok(new Todo(0, "Test", false));
+                })
+                .Produces<MinimalActionEndpointConventionBuilder, Todo[]>(StatusCodes.Status200OK, "application/json")
+                .Produces(StatusCodes.Status404NotFound);
+
+            app.MapGet("/todo/{id}", async (context) =>
+                {
+                    if ((string)context.Request.RouteValues["id"] != "0")
+                    {
+                        context.Response.StatusCode = 404;
+                        return;
+                    }
+
+                    await context.Response.WriteAsync(@"{""Id"": 0, ""Name"": ""Test"", ""IsCompleted"": false}");
+                })
+                .Produces<IEndpointConventionBuilder, Todo[]>(StatusCodes.Status200OK, "application/json")
+                .Produces(StatusCodes.Status404NotFound);
+
+            app.MapControllers().Produces(StatusCodes.Status200OK);
+
             var context = new ApiDescriptionProviderContext(Array.Empty<ActionDescriptor>());
 
             var endpointDataSource = builder.DataSources.OfType<EndpointDataSource>().Single();
@@ -563,14 +588,14 @@ namespace Microsoft.AspNetCore.Mvc.ApiExplorer
                 context.Results.SelectMany(r => r.SupportedResponseTypes).OrderBy(r => r.StatusCode),
                 responseType =>
                 {
-                    Assert.Equal(typeof(InferredJsonClass), responseType.Type);
+                    Assert.Equal(typeof(Todo), responseType.Type);
                     Assert.Equal(200, responseType.StatusCode);
                     Assert.Equal(new[] { "application/json" }, GetSortedMediaTypes(responseType));
 
                 },
                 responseType =>
                 {
-                    Assert.Equal(typeof(InferredJsonClass), responseType.Type);
+                    Assert.Equal(typeof(Todo), responseType.Type);
                     Assert.Equal(201, responseType.StatusCode);
                     Assert.Equal(new[] { "application/json" }, GetSortedMediaTypes(responseType));
                 });
@@ -624,9 +649,7 @@ namespace Microsoft.AspNetCore.Mvc.ApiExplorer
         {
         }
 
-        private class InferredJsonClass
-        {
-        }
+        private record Todo(int Id, string Name, bool IsCompleted);
 
         private interface IInferredServiceInterface
         {

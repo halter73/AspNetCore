@@ -124,7 +124,7 @@ namespace Microsoft.AspNetCore.Builder
                         if (routeBuilder is not null)
                         {
                             // use the old routing pipeline if it exists so we preserve all the routes and matching logic
-                            builder.Properties[globalRouteBuilderKey] = routeBuilder;
+                            //builder.Properties[globalRouteBuilderKey] = routeBuilder;
                         }
                         builder.UseRouting();
                         // apply the next middleware

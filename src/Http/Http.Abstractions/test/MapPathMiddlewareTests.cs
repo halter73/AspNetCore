@@ -232,6 +232,31 @@ namespace Microsoft.AspNetCore.Builder.Extensions
             Assert.True(mockWebApplication.UseCalled);
         }
 
+        private class CustomString
+        {
+            private readonly string _value;
+
+            public CustomString(string value)
+            {
+                _value = value;
+            }
+
+            public static implicit operator string(CustomString customString) => customString._value;
+
+            public static implicit operator PathString(CustomString customString) => customString._value;
+        }
+
+
+        [Fact]
+        public void Test()
+        {
+            var mockWebApplication = new MockWebApplication();
+
+            mockWebApplication.Map(new CustomString("/foo"), (IApplicationBuilder app) => { });
+
+            Assert.True(mockWebApplication.UseCalled);
+        }
+
         private HttpContext CreateRequest(string basePath, string requestPath)
         {
             HttpContext context = new DefaultHttpContext();

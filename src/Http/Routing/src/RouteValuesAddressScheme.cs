@@ -118,7 +118,12 @@ namespace Microsoft.AspNetCore.Routing
                     metadata?.RouteName);
 
                 var outboundMatch = new OutboundMatch() { Entry = entry };
-                allOutboundMatches.Add(outboundMatch);
+
+                if (routeEndpoint.RoutePattern.RequiredValues.Count > 0)
+                {
+                    // Entries with a route name but no required values can only be matched by name.
+                    allOutboundMatches.Add(outboundMatch);
+                }
 
                 if (string.IsNullOrEmpty(entry.RouteName))
                 {

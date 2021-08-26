@@ -904,9 +904,9 @@ namespace Microsoft.AspNetCore.Mvc.Routing
                 appRoot: "",
                 host: null,
                 protocol: null,
-                "default",
-                "{first}/{controller}/{action}",
-                new { second = "default", controller = "default", action = "default" });
+                routeName: "default",
+                template: "{first}/{controller}/{action}",
+                defaults: new { second = "default", controller = "default", action = "default" });
 
             var routeData = urlHelper.ActionContext.RouteData;
             routeData.Values.Add("first", "a");

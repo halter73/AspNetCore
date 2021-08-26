@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
@@ -145,7 +145,7 @@ namespace Microsoft.AspNetCore.Mvc.Routing
         protected override IUrlHelper CreateUrlHelper(ActionContext actionContext)
         {
             var httpContext = actionContext.HttpContext;
-           httpContext.SetEndpoint(new Endpoint(context => Task.CompletedTask, EndpointMetadataCollection.Empty, null));
+            httpContext.SetEndpoint(new Endpoint(context => Task.CompletedTask, EndpointMetadataCollection.Empty, null));
 
             var urlHelperFactory = httpContext.RequestServices.GetRequiredService<IUrlHelperFactory>();
             var urlHelper = urlHelperFactory.GetUrlHelper(actionContext);
@@ -164,9 +164,10 @@ namespace Microsoft.AspNetCore.Mvc.Routing
             string protocol,
             string routeName,
             string template,
-            object defaults)
+            object defaults,
+            object requiredValues)
         {
-            var endpoint = CreateEndpoint(template, new RouteValueDictionary(defaults), routeName: routeName);
+            var endpoint = CreateEndpoint(template, new RouteValueDictionary(defaults), requiredValues, routeName: routeName);
             var services = CreateServices(new[] { endpoint });
             var httpContext = CreateHttpContext(services, appRoot: "", host: null, protocol: null);
             var actionContext = CreateActionContext(httpContext);

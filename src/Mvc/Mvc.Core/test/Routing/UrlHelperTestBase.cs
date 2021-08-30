@@ -908,6 +908,7 @@ namespace Microsoft.AspNetCore.Mvc.Routing
                 template: "{first}/{controller}/{action}",
                 defaults: new { second = "default", controller = "default", action = "default" },
                 requiredValues: new { controller = "default", action = "default" });
+                //requiredValues: null);
 
             var routeData = urlHelper.ActionContext.RouteData;
             routeData.Values.Add("first", "a");

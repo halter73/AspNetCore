@@ -27,9 +27,19 @@ namespace MvcSandbox
             app.UseRouting();
             app.UseEndpoints(builder =>
             {
-                builder.MapControllers();
-                builder.MapDefaultControllerRoute();
-                builder.MapRazorPages();
+                builder.MapControllerRoute(
+                    name: "DefaultDouble",
+                    pattern: "{custom}/{controller}/{action}/{id?}",
+                    defaults: new { controller = "Home", action = "Index" },
+                    constraints: new { custom = "Double" });
+
+                builder.MapControllerRoute(
+                    name: "DefaultSingle",
+                    pattern: "{controller}/{action}/{id?}",
+                    defaults: new { custom = "Single", controller = "Home", action = "Index" },
+                    constraints: new { custom = "Single" });
+
+                //builder.MapRazorPages();
             });
         }
 

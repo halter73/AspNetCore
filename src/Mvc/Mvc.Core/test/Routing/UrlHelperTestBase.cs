@@ -906,7 +906,8 @@ namespace Microsoft.AspNetCore.Mvc.Routing
                 protocol: null,
                 routeName: "default",
                 template: "{first}/{controller}/{action}",
-                defaults: new { second = "default", controller = "default", action = "default" });
+                defaults: new { second = "default", controller = "default", action = "default" },
+                requiredValues: new { controller = "default", action = "default" });
 
             var routeData = urlHelper.ActionContext.RouteData;
             routeData.Values.Add("first", "a");
@@ -934,9 +935,10 @@ namespace Microsoft.AspNetCore.Mvc.Routing
                 appRoot: "",
                 host: null,
                 protocol: null,
-                "default",
-                "{first}/{second}/{controller}/{action}",
-                new { second = "default", controller = "default", action = "default" });
+                routeName: "default",
+                template: "{first}/{second}/{controller}/{action}",
+                defaults: new { second = "default", controller = "default", action = "default" },
+                requiredValues: new { controller = "default", action = "default" });
 
             var routeData = urlHelper.ActionContext.RouteData;
             routeData.Values.Add("first", "a");
@@ -967,9 +969,10 @@ namespace Microsoft.AspNetCore.Mvc.Routing
                 appRoot: "",
                 host: null,
                 protocol: null,
-                "default",
-                "{first}/{controller}/{action}",
-                new { second = "default", controller = "default", action = "default" });
+                routeName: "default",
+                template: "{first}/{controller}/{action}",
+                defaults: new { second = "default", controller = "default", action = "default" },
+                requiredValues: new { controller = "default", action = "default" });
 
             var routeData = urlHelper.ActionContext.RouteData;
             routeData.Values.Add("first", "a");
@@ -1044,7 +1047,8 @@ namespace Microsoft.AspNetCore.Mvc.Routing
             string protocol,
             string routeName,
             string template,
-            object defaults);
+            object defaults,
+            object requiredValues);
 
         protected virtual IUrlHelper CreateUrlHelper(string appRoot, string host, string protocol)
         {

@@ -68,7 +68,8 @@ namespace Microsoft.AspNetCore.Mvc.Routing
             string protocol,
             string routeName,
             string template,
-            object defaults)
+            object defaults,
+            object requiredValues)
         {
             var services = CreateServices();
             var routeBuilder = CreateRouteBuilder(services);

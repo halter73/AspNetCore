@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using Xunit;
@@ -907,12 +908,19 @@ namespace Microsoft.AspNetCore.Mvc.Routing
                 routeName: "default",
                 template: "{first}/{controller}/{action}",
                 defaults: new { second = "default", controller = "default", action = "default" },
-                requiredValues: new { controller = "default", action = "default" });
+                // Emulate ActionEndpointFactory.AddConventionalLinkGenerationRoute().
+                // The "controller" and "action" keys are defined automatically by ControllerActionDescriptorBuilder.AddRouteValues().
+                requiredValues: new { controller = RoutePattern.RequiredValueAny, action = RoutePattern.RequiredValueAny });
 
             var routeData = urlHelper.ActionContext.RouteData;
             routeData.Values.Add("first", "a");
             routeData.Values.Add("controller", "Store");
             routeData.Values.Add("action", "Buy");
+
+            urlHelper.ActionContext.HttpContext.Features.Set<IRouteValuesFeature>(new RouteValuesFeature
+            {
+                RouteValues = routeData.Values
+            });
 
             // Act
             //
@@ -938,13 +946,20 @@ namespace Microsoft.AspNetCore.Mvc.Routing
                 routeName: "default",
                 template: "{first}/{second}/{controller}/{action}",
                 defaults: new { second = "default", controller = "default", action = "default" },
-                requiredValues: new { controller = "default", action = "default" });
+                // Emulate ActionEndpointFactory.AddConventionalLinkGenerationRoute().
+                // The "controller" and "action" keys are defined automatically by ControllerActionDescriptorBuilder.AddRouteValues().
+                requiredValues: new { controller = RoutePattern.RequiredValueAny, action = RoutePattern.RequiredValueAny });
 
             var routeData = urlHelper.ActionContext.RouteData;
             routeData.Values.Add("first", "a");
             routeData.Values.Add("second", "x");
             routeData.Values.Add("controller", "Store");
             routeData.Values.Add("action", "Buy");
+
+            urlHelper.ActionContext.HttpContext.Features.Set<IRouteValuesFeature>(new RouteValuesFeature
+            {
+                RouteValues = routeData.Values
+            });
 
             // Act
             //
@@ -972,12 +987,19 @@ namespace Microsoft.AspNetCore.Mvc.Routing
                 routeName: "default",
                 template: "{first}/{controller}/{action}",
                 defaults: new { second = "default", controller = "default", action = "default" },
-                requiredValues: new { controller = "default", action = "default" });
+                // Emulate ActionEndpointFactory.AddConventionalLinkGenerationRoute().
+                // The "controller" and "action" keys are defined automatically by ControllerActionDescriptorBuilder.AddRouteValues().
+                requiredValues: new { controller = RoutePattern.RequiredValueAny, action = RoutePattern.RequiredValueAny });
 
             var routeData = urlHelper.ActionContext.RouteData;
             routeData.Values.Add("first", "a");
             routeData.Values.Add("controller", "Store");
             routeData.Values.Add("action", "Buy");
+
+            urlHelper.ActionContext.HttpContext.Features.Set<IRouteValuesFeature>(new RouteValuesFeature
+            {
+                RouteValues = routeData.Values
+            });
 
             // Act
             //

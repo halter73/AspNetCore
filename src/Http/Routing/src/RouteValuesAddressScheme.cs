@@ -73,7 +73,7 @@ namespace Microsoft.AspNetCore.Routing
 
         private StateEntry Initialize(IReadOnlyList<Endpoint> endpoints)
         {
-            var allOutboundMatches = new List<OutboundMatch>();
+            var matchesWithRequiredValues = new List<OutboundMatch>();
             var namedOutboundMatchResults = new Dictionary<string, List<OutboundMatchResult>>(StringComparer.OrdinalIgnoreCase);
 
             // Decision tree is built using the 'required values' of actions.
@@ -122,7 +122,10 @@ namespace Microsoft.AspNetCore.Routing
                 if (routeEndpoint.RoutePattern.RequiredValues.Count > 0)
                 {
                     // Entries with a route name but no required values can only be matched by name.
-                    allOutboundMatches.Add(outboundMatch);
+                    // Otherwise, these endpoints will match any attempt at action link generation.
+                    // Entries with neither a route name nor required values have already been skipped above.
+                    // See https://github.com/dotnet/aspnetcore/issues/35592
+                    matchesWithRequiredValues.Add(outboundMatch);
                 }
 
                 if (string.IsNullOrEmpty(entry.RouteName))
@@ -139,8 +142,8 @@ namespace Microsoft.AspNetCore.Routing
             }
 
             return new StateEntry(
-                allOutboundMatches,
-                new LinkGenerationDecisionTree(allOutboundMatches),
+                matchesWithRequiredValues,
+                new LinkGenerationDecisionTree(matchesWithRequiredValues),
                 namedOutboundMatchResults);
         }
 
@@ -171,16 +174,16 @@ namespace Microsoft.AspNetCore.Routing
         internal class StateEntry
         {
             // For testing
-            public readonly List<OutboundMatch> AllMatches;
+            public readonly List<OutboundMatch> MatchesWithRequiredValues;
             public readonly LinkGenerationDecisionTree AllMatchesLinkGenerationTree;
             public readonly Dictionary<string, List<OutboundMatchResult>> NamedMatches;
 
             public StateEntry(
-                List<OutboundMatch> allMatches,
+                List<OutboundMatch> matchesWithRequiredValues,
                 LinkGenerationDecisionTree allMatchesLinkGenerationTree,
                 Dictionary<string, List<OutboundMatchResult>> namedMatches)
             {
-                AllMatches = allMatches;
+                MatchesWithRequiredValues = matchesWithRequiredValues;
                 AllMatchesLinkGenerationTree = allMatchesLinkGenerationTree;
                 NamedMatches = namedMatches;
             }

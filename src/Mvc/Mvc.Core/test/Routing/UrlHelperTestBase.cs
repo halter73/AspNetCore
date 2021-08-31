@@ -771,6 +771,57 @@ namespace Microsoft.AspNetCore.Mvc.Routing
         }
 
         [Fact]
+        public void LinkWithNullRouteNameGivenExtraEndpointWithNoRouteNameAndNoRequiredValues_ReturnsExpectedResult()
+        {
+            // Arrange
+            var urlHelper = CreateUrlHelperWithDefaultRoutes(
+                "/app",
+                host: null,
+                protocol: null,
+                routeName: null,
+                template: "any/url");
+
+            // Act
+            var url = urlHelper.Link(
+                null,
+                new
+                {
+                    Action = "newaction",
+                    Controller = "home",
+                    id = "someid"
+                });
+
+            // Assert
+            Assert.Equal("http://localhost/app/home/newaction/someid", url);
+        }
+
+        // Regression test for https://github.com/dotnet/aspnetcore/issues/35592
+        [Fact]
+        public void LinkWithNullRouteNameGivenExtraEndpointWithRouteNameAndNoRequiredValues_ReturnsExpectedResult()
+        {
+            // Arrange
+            var urlHelper = CreateUrlHelperWithDefaultRoutes(
+                "/app",
+                host: null,
+                protocol: null,
+                routeName: "MyRouteName",
+                template: "any/url");
+
+            // Act
+            var url = urlHelper.Link(
+                null,
+                new
+                {
+                    Action = "newaction",
+                    Controller = "home",
+                    id = "someid"
+                });
+
+            // Assert
+            Assert.Equal("http://localhost/app/home/newaction/someid", url);
+        }
+
+        [Fact]
         public void RouteUrlWithRouteNameAndDefaults()
         {
             // Arrange
@@ -896,7 +947,7 @@ namespace Microsoft.AspNetCore.Mvc.Routing
             Assert.Same(urlHelper, actionContext.HttpContext.Items[typeof(IUrlHelper)] as IUrlHelper);
         }
 
-        // Regression test for aspnet/Mvc#2859
+        // Regression test for https://github.com/aspnet/Mvc/issues/2859
         [Fact]
         public void Action_RouteValueInvalidation_DoesNotAffectActionAndController()
         {
@@ -934,7 +985,7 @@ namespace Microsoft.AspNetCore.Mvc.Routing
             Assert.Equal("/b/Store/Checkout", url);
         }
 
-        // Regression test for aspnet/Mvc#2859
+        // Regression test for https://github.com/aspnet/Mvc/issues/2859
         [Fact]
         public void Action_RouteValueInvalidation_AffectsOtherRouteValues()
         {
@@ -975,7 +1026,7 @@ namespace Microsoft.AspNetCore.Mvc.Routing
             Assert.Equal("/b/default/Store/Checkout", url);
         }
 
-        // Regression test for aspnet/Mvc#2859
+        // Regression test for https://github.com/aspnet/Mvc/issues/2859
         [Fact]
         public void Action_RouteValueInvalidation_DoesNotAffectActionAndController_ActionPassedInRouteValues()
         {

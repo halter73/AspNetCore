@@ -2,11 +2,13 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Diagnostics;
+using System.Linq;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Primitives;
 
 namespace Microsoft.AspNetCore.Builder
 {
@@ -15,11 +17,12 @@ namespace Microsoft.AspNetCore.Builder
     /// </summary>
     public sealed class WebApplicationBuilder
     {
+        private const string EndpointRouteBuilderKey = "__EndpointRouteBuilder";
+
         private readonly HostBuilder _hostBuilder = new();
         private readonly BootstrapHostBuilder _bootstrapHostBuilder;
         private readonly WebApplicationServiceCollection _services = new();
         private readonly List<KeyValuePair<string, string>> _hostConfigurationValues;
-        private const string EndpointRouteBuilderKey = "__EndpointRouteBuilder";
 
         private WebApplication? _builtApplication;
 
@@ -62,7 +65,6 @@ namespace Microsoft.AspNetCore.Builder
             });
 
             // Apply the args to host configuration last since ConfigureWebHostDefaults overrides a host specific setting (the application name).
-
             _bootstrapHostBuilder.ConfigureHostConfiguration(config =>
             {
                 if (args is { Length: > 0 })
@@ -152,10 +154,11 @@ namespace Microsoft.AspNetCore.Builder
             // We wrap the existing provider in a configuration source to avoid re-bulding the already added configuration sources.
             _hostBuilder.ConfigureAppConfiguration(builder =>
             {
-                foreach (var provider in ((IConfigurationRoot)Configuration).Providers)
-                {
-                    builder.Sources.Add(new ConfigurationProviderSource(provider));
-                }
+                builder.AddConfiguration(new ConfigurationCycleBreaker(Configuration));
+                //foreach (var provider in ((IConfigurationRoot)Configuration).Providers)
+                //{
+                //    builder.Sources.Add(new ConfigurationProviderSource(provider));
+                //}
 
                 foreach (var (key, value) in ((IConfigurationBuilder)Configuration).Properties)
                 {
@@ -214,7 +217,7 @@ namespace Microsoft.AspNetCore.Builder
 
             // Make builder.Configuration match the final configuration. To do that
             // we clear the sources and add the built configuration as a source
-            ((IConfigurationBuilder)Configuration).Sources.Clear();
+            //((IConfigurationBuilder)Configuration).Sources.Clear();
             Configuration.AddConfiguration(_builtApplication.Configuration);
 
             // Mark the service collection as read-only to prevent future modifications
@@ -313,6 +316,119 @@ namespace Microsoft.AspNetCore.Builder
             public IConfigurationProvider Build(IConfigurationBuilder builder)
             {
                 return _configurationProvider;
+            }
+        }
+
+        private sealed class ConfigurationCycleBreaker : IConfigurationSection
+        {
+            private readonly ThreadLocal<bool> _isExecuting;
+
+            private readonly IConfiguration _config;
+            private readonly IChangeToken _defaultReloadToken = new ConfigurationReloadToken();
+
+            //private bool _disposed;
+
+            public ConfigurationCycleBreaker(ConfigurationManager configManager)
+            {
+                _config = configManager;
+                _isExecuting = new();
+            }
+
+            public ConfigurationCycleBreaker(IConfigurationSection section, ThreadLocal<bool> isExcuting)
+            {
+                _config = section;
+                _isExecuting = isExcuting;
+
+                Key = section.Key;
+                Path = section.Path;
+                Value = section.Value;
+            }
+
+            public string this[string key]
+            {
+                get
+                {
+                    if (_isExecuting.Value)
+                    {
+                        return string.Empty;
+                    }
+
+                    _isExecuting.Value = true;
+
+                    try
+                    {
+                        return _config[key];
+                    }
+                    finally
+                    {
+                        _isExecuting.Value = false;
+                    }
+                }
+                set
+                {
+                    if (_isExecuting.Value)
+                    {
+                        return; 
+                    }
+
+                    _isExecuting.Value = true;
+
+                    try
+                    {
+                        _config[key] = value;
+                    }
+                    finally
+                    {
+                        _isExecuting.Value = false;
+                    }
+                }
+            }
+
+            public string Key { get; set; } = string.Empty;
+            public string Path { get; set; } = string.Empty;
+            public string Value { get; set; } = string.Empty;
+
+            public IEnumerable<IConfigurationSection> GetChildren()
+            {
+                if (_isExecuting.Value)
+                {
+                    return Enumerable.Empty<IConfigurationSection>();
+                }
+
+                _isExecuting.Value = true;
+
+                try
+                {
+                    return _config.GetChildren().Select(c => new ConfigurationCycleBreaker(c, _isExecuting));
+                }
+                finally
+                {
+                    _isExecuting.Value = false;
+                }
+            }
+
+            public IChangeToken GetReloadToken()
+            {
+                if (_isExecuting.Value)
+                {
+                    return _defaultReloadToken;
+                }
+
+                _isExecuting.Value = true;
+
+                try
+                {
+                    return _config.GetReloadToken();
+                }
+                finally
+                {
+                    _isExecuting.Value = false;
+                }
+            }
+
+            public IConfigurationSection GetSection(string key)
+            {
+                return new ConfigurationCycleBreaker(_config.GetSection(key), _isExecuting);
             }
         }
     }

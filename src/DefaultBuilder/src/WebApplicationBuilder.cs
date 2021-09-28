@@ -7,7 +7,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Primitives;
 
 namespace Microsoft.AspNetCore.Builder
 {
@@ -16,11 +15,12 @@ namespace Microsoft.AspNetCore.Builder
     /// </summary>
     public sealed class WebApplicationBuilder
     {
+        private const string EndpointRouteBuilderKey = "__EndpointRouteBuilder";
+
         private readonly HostBuilder _hostBuilder = new();
         private readonly BootstrapHostBuilder _bootstrapHostBuilder;
         private readonly WebApplicationServiceCollection _services = new();
         private readonly List<KeyValuePair<string, string>> _hostConfigurationValues;
-        private const string EndpointRouteBuilderKey = "__EndpointRouteBuilder";
 
         private WebApplication? _builtApplication;
 
@@ -213,8 +213,20 @@ namespace Microsoft.AspNetCore.Builder
 
             _builtApplication = new WebApplication(_hostBuilder.Build());
 
+            // We know that ConfigurationBuilder constructs ConfigurationRoot with a List<IConfigurationProvider> and all the
+            // IgnoreLoadConfigurationProviders have been "loaded", so we can put the originals back.
+            var providerList = (List<IConfigurationProvider>)((IConfigurationRoot)_builtApplication.Configuration).Providers;
+            for (var i = 0; i < providerList.Count; i++)
+            {
+                if (providerList[i] is IgnoreLoadConfigurationProvider wrappedProvider)
+                {
+                    providerList[i] = wrappedProvider.OriginalProvider;
+                }
+            }
+
             // Make builder.Configuration match the final configuration. To do that
-            // we clear the sources and add the built configuration as a source
+            // we recreate the ConfigurationManager and add the built configuration as a source.
+            // We do not clear or dispose the old ConfigurationManager as this would dispose IConfigurationProviders that are in use.
             Configuration = new ConfigurationManager();
             Configuration.AddConfiguration(_builtApplication.Configuration);
 
@@ -310,50 +322,10 @@ namespace Microsoft.AspNetCore.Builder
             {
                 // ConfigurationManager has already loaded its IConfigurationProviders, so we do not need to load it again
                 // during WebApplicationBuilder.Build(). See https://github.com/dotnet/aspnetcore/issues/37030
-                _configurationProvider = new IgnoreFirstLoadConfigurationProvider(configurationProvider);
+                _configurationProvider = new IgnoreLoadConfigurationProvider(configurationProvider);
             }
 
             public IConfigurationProvider Build(IConfigurationBuilder builder) => _configurationProvider;
-
-            private sealed class IgnoreFirstLoadConfigurationProvider : IConfigurationProvider, IDisposable
-            {
-                private readonly IConfigurationProvider _configurationProvider;
-
-                private bool _hasIgnoredFirstLoad;
-
-                public IgnoreFirstLoadConfigurationProvider(IConfigurationProvider configurationProvider)
-                {
-                    _configurationProvider = configurationProvider;
-                }
-
-                public void Load()
-                {
-                    if (!_hasIgnoredFirstLoad)
-                    {
-                        _hasIgnoredFirstLoad = true;
-                        return;
-                    }
-
-                    _configurationProvider.Load();
-                }
-
-                public IChangeToken GetReloadToken() => _configurationProvider.GetReloadToken();
-
-                public IEnumerable<string> GetChildKeys(IEnumerable<string> earlierKeys, string parentPath) =>
-                    _configurationProvider.GetChildKeys(earlierKeys, parentPath);
-
-                public void Set(string key, string value) => _configurationProvider.Set(key, value);
-
-                public bool TryGet(string key, out string value) => _configurationProvider.TryGet(key, out value);
-
-                public void Dispose() => (_configurationProvider as IDisposable)?.Dispose();
-
-                public override string ToString() => _configurationProvider.ToString()!;
-
-                public override bool Equals(object? obj) => _configurationProvider.Equals(obj);
-
-                public override int GetHashCode() => _configurationProvider.GetHashCode();
-            }
         }
     }
 }

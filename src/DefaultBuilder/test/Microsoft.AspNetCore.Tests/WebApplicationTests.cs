@@ -7,6 +7,7 @@ using System.Diagnostics.Tracing;
 using System.Net;
 using System.Reflection;
 using System.Text;
+using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.HostFiltering;
 using Microsoft.AspNetCore.Hosting;
@@ -31,6 +32,83 @@ namespace Microsoft.AspNetCore.Tests
 {
     public class WebApplicationTests
     {
+        public record Todo
+        {
+            public int Id { get; init; } = default!;
+            public string Name { get; init; } = default!;
+        }
+
+        public class Todos
+        {
+            private readonly List<Todo> _todos;
+
+            public Todos(IEnumerable<Todo> todos)
+            {
+                _todos = new(todos);
+            }
+
+            public Task<Todo> FirstOrDefaultAsync(Func<Todo, bool> predicate)
+            {
+                return Task.FromResult(_todos.FirstOrDefault(predicate));
+            }
+        }
+
+        public class TodoDb
+        {
+            public Todos Todos { get; set; }
+        }
+
+        public class MockTodoDb : TodoDb
+        {
+            public MockTodoDb(IEnumerable<Todo> todos)
+            {
+                Todos = new Todos(todos);
+            }
+        }
+
+        public static class TodoEndpoints
+        {
+            // Program.cs or whatever configures the IEndpointRouteBuilder can define the endpoint as follows:
+            // app.MapGet("/todos/{id}", TodoEndpoints.GetTodo);
+            public static async Task<IResult> GetTodo(TodoDb db, int id)
+            {
+                return await db.Todos.FirstOrDefaultAsync(todo => todo.Id == id) is Todo todo
+                    ? Results.Ok(todo)
+                    : Results.NotFound();
+            }
+        }
+
+        private static HttpContext CreateMockHttpContext() =>
+            new DefaultHttpContext
+            {
+                // RequestServices needs to be set so the IResult implementation can log.
+                RequestServices = new ServiceCollection().AddLogging().BuildServiceProvider(),
+                Response =
+                {
+                    // The default response body is Stream.Null which throws away anything that is written to it.
+                    Body = new MemoryStream(),
+                },
+            };
+
+        [Fact]
+        public async Task GetTodoReturnsTodoFromDatabase()
+        {
+            var todo = new Todo { Id = 42, Name = "Improve Results testability!" };
+            var mockDb = new MockTodoDb(new[] { todo });
+            var mockHttpContext = CreateMockHttpContext();
+
+            var result = await TodoEndpoints.GetTodo(mockDb, todo.Id);
+            await result.ExecuteAsync(mockHttpContext);
+
+            // Reset MemoryStream to start so we can read the response.
+            mockHttpContext.Response.Body.Position = 0;
+            var jsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+            var responseTodo = await JsonSerializer.DeserializeAsync<Todo>(mockHttpContext.Response.Body, jsonOptions);
+
+            Assert.Equal(200, mockHttpContext.Response.StatusCode);
+            Assert.Equal(todo, responseTodo);
+        }
+
         [Fact]
         public async Task WebApplicationBuilderConfiguration_IncludesCommandLineArguments()
         {
@@ -40,7 +118,10 @@ namespace Microsoft.AspNetCore.Tests
             var urls = new List<string>();
             var server = new MockAddressesServer(urls);
             builder.Services.AddSingleton<IServer>(server);
+            builder.Services.AddSingleton<TodoDb>(new MockTodoDb(new[] { new Todo { Id = 42, Name = "Test!" } }));
             await using var app = builder.Build();
+
+            app.MapGet("/todos/{id}", TodoEndpoints.GetTodo);
 
             await app.StartAsync();
 

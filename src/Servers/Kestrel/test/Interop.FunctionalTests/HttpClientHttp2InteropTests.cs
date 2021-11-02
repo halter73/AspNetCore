@@ -39,7 +39,7 @@ namespace Interop.FunctionalTests
 
                 if (Utilities.CurrentPlatformSupportsHTTP2OverTls())
                 {
-                    list.Add(new[] { "https" });
+                    //list.Add(new[] { "https" });
                 }
 
                 return list;
@@ -124,25 +124,30 @@ namespace Interop.FunctionalTests
             using var host = await hostBuilder.StartAsync().DefaultTimeout();
 
             var url = host.MakeUrl(scheme);
-
             using var client = CreateClient();
 
-            var requestTasks = new List<Task>(requestCount);
-            for (var i = 0; i < requestCount; i++)
+            while (true)
             {
-                requestTasks.Add(RunRequest(url));
+                requestsReceived = 0;
+                allRequestsReceived = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+                var requestTasks = new List<Task>(requestCount);
+                for (var i = 0; i < requestCount; i++)
+                {
+                    requestTasks.Add(RunRequest(url));
+                }
+
+                async Task RunRequest(string url)
+                {
+                    using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead).DefaultTimeout();
+
+                    Assert.Equal(HttpVersion.Version20, response.Version);
+                    await BulkContent.VerifyContent(await response.Content.ReadAsStreamAsync()).DefaultTimeout();
+                };
+
+                await Task.WhenAll(requestTasks);
             }
 
-            async Task RunRequest(string url)
-            {
-                using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead).DefaultTimeout();
-
-                Assert.Equal(HttpVersion.Version20, response.Version);
-                await BulkContent.VerifyContent(await response.Content.ReadAsStreamAsync()).DefaultTimeout();
-            };
-
-            await Task.WhenAll(requestTasks);
-            await host.StopAsync().DefaultTimeout();
+            //await host.StopAsync().DefaultTimeout();
         }
 
         // Concurrency testing

@@ -13,7 +13,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Reference Include="Microsoft.AspNetCore.SignalR.Client.SourceGenerator.HubProxyAttributes" ReferenceOutputAssembly="false" />
+    <Reference Include="Microsoft.AspNetCore.SignalR.Client.SourceGenerator.HubProxyAttributes" Private="true" />
   </ItemGroup>
 
   <ItemGroup>

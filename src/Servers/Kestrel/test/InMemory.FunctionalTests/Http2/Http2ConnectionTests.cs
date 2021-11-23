@@ -188,12 +188,28 @@ public class Http2ConnectionTests : Http2TestBase
         // Stream has been returned to the pool
         Assert.Equal(1, _connection.StreamPool.Count);
 
+        requestHeaders = new[]
+        {
+                new KeyValuePair<string, string>(HeaderNames.Method, "GET"),
+                new KeyValuePair<string, string>(HeaderNames.Path, "/hello"),
+                new KeyValuePair<string, string>(HeaderNames.Scheme, "http"),
+                new KeyValuePair<string, string>(HeaderNames.Authority, "localhost:80"),
+        };
+
+
         await StartStreamAsync(3, requestHeaders, endStream: true);
 
         await ExpectAsync(Http2FrameType.HEADERS,
             withLength: 6,
             withFlags: (byte)(Http2HeadersFrameFlags.END_HEADERS | Http2HeadersFrameFlags.END_STREAM),
             withStreamId: 3);
+
+        await StartStreamAsync(5, requestHeaders, endStream: true);
+
+        await ExpectAsync(Http2FrameType.HEADERS,
+            withLength: 6,
+            withFlags: (byte)(Http2HeadersFrameFlags.END_HEADERS | Http2HeadersFrameFlags.END_STREAM),
+            withStreamId: 5);
 
         var contentType2 = _receivedHeaders["Content-Type"];
         var authority2 = _receivedRequestFields.Authority;

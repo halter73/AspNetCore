@@ -184,10 +184,8 @@ internal abstract partial class Http3Stream : HttpProtocol, IHttp3Stream, IHttpH
         Abort(abortReason, Http3ErrorCode.InternalError);
     }
 
-    public void OnHeadersComplete(bool endStream)
-    {
-        OnHeadersComplete();
-    }
+    // This is no longer called, but is part of the IHttpHadersHandler public API.
+    public void OnHeadersComplete(bool endStream) => throw new NotImplementedException();
 
     public void OnStaticIndexedHeader(int index)
     {
@@ -681,6 +679,8 @@ internal abstract partial class Http3Stream : HttpProtocol, IHttp3Stream, IHttpH
             // https://quicwg.org/base-drafts/draft-ietf-quic-http.html#section-4.1.1.1
             throw new Http3StreamErrorException(CoreStrings.HttpErrorMissingMandatoryPseudoHeaderFields, Http3ErrorCode.MessageError);
         }
+
+        OnHeadersComplete();
 
         _requestHeaderParsingState = RequestHeaderParsingState.Body;
         StreamTimeoutTicks = default;

@@ -983,6 +983,7 @@ internal partial class Http2Connection : IHttp2StreamLifetimeHandler, IHttpHeade
 
             if (endHeaders)
             {
+                //_currentHeadersStream.OnHeadersComplete();
                 StartStream();
                 ResetRequestHeaderParsingState();
             }
@@ -1337,8 +1338,8 @@ internal partial class Http2Connection : IHttp2StreamLifetimeHandler, IHttpHeade
         }
     }
 
-    public void OnHeadersComplete(bool endStream)
-        => _currentHeadersStream!.OnHeadersComplete();
+    // This is no longer called, but is part of the IHttpHadersHandler public API.
+    public void OnHeadersComplete(bool endStream) => throw new NotImplementedException();
 
     private void ValidateHeader(ReadOnlySpan<byte> name, ReadOnlySpan<byte> value)
     {

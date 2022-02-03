@@ -272,6 +272,7 @@ public class CollectionModelBinder<TElement> : ICollectionModelBinder
         var boundCollection = new List<TElement?>();
 
         var elementMetadata = bindingContext.ModelMetadata.ElementMetadata!;
+        var origValueProvider = bindingContext.ValueProvider;
 
         foreach (var value in values)
         {
@@ -279,7 +280,7 @@ public class CollectionModelBinder<TElement> : ICollectionModelBinder
                 {
                     // our temporary provider goes at the front of the list
                     new ElementalValueProvider(bindingContext.ModelName, value, values.Culture),
-                    bindingContext.ValueProvider
+                    origValueProvider
                 };
 
             // Enter new scope to change ModelMetadata and isolate element binding operations.

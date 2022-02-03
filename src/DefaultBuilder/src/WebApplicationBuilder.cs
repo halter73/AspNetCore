@@ -35,8 +35,6 @@ public sealed class WebApplicationBuilder
             OverrideDefaultConfigurationCallback = options.ApplyHostConfiguration,
         });
 
-        Logging = new LoggingBuilder(Services);
-
         // Run methods to configure web host defaults early to populate services
         _bootstrapHostBuilder = new BootstrapHostBuilder(_hostApplicationBuilder);
 
@@ -88,7 +86,7 @@ public sealed class WebApplicationBuilder
     /// <summary>
     /// A collection of logging providers for the application to compose. This is useful for adding new logging providers.
     /// </summary>
-    public ILoggingBuilder Logging { get; }
+    public ILoggingBuilder Logging => _hostApplicationBuilder.Logging;
 
     /// <summary>
     /// An <see cref="IWebHostBuilder"/> for configuring server specific properties, but not building.
@@ -183,15 +181,5 @@ public sealed class WebApplicationBuilder
         {
             app.Properties[EndpointRouteBuilderKey] = priorRouteBuilder;
         }
-    }
-
-    private sealed class LoggingBuilder : ILoggingBuilder
-    {
-        public LoggingBuilder(IServiceCollection services)
-        {
-            Services = services;
-        }
-
-        public IServiceCollection Services { get; }
     }
 }

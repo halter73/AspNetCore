@@ -28,18 +28,11 @@ public sealed class WebApplicationBuilder
 
         configuration.AddEnvironmentVariables(prefix: "ASPNETCORE_");
 
-        // Apply Args manually so options override them.
-        if (options.Args is { Length: > 0 })
-        {
-            configuration.AddCommandLine(options.Args);
-        }
-
-        options.ApplyHostConfiguration(configuration);
-
         _hostApplicationBuilder = new HostApplicationBuilder(new HostApplicationOptions
         {
-            // Leave Args null so options override them.
-            Configuration = configuration,
+            Args = options.Args,
+            InitialConfiguration = configuration,
+            OverrideDefaultConfigurationCallback = options.ApplyHostConfiguration,
         });
 
         Logging = new LoggingBuilder(Services);
@@ -49,14 +42,6 @@ public sealed class WebApplicationBuilder
 
         // This is for testing purposes
         configureDefaults?.Invoke(_bootstrapHostBuilder);
-
-        // We specify the command line here last since we skipped the one in the call to ConfigureDefaults.
-        // The args can contain both host and application settings so we want to make sure
-        // we order those configuration providers appropriately without duplicating them
-        if (options.Args is { Length: > 0 })
-        {
-            Configuration.AddCommandLine(options.Args);
-        }
 
         _bootstrapHostBuilder.ConfigureWebHostDefaults(webHostBuilder =>
         {

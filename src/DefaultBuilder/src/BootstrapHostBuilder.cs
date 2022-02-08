@@ -3,7 +3,6 @@
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 
 namespace Microsoft.AspNetCore.Hosting;
@@ -21,20 +20,29 @@ internal sealed class BootstrapHostBuilder : IHostBuilder
     {
         _builder = builder;
 
-        Context = new HostBuilderContext(builder.HostBuilder.Properties)
+        foreach (var descriptor in _builder.Services)
         {
-            HostingEnvironment = builder.Environment,
-            Configuration = builder.Configuration,
-        };
+            if (descriptor.ServiceType == typeof(HostBuilderContext))
+            {
+                Context = (HostBuilderContext)descriptor.ImplementationInstance!;
+                break;
+            }
+        }
+
+        if (Context is null)
+        {
+            throw new InvalidOperationException($"{nameof(HostBuilderContext)} must exist in the {nameof(IServiceCollection)}");
+        }
     }
 
-    public IDictionary<object, object> Properties => _builder.HostBuilder.Properties;
+    public IDictionary<object, object> Properties => Context.Properties;
+
     public HostBuilderContext Context { get; }
 
-    public IHost Build()
+    public IHostBuilder ConfigureHostConfiguration(Action<IConfigurationBuilder> configureDelegate)
     {
-        // HostingHostBuilderExtensions.ConfigureDefaults should never call this.
-        throw new InvalidOperationException();
+        _configureHostActions.Add(configureDelegate ?? throw new ArgumentNullException(nameof(configureDelegate)));
+        return this;
     }
 
     public IHostBuilder ConfigureAppConfiguration(Action<HostBuilderContext, IConfigurationBuilder> configureDelegate)
@@ -43,31 +51,34 @@ internal sealed class BootstrapHostBuilder : IHostBuilder
         return this;
     }
 
-    public IHostBuilder ConfigureContainer<TContainerBuilder>(Action<HostBuilderContext, TContainerBuilder> configureDelegate)
-    {
-        throw new InvalidOperationException();
-    }
-
-    public IHostBuilder ConfigureHostConfiguration(Action<IConfigurationBuilder> configureDelegate)
-    {
-        _configureHostActions.Add(configureDelegate ?? throw new ArgumentNullException(nameof(configureDelegate)));
-        return this;
-    }
 
     public IHostBuilder ConfigureServices(Action<HostBuilderContext, IServiceCollection> configureDelegate)
     {
-        // HostingHostBuilderExtensions.ConfigureDefaults calls this via ConfigureLogging
         _configureServicesActions.Add(configureDelegate ?? throw new ArgumentNullException(nameof(configureDelegate)));
         return this;
     }
 
+    public IHost Build()
+    {
+        // ConfigureWebHostDefaults should never call this.
+        throw new InvalidOperationException();
+    }
+
+    public IHostBuilder ConfigureContainer<TContainerBuilder>(Action<HostBuilderContext, TContainerBuilder> configureDelegate)
+    {
+        // ConfigureWebHostDefaults should never call this.
+        throw new InvalidOperationException();
+    }
+
     public IHostBuilder UseServiceProviderFactory<TContainerBuilder>(IServiceProviderFactory<TContainerBuilder> factory) where TContainerBuilder : notnull
     {
+        // ConfigureWebHostDefaults should never call this.
         throw new InvalidOperationException();
     }
 
     public IHostBuilder UseServiceProviderFactory<TContainerBuilder>(Func<HostBuilderContext, IServiceProviderFactory<TContainerBuilder>> factory) where TContainerBuilder : notnull
     {
+        // ConfigureWebHostDefaults should never call this.
         throw new InvalidOperationException();
     }
 

@@ -19,13 +19,29 @@ public sealed class ConfigureHostBuilder : IHostBuilder, ISupportsConfigureWebHo
     private readonly IServiceCollection _services;
     private readonly HostBuilderContext _context;
 
-    private readonly List<Action<IHostBuilder>> _operations = new();
+    private readonly List<Action<HostBuilderContext, object>> _configureContainerActions = new();
+    private IServiceProviderFactory<object>? _customServiceProviderFactory;
 
     internal ConfigureHostBuilder(HostBuilderContext context, ConfigurationManager configuration, IServiceCollection services)
     {
         _configuration = configuration;
         _services = services;
         _context = context;
+    }
+
+    internal IServiceProviderFactory<object>? GetCustomServiceProviderFactory()
+    {
+        if (_customServiceProviderFactory is null && _configureContainerActions.Count > 0)
+        {
+            // UseServiceProviderFactory wasn't called, so the _configureContanerActions must be for IServiceCollection.
+            // If not, the cast from IServiceCollection to whatever the action expects will fail like with HostBuilder.
+            foreach (var action in _configureContainerActions)
+            {
+                action(_context, _services);
+            }
+        }
+
+        return _customServiceProviderFactory;
     }
 
     /// <inheritdoc />
@@ -52,7 +68,8 @@ public sealed class ConfigureHostBuilder : IHostBuilder, ISupportsConfigureWebHo
             throw new ArgumentNullException(nameof(configureDelegate));
         }
 
-        _operations.Add(b => b.ConfigureContainer(configureDelegate));
+        _configureContainerActions.Add((context, containerBuilder) => configureDelegate(context, (TContainerBuilder)containerBuilder));
+
         return this;
     }
 
@@ -61,7 +78,7 @@ public sealed class ConfigureHostBuilder : IHostBuilder, ISupportsConfigureWebHo
     {
         var previousApplicationName = _configuration[HostDefaults.ApplicationKey];
         // Use the real content root so we can compare paths
-        var previousContentRoot = _context.HostingEnvironment.ContentRootPath;
+        var previousContentRoot = HostingPathResolver.ResolvePath(_context.HostingEnvironment.ContentRootPath);
         var previousContentRootConfig = _configuration[HostDefaults.ContentRootKey];
         var previousEnvironment = _configuration[HostDefaults.EnvironmentKey];
 
@@ -105,32 +122,69 @@ public sealed class ConfigureHostBuilder : IHostBuilder, ISupportsConfigureWebHo
             throw new ArgumentNullException(nameof(factory));
         }
 
-        _operations.Add(b => b.UseServiceProviderFactory(factory));
+        _customServiceProviderFactory = new CustomServiceFactoryAdapter<TContainerBuilder>(_context, _ => factory, _configureContainerActions);
         return this;
     }
 
     /// <inheritdoc />
     public IHostBuilder UseServiceProviderFactory<TContainerBuilder>(Func<HostBuilderContext, IServiceProviderFactory<TContainerBuilder>> factory) where TContainerBuilder : notnull
     {
-        if (factory is null)
-        {
-            throw new ArgumentNullException(nameof(factory));
-        }
-
-        _operations.Add(b => b.UseServiceProviderFactory(factory));
+        _customServiceProviderFactory = new CustomServiceFactoryAdapter<TContainerBuilder>(_context, factory ?? throw new ArgumentNullException(nameof(factory)), _configureContainerActions);
         return this;
-    }
-
-    internal void RunDeferredCallbacks(IHostBuilder hostBuilder)
-    {
-        foreach (var operation in _operations)
-        {
-            operation(hostBuilder);
-        }
     }
 
     IHostBuilder ISupportsConfigureWebHost.ConfigureWebHost(Action<IWebHostBuilder> configure, Action<WebHostBuilderOptions> configureOptions)
     {
         throw new NotSupportedException("ConfigureWebHost() is not supported by WebApplicationBuilder.Host. Use the WebApplication returned by WebApplicationBuilder.Build() instead.");
+    }
+
+    private sealed class CustomServiceFactoryAdapter<TContainerBuilder> : IServiceProviderFactory<object> where TContainerBuilder : notnull
+    {
+        private IServiceProviderFactory<TContainerBuilder>? _serviceProviderFactory;
+        private readonly HostBuilderContext _context;
+        private readonly Func<HostBuilderContext, IServiceProviderFactory<TContainerBuilder>> _factoryResolver;
+        private readonly List<Action<HostBuilderContext, object>> _configureContainerActions = new();
+
+        public CustomServiceFactoryAdapter(
+            HostBuilderContext context,
+            Func<HostBuilderContext, IServiceProviderFactory<TContainerBuilder>> factoryResolver,
+            List<Action<HostBuilderContext, object>> configureContainerAdapters)
+        {
+            _context = context ?? throw new ArgumentNullException(nameof(context));
+            _factoryResolver = factoryResolver ?? throw new ArgumentNullException(nameof(factoryResolver));
+            _configureContainerActions = configureContainerAdapters ?? throw new ArgumentNullException(nameof(configureContainerAdapters));
+        }
+
+        public object CreateBuilder(IServiceCollection services)
+        {
+            if (_serviceProviderFactory is null)
+            {
+                _serviceProviderFactory = _factoryResolver(_context);
+
+                if (_serviceProviderFactory == null)
+                {
+                    throw new InvalidOperationException();
+                }
+            }
+
+            var containerBuilder = _serviceProviderFactory.CreateBuilder(services);
+
+            foreach (var action in _configureContainerActions)
+            {
+                action(_context, containerBuilder);
+            }
+
+            return containerBuilder;
+        }
+
+        public IServiceProvider CreateServiceProvider(object containerBuilder)
+        {
+            if (_serviceProviderFactory is null)
+            {
+                throw new InvalidOperationException();
+            }
+
+            return _serviceProviderFactory.CreateServiceProvider((TContainerBuilder)containerBuilder);
+        }
     }
 }

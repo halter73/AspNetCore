@@ -4,7 +4,6 @@
 using System.Reflection;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Hosting;
 
 namespace Microsoft.AspNetCore.Builder;
 
@@ -40,36 +39,14 @@ public class WebApplicationOptions
 
     internal void ApplyHostConfiguration(IConfigurationBuilder builder)
     {
-        Dictionary<string, string?>? config = null;
-
-        if (EnvironmentName is not null)
+        if (WebRootPath is null)
         {
-            config = new();
-            config[HostDefaults.EnvironmentKey] = EnvironmentName;
+            return;
         }
 
-        if (ApplicationName is not null)
-        {
-            config ??= new();
-            config[HostDefaults.ApplicationKey] = ApplicationName;
-        }
-
-        if (ContentRootPath is not null)
-        {
-            config ??= new();
-            config[HostDefaults.ContentRootKey] = ContentRootPath;
-        }
-
-        if (WebRootPath is not null)
-        {
-            config ??= new();
-            config[WebHostDefaults.WebRootKey] = WebRootPath;
-        }
-
-        if (config is not null)
-        {
-            builder.AddInMemoryCollection(config);
-        }
+        Dictionary<string, string?>? config = new();
+        config[WebHostDefaults.WebRootKey] = WebRootPath;
+        builder.AddInMemoryCollection(config);
     }
 
     internal void ApplyApplicationName(IWebHostBuilder webHostBuilder)

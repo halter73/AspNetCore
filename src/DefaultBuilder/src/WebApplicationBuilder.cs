@@ -31,9 +31,14 @@ public sealed class WebApplicationBuilder
         _hostApplicationBuilder = new HostApplicationBuilder(new HostApplicationOptions
         {
             Args = options.Args,
+            ApplicationName = options.ApplicationName,
+            EnvironmentName = options.EnvironmentName,
+            ContentRootPath = options.ContentRootPath,
             InitialConfiguration = configuration,
-            OverrideDefaultConfigurationCallback = options.ApplyHostConfiguration,
         });
+
+        // Set WebRootPath if necessary
+        options.ApplyHostConfiguration(configuration);
 
         // Run methods to configure web host defaults early to populate services
         _bootstrapHostBuilder = new BootstrapHostBuilder(_hostApplicationBuilder);
@@ -59,11 +64,14 @@ public sealed class WebApplicationBuilder
         _bootstrapHostBuilder.RunDefaultCallbacks();
 
         // Grab the WebHostBuilderContext from the property bag to use in the ConfigureWebHostBuilder
-        var webHostContext = (WebHostBuilderContext)_hostApplicationBuilder.HostBuilder.Properties[typeof(WebHostBuilderContext)];
+        var webHostContext = (WebHostBuilderContext)_bootstrapHostBuilder.Properties[typeof(WebHostBuilderContext)];
+        // Don't let GenericWebHostBuilder change the environment. It already disallows ContentRoot change.
+        // TODO: Make this less hacky.
+        webHostContext.HostingEnvironment.ApplicationName = _hostApplicationBuilder.Environment.ApplicationName;
+        webHostContext.HostingEnvironment.EnvironmentName = _hostApplicationBuilder.Environment.EnvironmentName;
         // Grab the IWebHostEnvironment from the webHostContext. This also matches the instance in the IServiceCollection.
         Environment = webHostContext.HostingEnvironment;
 
-        // TODO: Host = _hostApplicationBuilder.HostBuilder.
         Host = new ConfigureHostBuilder(_bootstrapHostBuilder.Context, Configuration, Services);
         WebHost = new ConfigureWebHostBuilder(webHostContext, Configuration, Services);
     }
@@ -106,11 +114,14 @@ public sealed class WebApplicationBuilder
     /// <returns>A configured <see cref="WebApplication"/>.</returns>
     public WebApplication Build()
     {
-        // TODO: This shouldn't be necessary when we use _hostApplicationBuilder.HostBuilder for Host.
-        // Run the other callbacks on the final host builder
-        Host.RunDeferredCallbacks(_hostApplicationBuilder.HostBuilder);
-
-        _builtApplication = new WebApplication(_hostApplicationBuilder.Build());
+        if (Host.GetCustomServiceProviderFactory() is IServiceProviderFactory<object> serviceProviderFactory)
+        {
+            _builtApplication = new WebApplication(_hostApplicationBuilder.Build(serviceProviderFactory));
+        }
+        else
+        {
+            _builtApplication = new WebApplication(_hostApplicationBuilder.Build());
+        }
 
         return _builtApplication;
     }

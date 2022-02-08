@@ -79,6 +79,7 @@ internal sealed class BootstrapHostBuilder : IHostBuilder
     public IHostBuilder UseServiceProviderFactory<TContainerBuilder>(Func<HostBuilderContext, IServiceProviderFactory<TContainerBuilder>> factory) where TContainerBuilder : notnull
     {
         // ConfigureWebHostDefaults should never call this.
+        // TODO: This can be called!!!
         throw new InvalidOperationException();
     }
 

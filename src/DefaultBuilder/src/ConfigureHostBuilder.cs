@@ -22,7 +22,11 @@ public sealed class ConfigureHostBuilder : IHostBuilder, ISupportsConfigureWebHo
     private readonly List<Action<HostBuilderContext, object>> _configureContainerActions = new();
     private IServiceProviderFactory<object>? _customServiceProviderFactory;
 
-    internal ConfigureHostBuilder(HostBuilderContext context, ConfigurationManager configuration, IServiceCollection services)
+    internal ConfigureHostBuilder(
+        HostBuilderContext context,
+        ConfigurationManager configuration,
+        IServiceCollection services,
+        IServiceProviderFactory<object>? customServiceProviderFactory = null)
     {
         _configuration = configuration;
         _services = services;

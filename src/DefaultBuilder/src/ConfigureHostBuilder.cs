@@ -29,21 +29,6 @@ public sealed class ConfigureHostBuilder : IHostBuilder, ISupportsConfigureWebHo
         _context = context;
     }
 
-    internal IServiceProviderFactory<object>? GetCustomServiceProviderFactory()
-    {
-        if (_customServiceProviderFactory is null && _configureContainerActions.Count > 0)
-        {
-            // UseServiceProviderFactory wasn't called, so the _configureContanerActions must be for IServiceCollection.
-            // If not, the cast from IServiceCollection to whatever the action expects will fail like with HostBuilder.
-            foreach (var action in _configureContainerActions)
-            {
-                action(_context, _services);
-            }
-        }
-
-        return _customServiceProviderFactory;
-    }
-
     /// <inheritdoc />
     public IDictionary<object, object> Properties => _context.Properties;
 
@@ -138,12 +123,27 @@ public sealed class ConfigureHostBuilder : IHostBuilder, ISupportsConfigureWebHo
         throw new NotSupportedException("ConfigureWebHost() is not supported by WebApplicationBuilder.Host. Use the WebApplication returned by WebApplicationBuilder.Build() instead.");
     }
 
+    internal IServiceProviderFactory<object>? GetCustomServiceProviderFactory()
+    {
+        if (_customServiceProviderFactory is null && _configureContainerActions.Count > 0)
+        {
+            // UseServiceProviderFactory wasn't called, so the _configureContanerActions must be for IServiceCollection.
+            // If not, the cast from IServiceCollection to whatever the action expects will fail like with HostBuilder.
+            foreach (var action in _configureContainerActions)
+            {
+                action(_context, _services);
+            }
+        }
+
+        return _customServiceProviderFactory;
+    }
+
     private sealed class CustomServiceFactoryAdapter<TContainerBuilder> : IServiceProviderFactory<object> where TContainerBuilder : notnull
     {
         private IServiceProviderFactory<TContainerBuilder>? _serviceProviderFactory;
         private readonly HostBuilderContext _context;
         private readonly Func<HostBuilderContext, IServiceProviderFactory<TContainerBuilder>> _factoryResolver;
-        private readonly List<Action<HostBuilderContext, object>> _configureContainerActions = new();
+        private readonly List<Action<HostBuilderContext, object>> _configureContainerActions;
 
         public CustomServiceFactoryAdapter(
             HostBuilderContext context,
@@ -161,7 +161,7 @@ public sealed class ConfigureHostBuilder : IHostBuilder, ISupportsConfigureWebHo
             {
                 _serviceProviderFactory = _factoryResolver(_context);
 
-                if (_serviceProviderFactory == null)
+                if (_serviceProviderFactory is null)
                 {
                     throw new InvalidOperationException();
                 }

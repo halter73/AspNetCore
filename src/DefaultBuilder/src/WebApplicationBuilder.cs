@@ -38,7 +38,13 @@ public sealed class WebApplicationBuilder
         });
 
         // Set WebRootPath if necessary
-        options.ApplyHostConfiguration(configuration);
+        if (options.WebRootPath is not null)
+        {
+            Configuration.AddInMemoryCollection(new[]
+            {
+                new KeyValuePair<string, string?>(WebHostDefaults.WebRootKey, options.WebRootPath),
+            });
+        }
 
         // Run methods to configure web host defaults early to populate services
         _bootstrapHostBuilder = new BootstrapHostBuilder(_hostApplicationBuilder);
@@ -51,8 +57,10 @@ public sealed class WebApplicationBuilder
             // Runs inline.
             webHostBuilder.Configure(ConfigureApplication);
 
-            // Attempt to set the application name from options
-            options.ApplyApplicationName(webHostBuilder);
+            webHostBuilder.UseSetting(WebHostDefaults.ApplicationKey, _hostApplicationBuilder.Environment.ApplicationName ?? "");
+            webHostBuilder.UseSetting(WebHostDefaults.PreventHostingStartupKey, Configuration[WebHostDefaults.PreventHostingStartupKey]);
+            webHostBuilder.UseSetting(WebHostDefaults.HostingStartupAssembliesKey, Configuration[WebHostDefaults.HostingStartupAssembliesKey]);
+            webHostBuilder.UseSetting(WebHostDefaults.HostingStartupExcludeAssembliesKey, Configuration[WebHostDefaults.HostingStartupExcludeAssembliesKey]);
         },
         options =>
         {
@@ -65,10 +73,6 @@ public sealed class WebApplicationBuilder
 
         // Grab the WebHostBuilderContext from the property bag to use in the ConfigureWebHostBuilder
         var webHostContext = (WebHostBuilderContext)_bootstrapHostBuilder.Properties[typeof(WebHostBuilderContext)];
-        // Don't let GenericWebHostBuilder change the environment. It already disallows ContentRoot change.
-        // TODO: Make this less hacky.
-        webHostContext.HostingEnvironment.ApplicationName = _hostApplicationBuilder.Environment.ApplicationName;
-        webHostContext.HostingEnvironment.EnvironmentName = _hostApplicationBuilder.Environment.EnvironmentName;
         // Grab the IWebHostEnvironment from the webHostContext. This also matches the instance in the IServiceCollection.
         Environment = webHostContext.HostingEnvironment;
 

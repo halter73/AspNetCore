@@ -78,7 +78,7 @@ public sealed class WebApplicationBuilder
 
         Configuration = new();
             // This is chained as the first configuration source in Configuration so host config can be added later without overriding app config.
-            Configuration.AddConfiguration(_hostConfigurationManager, shouldDisposeConfiguration: true);
+            Configuration.AddConfiguration(_hostConfigurationManager);
 
         // Collect the hosted services separately since we want those to run after the user's hosted services
         _services.TrackHostedServices = true;

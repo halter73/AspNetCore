@@ -51,7 +51,6 @@ internal sealed class BootstrapHostBuilder : IHostBuilder
         return this;
     }
 
-
     public IHostBuilder ConfigureServices(Action<HostBuilderContext, IServiceCollection> configureDelegate)
     {
         _configureServicesActions.Add(configureDelegate ?? throw new ArgumentNullException(nameof(configureDelegate)));

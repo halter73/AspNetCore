@@ -28,13 +28,13 @@ public sealed class WebApplicationBuilder
 
         configuration.AddEnvironmentVariables(prefix: "ASPNETCORE_");
 
-        _hostApplicationBuilder = new HostApplicationBuilder(new HostApplicationOptions
+        _hostApplicationBuilder = new HostApplicationBuilder(new HostApplicationBuilderSettings
         {
             Args = options.Args,
             ApplicationName = options.ApplicationName,
             EnvironmentName = options.EnvironmentName,
             ContentRootPath = options.ContentRootPath,
-            InitialConfiguration = configuration,
+            Configuration = configuration,
         });
 
         // Set WebRootPath if necessary
@@ -120,12 +120,10 @@ public sealed class WebApplicationBuilder
     {
         if (Host.GetCustomServiceProviderFactory() is IServiceProviderFactory<object> serviceProviderFactory)
         {
-            _builtApplication = new WebApplication(_hostApplicationBuilder.Build(serviceProviderFactory));
+            _hostApplicationBuilder.ConfigureContainer(serviceProviderFactory);
         }
-        else
-        {
-            _builtApplication = new WebApplication(_hostApplicationBuilder.Build());
-        }
+
+        _builtApplication = new WebApplication(_hostApplicationBuilder.Build());
 
         return _builtApplication;
     }

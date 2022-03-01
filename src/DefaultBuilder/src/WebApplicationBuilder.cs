@@ -18,7 +18,7 @@ public sealed class WebApplicationBuilder
     private const string EndpointRouteBuilderKey = "__EndpointRouteBuilder";
 
     private readonly HostApplicationBuilder _hostApplicationBuilder;
-    private readonly BootstrapHostBuilder _bootstrapHostBuilder;
+    private readonly ServiceDescriptor _genericWebHostServiceDescriptor;
 
     private WebApplication? _builtApplication;
 
@@ -47,12 +47,12 @@ public sealed class WebApplicationBuilder
         }
 
         // Run methods to configure web host defaults early to populate services
-        _bootstrapHostBuilder = new BootstrapHostBuilder(_hostApplicationBuilder);
+        var bootstrapHostBuilder = new BootstrapHostBuilder(_hostApplicationBuilder);
 
         // This is for testing purposes
-        configureDefaults?.Invoke(_bootstrapHostBuilder);
+        configureDefaults?.Invoke(bootstrapHostBuilder);
 
-        _bootstrapHostBuilder.ConfigureWebHostDefaults(webHostBuilder =>
+        bootstrapHostBuilder.ConfigureWebHostDefaults(webHostBuilder =>
         {
             // Runs inline.
             webHostBuilder.Configure(ConfigureApplication);
@@ -68,15 +68,16 @@ public sealed class WebApplicationBuilder
             options.SuppressEnvironmentConfiguration = true;
         });
 
-        // This is the application configuration
-        _bootstrapHostBuilder.RunDefaultCallbacks();
+        // This applies the config from ConfigureWebHostDefaults
+        // Grab the GenericWebHostService ServiceDescriptor so we can append it after any user-added IHostedServices during Build();
+        _genericWebHostServiceDescriptor = bootstrapHostBuilder.RunDefaultCallbacks();
 
-        // Grab the WebHostBuilderContext from the property bag to use in the ConfigureWebHostBuilder
-        var webHostContext = (WebHostBuilderContext)_bootstrapHostBuilder.Properties[typeof(WebHostBuilderContext)];
-        // Grab the IWebHostEnvironment from the webHostContext. This also matches the instance in the IServiceCollection.
+        // Grab the WebHostBuilderContext from the property bag to use in the ConfigureWebHostBuilder. Then
+        // grab the IWebHostEnvironment from the webHostContext. This also matches the instance in the IServiceCollection.
+        var webHostContext = (WebHostBuilderContext)bootstrapHostBuilder.Properties[typeof(WebHostBuilderContext)];
         Environment = webHostContext.HostingEnvironment;
 
-        Host = new ConfigureHostBuilder(_bootstrapHostBuilder.Context, Configuration, Services);
+        Host = new ConfigureHostBuilder(bootstrapHostBuilder.Context, Configuration, Services);
         WebHost = new ConfigureWebHostBuilder(webHostContext, Configuration, Services);
     }
 
@@ -118,13 +119,11 @@ public sealed class WebApplicationBuilder
     /// <returns>A configured <see cref="WebApplication"/>.</returns>
     public WebApplication Build()
     {
-        if (Host.GetCustomServiceProviderFactory() is IServiceProviderFactory<object> serviceProviderFactory)
-        {
-            _hostApplicationBuilder.ConfigureContainer(serviceProviderFactory);
-        }
-
+        // ConfigureContainer callbacks run after ConfigureServices callbacks including the one that adds GenericWebHostService by default.
+        // One nice side effect is this gives a way to configure an IHostedService that starts after the server and stops beforehand.
+        _hostApplicationBuilder.Services.Add(_genericWebHostServiceDescriptor);
+        Host.ApplyServiceProviderFactory(_hostApplicationBuilder);
         _builtApplication = new WebApplication(_hostApplicationBuilder.Build());
-
         return _builtApplication;
     }
 

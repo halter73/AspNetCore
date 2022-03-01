@@ -1,6 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -82,7 +83,7 @@ internal sealed class BootstrapHostBuilder : IHostBuilder
         throw new InvalidOperationException();
     }
 
-    public void RunDefaultCallbacks()
+    public ServiceDescriptor RunDefaultCallbacks()
     {
         foreach (var configureHostAction in _configureHostActions)
         {
@@ -100,5 +101,22 @@ internal sealed class BootstrapHostBuilder : IHostBuilder
         {
             configureServicesAction(Context, _builder.Services);
         }
+
+        ServiceDescriptor? genericWebHostServiceDescriptor = null;
+
+        for (int i = _builder.Services.Count - 1; i >= 0; i--)
+        {
+            var descriptor = _builder.Services[i];
+            if (descriptor.ServiceType == typeof(IHostedService))
+            {
+                Debug.Assert(descriptor.ImplementationType?.Name == "GenericWebHostService");
+
+                genericWebHostServiceDescriptor = descriptor;
+                _builder.Services.RemoveAt(i);
+                break;
+            }
+        }
+
+        return genericWebHostServiceDescriptor ?? throw new InvalidOperationException($"GenericWebHostedService must exist in the {nameof(IServiceCollection)}");
     }
 }

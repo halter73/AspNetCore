@@ -20,13 +20,12 @@ public sealed class ConfigureHostBuilder : IHostBuilder, ISupportsConfigureWebHo
     private readonly HostBuilderContext _context;
 
     private readonly List<Action<HostBuilderContext, object>> _configureContainerActions = new();
-    private IServiceProviderFactory<object>? _customServiceProviderFactory;
+    private IServiceProviderFactory<object>? _serviceProviderFactory;
 
     internal ConfigureHostBuilder(
         HostBuilderContext context,
         ConfigurationManager configuration,
-        IServiceCollection services,
-        IServiceProviderFactory<object>? customServiceProviderFactory = null)
+        IServiceCollection services)
     {
         _configuration = configuration;
         _services = services;
@@ -111,15 +110,14 @@ public sealed class ConfigureHostBuilder : IHostBuilder, ISupportsConfigureWebHo
             throw new ArgumentNullException(nameof(factory));
         }
 
-        _customServiceProviderFactory = new CustomServiceFactoryAdapter<TContainerBuilder>(_context, _ => factory, _configureContainerActions);
+        _serviceProviderFactory = new ServiceProviderFactoryAdapter<TContainerBuilder>(factory);
         return this;
     }
 
     /// <inheritdoc />
     public IHostBuilder UseServiceProviderFactory<TContainerBuilder>(Func<HostBuilderContext, IServiceProviderFactory<TContainerBuilder>> factory) where TContainerBuilder : notnull
     {
-        _customServiceProviderFactory = new CustomServiceFactoryAdapter<TContainerBuilder>(_context, factory ?? throw new ArgumentNullException(nameof(factory)), _configureContainerActions);
-        return this;
+        return UseServiceProviderFactory(factory(_context));
     }
 
     IHostBuilder ISupportsConfigureWebHost.ConfigureWebHost(Action<IWebHostBuilder> configure, Action<WebHostBuilderOptions> configureOptions)
@@ -127,68 +125,41 @@ public sealed class ConfigureHostBuilder : IHostBuilder, ISupportsConfigureWebHo
         throw new NotSupportedException("ConfigureWebHost() is not supported by WebApplicationBuilder.Host. Use the WebApplication returned by WebApplicationBuilder.Build() instead.");
     }
 
-    internal IServiceProviderFactory<object>? GetCustomServiceProviderFactory()
+    internal void ApplyServiceProviderFactory(HostApplicationBuilder hostApplicationBuilder)
     {
-        if (_customServiceProviderFactory is null && _configureContainerActions.Count > 0)
+        if (_serviceProviderFactory is null)
         {
-            // UseServiceProviderFactory wasn't called, so the _configureContanerActions must be for IServiceCollection.
-            // If not, the cast from IServiceCollection to whatever the action expects will fail like with HostBuilder.
+            // No custom factory. Avoid calling hostApplicationBuilder.ConfigureContainer() which might override default validation options.
+            // If there were any callbacks supplied to ConfigureHostBuilder.ConfigureContainer(), call those with the IServiceCollection.
             foreach (var action in _configureContainerActions)
             {
                 action(_context, _services);
             }
+
+            return;
         }
 
-        return _customServiceProviderFactory;
-    }
-
-    private sealed class CustomServiceFactoryAdapter<TContainerBuilder> : IServiceProviderFactory<object> where TContainerBuilder : notnull
-    {
-        private IServiceProviderFactory<TContainerBuilder>? _serviceProviderFactory;
-        private readonly HostBuilderContext _context;
-        private readonly Func<HostBuilderContext, IServiceProviderFactory<TContainerBuilder>> _factoryResolver;
-        private readonly List<Action<HostBuilderContext, object>> _configureContainerActions;
-
-        public CustomServiceFactoryAdapter(
-            HostBuilderContext context,
-            Func<HostBuilderContext, IServiceProviderFactory<TContainerBuilder>> factoryResolver,
-            List<Action<HostBuilderContext, object>> configureContainerAdapters)
+        void ConfigureContainerBuilderAdapter(object containerBuilder)
         {
-            _context = context ?? throw new ArgumentNullException(nameof(context));
-            _factoryResolver = factoryResolver ?? throw new ArgumentNullException(nameof(factoryResolver));
-            _configureContainerActions = configureContainerAdapters ?? throw new ArgumentNullException(nameof(configureContainerAdapters));
-        }
-
-        public object CreateBuilder(IServiceCollection services)
-        {
-            if (_serviceProviderFactory is null)
-            {
-                _serviceProviderFactory = _factoryResolver(_context);
-
-                if (_serviceProviderFactory is null)
-                {
-                    throw new InvalidOperationException();
-                }
-            }
-
-            var containerBuilder = _serviceProviderFactory.CreateBuilder(services);
-
             foreach (var action in _configureContainerActions)
             {
                 action(_context, containerBuilder);
             }
-
-            return containerBuilder;
         }
 
-        public IServiceProvider CreateServiceProvider(object containerBuilder)
+        hostApplicationBuilder.ConfigureContainer(_serviceProviderFactory, ConfigureContainerBuilderAdapter);
+    }
+
+    private sealed class ServiceProviderFactoryAdapter<TContainerBuilder> : IServiceProviderFactory<object> where TContainerBuilder : notnull
+    {
+        private IServiceProviderFactory<TContainerBuilder> _serviceProviderFactory;
+
+        public ServiceProviderFactoryAdapter(IServiceProviderFactory<TContainerBuilder> serviceProviderFactory)
         {
-            if (_serviceProviderFactory is null)
-            {
-                throw new InvalidOperationException();
-            }
-
-            return _serviceProviderFactory.CreateServiceProvider((TContainerBuilder)containerBuilder);
+            _serviceProviderFactory = serviceProviderFactory;
         }
+
+        public object CreateBuilder(IServiceCollection services) => _serviceProviderFactory.CreateBuilder(services);
+        public IServiceProvider CreateServiceProvider(object containerBuilder) => _serviceProviderFactory.CreateServiceProvider((TContainerBuilder)containerBuilder);
     }
 }

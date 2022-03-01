@@ -451,7 +451,10 @@ public class WebApplicationTests
         builder.WebHost.UseContentRoot(Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory));
         builder.WebHost.UseContentRoot("");
 
-        Assert.Equal(AppContext.BaseDirectory, builder.Environment.ContentRootPath);
+        Assert.Equal(NormalizePath(AppContext.BaseDirectory), NormalizePath(builder.Environment.ContentRootPath));
+
+        static string NormalizePath(string unnormalizedPath) =>
+            Path.TrimEndingDirectorySeparator(Path.GetFullPath(unnormalizedPath));
     }
 
     [Fact]

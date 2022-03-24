@@ -1,5 +1,9 @@
 #nullable enable
 Microsoft.AspNetCore.Http.RouteHandlerFilterExtensions
+Microsoft.AspNetCore.Routing.GroupRouteBuilder
+Microsoft.AspNetCore.Routing.GroupRouteBuilder.Add(System.Action<Microsoft.AspNetCore.Builder.EndpointBuilder!>! convention) -> void
+Microsoft.AspNetCore.Routing.GroupRouteBuilder.DataSources.get -> System.Collections.Generic.ICollection<Microsoft.AspNetCore.Routing.EndpointDataSource!>!
+Microsoft.AspNetCore.Routing.GroupRouteBuilder.ServiceProvider.get -> System.IServiceProvider!
 Microsoft.AspNetCore.Routing.RouteOptions.SetParameterPolicy(string! token, System.Type! type) -> void
 Microsoft.AspNetCore.Routing.RouteOptions.SetParameterPolicy<T>(string! token) -> void
 static Microsoft.AspNetCore.Builder.EndpointRouteBuilderExtensions.MapPatch(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints, string! pattern, System.Delegate! handler) -> Microsoft.AspNetCore.Builder.RouteHandlerBuilder!

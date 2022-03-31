@@ -29,6 +29,17 @@ public static class EndpointRouteBuilderExtensions
     private static readonly string[] PatchVerb = new[] { HttpMethods.Patch };
 
     /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="endpoints"></param>
+    /// <param name="pattern"></param>
+    /// <returns></returns>
+    public static GroupRouteBuilder MapGroup(this IEndpointRouteBuilder endpoints, string pattern)
+    {
+        return new GroupRouteBuilder(endpoints, RoutePatternFactory.Parse(pattern));
+    }
+
+    /// <summary>
     /// Adds a <see cref="RouteEndpoint"/> to the <see cref="IEndpointRouteBuilder"/> that matches HTTP GET requests
     /// for the specified pattern.
     /// </summary>
@@ -494,8 +505,15 @@ public static class EndpointRouteBuilderExtensions
 
         const int defaultOrder = 0;
 
-        var routeParams = new List<string>(pattern.Parameters.Count);
-        foreach (var part in pattern.Parameters)
+        var fullPattern = pattern;
+
+        if (endpoints is GroupRouteBuilder group)
+        {
+            fullPattern = RoutePatternFactory.Parse(group.GroupPrefix.RawText + pattern.RawText);
+        }
+
+        var routeParams = new List<string>(fullPattern.Parameters.Count);
+        foreach (var part in fullPattern.Parameters)
         {
             routeParams.Add(part.Name);
         }
@@ -506,7 +524,7 @@ public static class EndpointRouteBuilderExtensions
             pattern,
             defaultOrder)
         {
-            DisplayName = pattern.RawText ?? pattern.DebuggerToString(),
+            DisplayName = fullPattern.RawText ?? fullPattern.DebuggerToString(),
         };
 
         // Methods defined in a top-level program are generated as statics so the delegate

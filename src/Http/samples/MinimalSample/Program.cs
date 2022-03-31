@@ -13,6 +13,13 @@ if (app.Environment.IsDevelopment())
 string Plaintext() => "Hello, World!";
 app.MapGet("/plaintext", Plaintext);
 
+app.MapGroup("/group/{groupName}")
+   .MapGroup("/nested/{nestedName}")
+   .MapGet("/", (string groupName, string nestedName) =>
+   {
+       return $"Hello from {groupName}:{nestedName}!";
+   });
+
 object Json() => new { message = "Hello, World!" };
 app.MapGet("/json", Json);
 

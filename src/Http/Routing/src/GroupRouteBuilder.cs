@@ -63,8 +63,8 @@ public sealed class GroupRouteBuilder : IEndpointRouteBuilder, IEndpointConventi
     /// <param name="configureBuilder"></param>
     public void OfBuilder<T>(Action<T> configureBuilder) where T : IEndpointConventionBuilder
     {
-        var conventionBuilders = DataSources.OfType<IEndpointConventionBuilderProvider>()
-            .SelectMany(s => s.EndpointConventionBuilders).OfType<T>();
+        var conventionBuilders = DataSources.OfType<IGroupEndpointDataSource>()
+            .SelectMany(s => s.ConventionBuilders).OfType<T>();
 
         _typedConventions.Add(() =>
         {
@@ -75,7 +75,7 @@ public sealed class GroupRouteBuilder : IEndpointRouteBuilder, IEndpointConventi
         });
     }
 
-    private sealed class GroupDataSource : EndpointDataSource, IEndpointConventionBuilderProvider
+    private sealed class GroupDataSource : EndpointDataSource, IGroupEndpointDataSource
     {
         private readonly GroupRouteBuilder _groupRouteBuilder;
 
@@ -128,8 +128,8 @@ public sealed class GroupRouteBuilder : IEndpointRouteBuilder, IEndpointConventi
             }
         }
 
-        public IEnumerable<IEndpointConventionBuilder> EndpointConventionBuilders =>
-            _groupRouteBuilder.DataSources.OfType<IEndpointConventionBuilderProvider>().SelectMany(s => s.EndpointConventionBuilders);
+        public IEnumerable<IEndpointConventionBuilder> ConventionBuilders =>
+            _groupRouteBuilder.DataSources.OfType<IGroupEndpointDataSource>().SelectMany(s => s.ConventionBuilders);
 
         public override IChangeToken GetChangeToken() => NullChangeToken.Singleton;
     }

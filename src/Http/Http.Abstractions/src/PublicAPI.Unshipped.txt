@@ -1,5 +1,7 @@
 #nullable enable
 *REMOVED*abstract Microsoft.AspNetCore.Http.HttpResponse.ContentType.get -> string!
+Microsoft.AspNetCore.Builder.IEndpointConventionBuilderProvider
+Microsoft.AspNetCore.Builder.IEndpointConventionBuilderProvider.EndpointConventionBuilders.get -> System.Collections.Generic.IEnumerable<Microsoft.AspNetCore.Builder.IEndpointConventionBuilder!>!
 Microsoft.AspNetCore.Http.EndpointMetadataCollection.GetRequiredMetadata<T>() -> T!
 Microsoft.AspNetCore.Http.IRouteHandlerFilter.InvokeAsync(Microsoft.AspNetCore.Http.RouteHandlerInvocationContext! context, Microsoft.AspNetCore.Http.RouteHandlerFilterDelegate! next) -> System.Threading.Tasks.ValueTask<object?>
 Microsoft.AspNetCore.Http.Metadata.IFromFormMetadata

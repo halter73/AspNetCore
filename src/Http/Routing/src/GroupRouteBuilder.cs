@@ -1,6 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Linq;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing.Patterns;
@@ -17,7 +18,8 @@ public sealed class GroupRouteBuilder : IEndpointRouteBuilder, IEndpointConventi
     private readonly IEndpointRouteBuilder _outerEndpointRouteBuilder;
     private readonly RoutePattern _pattern;
 
-    private readonly List<Action<EndpointBuilder>> _conventions;
+    private readonly List<Action<EndpointBuilder>> _conventions = new();
+    private readonly List<Action> _typedConventions = new();
 
     internal GroupRouteBuilder(IEndpointRouteBuilder outerEndpointRouteBuilder, RoutePattern pattern)
     {
@@ -54,7 +56,26 @@ public sealed class GroupRouteBuilder : IEndpointRouteBuilder, IEndpointConventi
         _conventions.Add(convention);
     }
 
-    private sealed class GroupDataSource : EndpointDataSource
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    /// <param name="configureBuilder"></param>
+    public void OfBuilder<T>(Action<T> configureBuilder) where T : IEndpointConventionBuilder
+    {
+        var conventionBuilders = DataSources.OfType<IEndpointConventionBuilderProvider>()
+            .SelectMany(s => s.EndpointConventionBuilders).OfType<T>();
+
+        _typedConventions.Add(() =>
+        {
+            foreach (var builder in conventionBuilders)
+            {
+                configureBuilder(builder);
+            }
+        });
+    }
+
+    private sealed class GroupDataSource : EndpointDataSource, IEndpointConventionBuilderProvider
     {
         private readonly GroupRouteBuilder _groupRouteBuilder;
 
@@ -74,6 +95,11 @@ public sealed class GroupRouteBuilder : IEndpointRouteBuilder, IEndpointConventi
                     convention(groupEndpointBuilder);
                 }
 
+                foreach (var configureBuilder in _groupRouteBuilder._typedConventions)
+                {
+                    configureBuilder();
+                }
+
                 var list = new List<Endpoint>();
 
                 foreach (var dataSource in _groupRouteBuilder.DataSources)
@@ -90,7 +116,7 @@ public sealed class GroupRouteBuilder : IEndpointRouteBuilder, IEndpointConventi
                                 // TODO: Make sure this works in all cases. What if RawText doesn't end in '/'?
                                 RoutePatternFactory.Parse(_groupRouteBuilder._pattern.RawText + routeEndpoint.RoutePattern.RawText),
                                 routeEndpoint.Order,
-                                routeEndpoint.Metadata,
+                                new EndpointMetadataCollection(routeEndpoint.Metadata.Concat(groupEndpointBuilder.Metadata)),
                                 routeEndpoint.DisplayName);
                         }
 
@@ -101,6 +127,9 @@ public sealed class GroupRouteBuilder : IEndpointRouteBuilder, IEndpointConventi
                 return list;
             }
         }
+
+        public IEnumerable<IEndpointConventionBuilder> EndpointConventionBuilders =>
+            _groupRouteBuilder.DataSources.OfType<IEndpointConventionBuilderProvider>().SelectMany(s => s.EndpointConventionBuilders);
 
         public override IChangeToken GetChangeToken() => NullChangeToken.Singleton;
     }

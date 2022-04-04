@@ -13,15 +13,22 @@ if (app.Environment.IsDevelopment())
 string Plaintext() => "Hello, World!";
 app.MapGet("/plaintext", Plaintext);
 
-app.MapGroup("/group/{groupName}")
-   .MapGroup("/nested/{nestedName}")
+var nestedGroup = app.MapGroup("/group/{groupName}")
+   .MapGroup("/nested/{nestedName}");
+
+nestedGroup
    .MapGet("/", (string groupName, string nestedName) =>
    {
        return $"Hello from {groupName}:{nestedName}!";
    });
 
+nestedGroup.OfBuilder<RouteHandlerBuilder>(builder =>
+{
+    builder.WithTags("tag1");
+});
+
 object Json() => new { message = "Hello, World!" };
-app.MapGet("/json", Json);
+app.MapGet("/json", Json).WithTags("tag2");
 
 string SayHello(string name) => $"Hello, {name}!";
 app.MapGet("/hello/{name}", SayHello);

@@ -224,7 +224,10 @@ public static class EndpointRouteBuilderExtensions
             endpoints.DataSources.Add(dataSource);
         }
 
-        return dataSource.AddEndpointBuilder(builder);
+        var defaultConventionBuilder = new DefaultEndpointConventionBuilder(builder);
+        dataSource.AddEndpointBuilder(defaultConventionBuilder, defaultConventionBuilder);
+
+        return defaultConventionBuilder;
     }
 
     /// <summary>
@@ -544,7 +547,10 @@ public static class EndpointRouteBuilderExtensions
             endpoints.DataSources.Add(dataSource);
         }
 
-        var routeHandlerBuilder = new RouteHandlerBuilder(dataSource.AddEndpointBuilder(builder));
+        var defaultConventionBuilder = new DefaultEndpointConventionBuilder(builder);
+        var routeHandlerBuilder = new RouteHandlerBuilder(defaultConventionBuilder);
+        dataSource.AddEndpointBuilder(defaultConventionBuilder, routeHandlerBuilder);
+
         routeHandlerBuilder.Add(RouteHandlerBuilderConvention);
 
         [UnconditionalSuppressMessage("Trimmer", "IL2026", Justification = "We surface a RequireUnreferencedCode in the call to enclosing Map method. " +

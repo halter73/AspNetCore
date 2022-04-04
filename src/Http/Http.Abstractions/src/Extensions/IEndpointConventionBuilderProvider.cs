@@ -6,10 +6,10 @@ namespace Microsoft.AspNetCore.Builder;
 /// <summary>
 /// 
 /// </summary>
-public interface IEndpointConventionBuilderProvider
+public interface IGroupEndpointDataSource
 {
     /// <summary>
     /// 
     /// </summary>
-    IEnumerable<IEndpointConventionBuilder> EndpointConventionBuilders { get; }
+    IEnumerable<IEndpointConventionBuilder> ConventionBuilders { get; }
 }

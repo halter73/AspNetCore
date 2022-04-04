@@ -9,7 +9,7 @@ using Microsoft.Extensions.Primitives;
 
 namespace Microsoft.AspNetCore.Routing;
 
-internal class ModelEndpointDataSource : EndpointDataSource, IEndpointConventionBuilderProvider
+internal class ModelEndpointDataSource : EndpointDataSource, IGroupEndpointDataSource
 {
     private readonly List<DefaultEndpointConventionBuilder> _endpointConventionBuilders = new();
     private readonly List<IEndpointConventionBuilder> _wrappedConventionBuilders = new(); 
@@ -27,7 +27,7 @@ internal class ModelEndpointDataSource : EndpointDataSource, IEndpointConvention
 
     public override IReadOnlyList<Endpoint> Endpoints => _endpointConventionBuilders.Select(e => e.Build()).ToArray();
 
-    public IEnumerable<IEndpointConventionBuilder> EndpointConventionBuilders => _wrappedConventionBuilders;
+    public IEnumerable<IEndpointConventionBuilder> ConventionBuilders => _wrappedConventionBuilders;
 
     // for testing
     internal IEnumerable<EndpointBuilder> EndpointBuilders => _endpointConventionBuilders.Select(b => b.EndpointBuilder);

@@ -248,8 +248,6 @@ internal class Http2OutputProducer : IHttpOutputProducer, IHttpOutputAborter, ID
             }
             else
             {
-                EnqueueStateUpdate(State.FlushHeaders);
-
                 Schedule();
 
                 return default;

@@ -19,7 +19,6 @@ public sealed class GroupRouteBuilder : IEndpointRouteBuilder, IEndpointConventi
     private readonly RoutePattern _pattern;
 
     private readonly List<Action<EndpointBuilder>> _conventions = new();
-    private readonly List<Action> _typedConventions = new();
 
     internal GroupRouteBuilder(IEndpointRouteBuilder outerEndpointRouteBuilder, RoutePattern pattern)
     {
@@ -56,26 +55,7 @@ public sealed class GroupRouteBuilder : IEndpointRouteBuilder, IEndpointConventi
         _conventions.Add(convention);
     }
 
-    /// <summary>
-    /// 
-    /// </summary>
-    /// <typeparam name="T"></typeparam>
-    /// <param name="configureBuilder"></param>
-    public void OfBuilder<T>(Action<T> configureBuilder) where T : IEndpointConventionBuilder
-    {
-        var conventionBuilders = DataSources.OfType<IGroupEndpointDataSource>()
-            .SelectMany(s => s.ConventionBuilders).OfType<T>();
-
-        _typedConventions.Add(() =>
-        {
-            foreach (var builder in conventionBuilders)
-            {
-                configureBuilder(builder);
-            }
-        });
-    }
-
-    private sealed class GroupDataSource : EndpointDataSource, IGroupEndpointDataSource
+    private sealed class GroupDataSource : EndpointDataSource
     {
         private readonly GroupRouteBuilder _groupRouteBuilder;
 
@@ -93,11 +73,6 @@ public sealed class GroupRouteBuilder : IEndpointRouteBuilder, IEndpointConventi
                 foreach (var convention in _groupRouteBuilder._conventions)
                 {
                     convention(groupEndpointBuilder);
-                }
-
-                foreach (var configureBuilder in _groupRouteBuilder._typedConventions)
-                {
-                    configureBuilder();
                 }
 
                 var list = new List<Endpoint>();
@@ -127,9 +102,6 @@ public sealed class GroupRouteBuilder : IEndpointRouteBuilder, IEndpointConventi
                 return list;
             }
         }
-
-        public IEnumerable<IEndpointConventionBuilder> ConventionBuilders =>
-            _groupRouteBuilder.DataSources.OfType<IGroupEndpointDataSource>().SelectMany(s => s.ConventionBuilders);
 
         public override IChangeToken GetChangeToken() => NullChangeToken.Singleton;
     }

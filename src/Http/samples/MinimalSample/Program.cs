@@ -22,11 +22,6 @@ nestedGroup
        return $"Hello from {groupName}:{nestedName}!";
    });
 
-nestedGroup.OfBuilder<RouteHandlerBuilder>(builder =>
-{
-    builder.WithTags("tag1");
-});
-
 object Json() => new { message = "Hello, World!" };
 app.MapGet("/json", Json).WithTags("tag2");
 

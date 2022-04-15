@@ -224,10 +224,7 @@ public static class EndpointRouteBuilderExtensions
             endpoints.DataSources.Add(dataSource);
         }
 
-        var defaultConventionBuilder = new DefaultEndpointConventionBuilder(builder);
-        dataSource.AddEndpointBuilder(defaultConventionBuilder, defaultConventionBuilder);
-
-        return defaultConventionBuilder;
+        return dataSource.AddEndpointBuilder(builder);
     }
 
     /// <summary>
@@ -547,9 +544,7 @@ public static class EndpointRouteBuilderExtensions
             endpoints.DataSources.Add(dataSource);
         }
 
-        var defaultConventionBuilder = new DefaultEndpointConventionBuilder(builder);
-        var routeHandlerBuilder = new RouteHandlerBuilder(defaultConventionBuilder);
-        dataSource.AddEndpointBuilder(defaultConventionBuilder, routeHandlerBuilder);
+        var routeHandlerBuilder = new RouteHandlerBuilder(dataSource.AddEndpointBuilder(builder));
 
         routeHandlerBuilder.Add(RouteHandlerBuilderConvention);
 

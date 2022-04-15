@@ -372,6 +372,8 @@ internal class Http2OutputProducer : IHttpOutputProducer, IHttpOutputAborter, ID
     {
         lock (_dataWriterLock)
         {
+            Stop();
+
             // We queued the stream to complete but didn't complete the response yet
             if (_streamCompleted && !_completedResponse)
             {
@@ -379,8 +381,6 @@ internal class Http2OutputProducer : IHttpOutputProducer, IHttpOutputAborter, ID
                 _resetErrorCode = error;
                 return default;
             }
-
-            Stop();
 
             return _frameWriter.WriteRstStreamAsync(StreamId, error);
         }

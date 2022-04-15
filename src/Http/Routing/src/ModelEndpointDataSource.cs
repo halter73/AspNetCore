@@ -9,15 +9,21 @@ using Microsoft.Extensions.Primitives;
 
 namespace Microsoft.AspNetCore.Routing;
 
-internal class ModelEndpointDataSource : EndpointDataSource, IGroupEndpointDataSource
+internal class ModelEndpointDataSource : EndpointDataSource
 {
-    private readonly List<DefaultEndpointConventionBuilder> _endpointConventionBuilders = new();
-    private readonly List<IEndpointConventionBuilder> _wrappedConventionBuilders = new(); 
+    private readonly List<DefaultEndpointConventionBuilder> _endpointConventionBuilders;
 
-    public void AddEndpointBuilder(DefaultEndpointConventionBuilder builder, IEndpointConventionBuilder wrappedBuilder)
+    public ModelEndpointDataSource()
     {
+        _endpointConventionBuilders = new List<DefaultEndpointConventionBuilder>();
+    }
+
+    public IEndpointConventionBuilder AddEndpointBuilder(EndpointBuilder endpointBuilder)
+    {
+        var builder = new DefaultEndpointConventionBuilder(endpointBuilder);
         _endpointConventionBuilders.Add(builder);
-        _wrappedConventionBuilders.Add(wrappedBuilder);
+
+        return builder;
     }
 
     public override IChangeToken GetChangeToken()
@@ -26,8 +32,6 @@ internal class ModelEndpointDataSource : EndpointDataSource, IGroupEndpointDataS
     }
 
     public override IReadOnlyList<Endpoint> Endpoints => _endpointConventionBuilders.Select(e => e.Build()).ToArray();
-
-    public IEnumerable<IEndpointConventionBuilder> ConventionBuilders => _wrappedConventionBuilders;
 
     // for testing
     internal IEnumerable<EndpointBuilder> EndpointBuilders => _endpointConventionBuilders.Select(b => b.EndpointBuilder);

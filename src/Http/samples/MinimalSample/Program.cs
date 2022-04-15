@@ -14,7 +14,8 @@ string Plaintext() => "Hello, World!";
 app.MapGet("/plaintext", Plaintext);
 
 var nestedGroup = app.MapGroup("/group/{groupName}")
-   .MapGroup("/nested/{nestedName}");
+   .MapGroup("/nested/{nestedName}")
+   .WithGroupName("double nested");
 
 nestedGroup
    .MapGet("/", (string groupName, string nestedName) =>

@@ -5,27 +5,26 @@ using System.Linq;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing.Patterns;
-using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Primitives;
 
 namespace Microsoft.AspNetCore.Routing;
 
 /// <summary>
-/// A builder that implements both a <see cref="IEndpointRouteBuilder"/> and a <see cref="IEndpointConventionBuilder"/>.
-/// It can be used to add endpoints with the given <see cref="GroupPrefix"/>, and to customize those endpoints using conventions.
+/// A builder for defining groups of endpoints with a common prefix that implements both the <see cref="IEndpointRouteBuilder"/>
+/// and <see cref="IEndpointConventionBuilder"/> interfaces. This can be used to add endpoints with the given <see cref="GroupPrefix"/>,
+/// and to customize those endpoints using conventions.
 /// </summary>
-
 public sealed class GroupRouteBuilder : IEndpointRouteBuilder, IEndpointConventionBuilder
 {
     private readonly IEndpointRouteBuilder _outerEndpointRouteBuilder;
     private readonly RoutePattern _pattern;
 
-    private readonly List<Action<EndpointBuilder>> _conventions = new();
+    private readonly List<EndpointDataSource> _dataSources = new();
+    private readonly GroupEndpointBuilder _groupEndpointBuilder = new();
 
     internal GroupRouteBuilder(IEndpointRouteBuilder outerEndpointRouteBuilder, RoutePattern pattern)
     {
         _outerEndpointRouteBuilder = outerEndpointRouteBuilder;
-        _outerEndpointRouteBuilder.DataSources.Add(new GroupDataSource(this));
         _pattern = pattern;
 
         if (outerEndpointRouteBuilder is GroupRouteBuilder outerGroup)
@@ -36,28 +35,26 @@ public sealed class GroupRouteBuilder : IEndpointRouteBuilder, IEndpointConventi
         {
             GroupPrefix = pattern;
         }
+
+        _groupEndpointBuilder = new GroupEndpointBuilder
+        {
+            DisplayName = GroupPrefix.RawText
+        };
+
+        _outerEndpointRouteBuilder.DataSources.Add(new GroupDataSource(this));
     }
 
     /// <summary>
     /// The <see cref="RoutePattern"/> prefixing all endpoints defined using this <see cref="GroupRouteBuilder"/>.
-    /// This accounts nested groups and gives the full group prefix, not just the prefix supplied to the last call to
+    /// This accounts for nested groups and gives the full group prefix, not just the prefix supplied to the last call to
     /// <see cref="EndpointRouteBuilderExtensions.MapGroup(IEndpointRouteBuilder, RoutePattern)"/>.
     /// </summary>
     public RoutePattern GroupPrefix { get; }
 
-    /// <inheritdoc/>
-    public IServiceProvider ServiceProvider => _outerEndpointRouteBuilder.ServiceProvider;
-
+    IServiceProvider IEndpointRouteBuilder.ServiceProvider => _outerEndpointRouteBuilder.ServiceProvider;
     IApplicationBuilder IEndpointRouteBuilder.CreateApplicationBuilder() => _outerEndpointRouteBuilder.CreateApplicationBuilder();
-
-    /// <inheritdoc/>
-    public ICollection<EndpointDataSource> DataSources { get; } = new List<EndpointDataSource>();
-
-    /// <inheritdoc/>
-    public void Add(Action<EndpointBuilder> convention)
-    {
-        _conventions.Add(convention);
-    }
+    ICollection<EndpointDataSource> IEndpointRouteBuilder.DataSources => _dataSources;
+    void IEndpointConventionBuilder.Add(Action<EndpointBuilder> convention) => convention(_groupEndpointBuilder);
 
     private sealed class GroupDataSource : EndpointDataSource
     {
@@ -72,16 +69,9 @@ public sealed class GroupRouteBuilder : IEndpointRouteBuilder, IEndpointConventi
         {
             get
             {
-                var groupEndpointBuilder = new GroupEndpointBuilder();
-
-                foreach (var convention in _groupRouteBuilder._conventions)
-                {
-                    convention(groupEndpointBuilder);
-                }
-
                 var list = new List<Endpoint>();
 
-                foreach (var dataSource in _groupRouteBuilder.DataSources)
+                foreach (var dataSource in _groupRouteBuilder._dataSources)
                 {
                     foreach (var endpoint in dataSource.Endpoints)
                     {
@@ -89,6 +79,8 @@ public sealed class GroupRouteBuilder : IEndpointRouteBuilder, IEndpointConventi
 
                         if (endpointToAdd is RouteEndpoint routeEndpoint)
                         {
+                            var combinedMetadata = _groupRouteBuilder._groupEndpointBuilder.Metadata.Concat(routeEndpoint.Metadata);
+
                             endpointToAdd = new RouteEndpoint(
                                 // This cannot be null given a RouteEndpoint.
                                 routeEndpoint.RequestDelegate!,
@@ -96,7 +88,7 @@ public sealed class GroupRouteBuilder : IEndpointRouteBuilder, IEndpointConventi
                                 // Using GroupPrefix would always give the full RoutePattern and not the intermediate value.
                                 RoutePattern.Combine(_groupRouteBuilder._pattern, routeEndpoint.RoutePattern),
                                 routeEndpoint.Order,
-                                new EndpointMetadataCollection(routeEndpoint.Metadata.Concat(groupEndpointBuilder.Metadata)),
+                                new EndpointMetadataCollection(combinedMetadata),
                                 routeEndpoint.DisplayName);
                         }
 
@@ -108,14 +100,11 @@ public sealed class GroupRouteBuilder : IEndpointRouteBuilder, IEndpointConventi
             }
         }
 
-        public override IChangeToken GetChangeToken() => NullChangeToken.Singleton;
+        public override IChangeToken GetChangeToken() => new CompositeEndpointDataSource(_groupRouteBuilder._dataSources).GetChangeToken();
     }
 
-    private class GroupEndpointBuilder : EndpointBuilder
+    private sealed class GroupEndpointBuilder : EndpointBuilder
     {
-        public override Endpoint Build()
-        {
-            throw new NotSupportedException();
-        }
+        public override Endpoint Build() => throw new NotSupportedException("A single endpoint cannot be built from a route group.");
     }
 }

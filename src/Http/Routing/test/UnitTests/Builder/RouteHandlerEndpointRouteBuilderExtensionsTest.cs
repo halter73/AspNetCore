@@ -135,7 +135,7 @@ public class RouteHandlerEndpointRouteBuilderExtensionsTest : LoggedTest
     }
 
     [Fact]
-    public async Task MapGetWithRouteParameter_BuildsEndpointWithRouteSpecificBinding()
+    public async Task MapGet_WithRouteParameter_BuildsEndpointWithRouteSpecificBinding()
     {
         var builder = new DefaultEndpointRouteBuilder(new ApplicationBuilder(new EmptyServiceProvider()));
         _ = builder.MapGet("/{id}", (int? id, HttpContext httpContext) =>
@@ -173,7 +173,7 @@ public class RouteHandlerEndpointRouteBuilderExtensionsTest : LoggedTest
     }
 
     [Fact]
-    public async Task MapGetWithoutRouteParameter_BuildsEndpointWithQuerySpecificBinding()
+    public async Task MapGet_WithoutRouteParameter_BuildsEndpointWithQuerySpecificBinding()
     {
         var builder = new DefaultEndpointRouteBuilder(new ApplicationBuilder(new EmptyServiceProvider()));
         _ = builder.MapGet("/", (int? id, HttpContext httpContext) =>
@@ -979,7 +979,7 @@ public class RouteHandlerEndpointRouteBuilderExtensionsTest : LoggedTest
     }
 
     [Fact]
-    public async Task MapGroupWithRouteParameter_BuildsEndpointWithRouteSpecificBinding()
+    public async Task MapGroup_WithRouteParameter_CanUseParameter()
     {
         var builder = new DefaultEndpointRouteBuilder(new ApplicationBuilder(new EmptyServiceProvider()));
 
@@ -1016,7 +1016,7 @@ public class RouteHandlerEndpointRouteBuilderExtensionsTest : LoggedTest
     }
 
     [Fact]
-    public async Task NestedMapGroupWithRouteParameter_BuildsEndpointWithRouteSpecificBinding()
+    public async Task MapGroup_NestedWithRouteParameters_CanUseParameters()
     {
         var builder = new DefaultEndpointRouteBuilder(new ApplicationBuilder(new EmptyServiceProvider()));
 
@@ -1054,7 +1054,7 @@ public class RouteHandlerEndpointRouteBuilderExtensionsTest : LoggedTest
     }
 
     [Fact]
-    public void MapGroupWithRepeatedRouteParameter_Throws()
+    public void MapGroup_WithRepeatedRouteParameter_ThrowsRoutePatternException()
     {
         var builder = new DefaultEndpointRouteBuilder(new ApplicationBuilder(new EmptyServiceProvider()));
 
@@ -1065,7 +1065,7 @@ public class RouteHandlerEndpointRouteBuilderExtensionsTest : LoggedTest
     }
 
     [Fact]
-    public void MapGroupWithNullParameters_Throws()
+    public void MapGroup_WithNullParameters_ThrowsArgumentNullException()
     {
         var builder = new DefaultEndpointRouteBuilder(new ApplicationBuilder(new EmptyServiceProvider()));
 
@@ -1080,6 +1080,17 @@ public class RouteHandlerEndpointRouteBuilderExtensionsTest : LoggedTest
         Assert.Equal("endpoints", ex.ParamName);
         ex = Assert.Throws<ArgumentNullException>(() => builder!.MapGroup("/"));
         Assert.Equal("endpoints", ex.ParamName);
+    }
+
+    [Fact]
+    public void MapGroup_BuildingInConvention_ThrowsNotSupportedException()
+    {
+        var builder = new DefaultEndpointRouteBuilder(new ApplicationBuilder(new EmptyServiceProvider()));
+
+        var group = builder.MapGroup("group");
+
+        Assert.Throws<NotSupportedException>(() =>
+            ((IEndpointConventionBuilder)group).Add(conventionBuiler => conventionBuiler.Build()));
     }
 
     class ServiceAccessingRouteHandlerFilter : IRouteHandlerFilter

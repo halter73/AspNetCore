@@ -157,7 +157,7 @@ public sealed class RoutePattern
         var rawText = $"{left.RawText?.TrimEnd('/')}/{right.RawText?.TrimStart('/')}";
 
         var totalParameterCount = left.Parameters.Count + right.Parameters.Count;
-
+        // Make sure parameter names aren't repeated.
         var parameterNameSet = new HashSet<string>(totalParameterCount);
         var parameters = new List<RoutePatternParameterPart>(totalParameterCount);
 
@@ -178,16 +178,15 @@ public sealed class RoutePattern
 
                 parameters.Add(parameter);
 
+                // All the dictionaries are keyed of parameter names.
                 if (pattern.Defaults.TryGetValue(parameter.Name, out var defaultValue))
                 {
                     defaults[parameter.Name] = defaultValue;
                 }
-
                 if (pattern.Defaults.TryGetValue(parameter.Name, out var requiredValue))
                 {
                     requiredValues[parameter.Name] = requiredValue;
                 }
-
                 if (pattern.ParameterPolicies.TryGetValue(parameter.Name, out var polices))
                 {
                     parameterPolicies[parameter.Name] = polices;

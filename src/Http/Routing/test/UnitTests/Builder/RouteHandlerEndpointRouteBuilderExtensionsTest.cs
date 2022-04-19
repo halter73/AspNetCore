@@ -984,10 +984,11 @@ public class RouteHandlerEndpointRouteBuilderExtensionsTest : LoggedTest
         var builder = new DefaultEndpointRouteBuilder(new ApplicationBuilder(new EmptyServiceProvider()));
 
         _ = builder
-            .MapGroup("/{id}")
-            .MapGet("/", (int? id, HttpContext httpContext) =>
+            .MapGroup("/{org}")
+            .MapGet("/{id}", (string org, int id, HttpContext httpContext) =>
             {
-                httpContext.Items["input"] = id;
+                httpContext.Items["org"] = org;
+                httpContext.Items["id"] = id;
             });
 
         var dataSource = GetEndpointDataSource(builder);
@@ -1001,15 +1002,55 @@ public class RouteHandlerEndpointRouteBuilderExtensionsTest : LoggedTest
         var method = Assert.Single(methodMetadata!.HttpMethods);
         Assert.Equal("GET", method);
 
-        Assert.Equal("HTTP: GET /{id}/", endpoint.DisplayName);
-        Assert.Equal("/{id}/", routeEndpoint.RoutePattern.RawText);
+        Assert.Equal("HTTP: GET /{org}/{id}", endpoint.DisplayName);
+        Assert.Equal("/{org}/{id}", routeEndpoint.RoutePattern.RawText);
 
         var httpContext = new DefaultHttpContext();
+        httpContext.Request.RouteValues["org"] = "dotnet";
         httpContext.Request.RouteValues["id"] = "42";
 
         await endpoint.RequestDelegate!(httpContext);
 
-        Assert.Equal(42, httpContext.Items["input"]);
+        Assert.Equal("dotnet", httpContext.Items["org"]);
+        Assert.Equal(42, httpContext.Items["id"]);
+    }
+
+    [Fact]
+    public async Task NestedMapGroupWithRouteParameter_BuildsEndpointWithRouteSpecificBinding()
+    {
+        var builder = new DefaultEndpointRouteBuilder(new ApplicationBuilder(new EmptyServiceProvider()));
+
+        _ = builder
+            .MapGroup("/{org}")
+            .MapGroup("/{id}")
+            .MapGet("/", (string org, int id, HttpContext httpContext) =>
+            {
+                httpContext.Items["org"] = org;
+                httpContext.Items["id"] = id;
+            });
+
+        var dataSource = GetEndpointDataSource(builder);
+
+        // Trigger Endpoint build by calling getter.
+        var endpoint = Assert.Single(dataSource.Endpoints);
+        var routeEndpoint = Assert.IsType<RouteEndpoint>(endpoint);
+
+        var methodMetadata = endpoint.Metadata.GetMetadata<IHttpMethodMetadata>();
+        Assert.NotNull(methodMetadata);
+        var method = Assert.Single(methodMetadata!.HttpMethods);
+        Assert.Equal("GET", method);
+
+        Assert.Equal("HTTP: GET /{org}/{id}/", endpoint.DisplayName);
+        Assert.Equal("/{org}/{id}/", routeEndpoint.RoutePattern.RawText);
+
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.RouteValues["org"] = "dotnet";
+        httpContext.Request.RouteValues["id"] = "42";
+
+        await endpoint.RequestDelegate!(httpContext);
+
+        Assert.Equal("dotnet", httpContext.Items["org"]);
+        Assert.Equal(42, httpContext.Items["id"]);
     }
 
     [Fact]

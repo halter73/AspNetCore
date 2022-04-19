@@ -152,6 +152,23 @@ public sealed class RoutePattern
         return null;
     }
 
+    internal static RoutePattern Combine(RoutePattern left, RoutePattern right)
+    {
+        static IReadOnlyDictionary<TKey, TValue> CombineDictionaries<TKey, TValue>(
+            IReadOnlyDictionary<TKey, TValue> left, IReadOnlyDictionary<TKey, TValue> right) where TKey : notnull
+        {
+            return left.Concat(right).ToDictionary(p => p.Key, p => p.Value);
+        }
+
+        return new RoutePattern(
+            $"{left.RawText?.TrimEnd('/')}/{right.RawText?.TrimStart('/')}",
+            CombineDictionaries(left.Defaults, right.Defaults),
+            CombineDictionaries(left.ParameterPolicies, right.ParameterPolicies),
+            CombineDictionaries(left.RequiredValues, right.RequiredValues),
+            left.Parameters.Concat(right.Parameters).ToList(),
+            left.PathSegments.Concat(right.PathSegments).ToList());
+    }
+
     internal string DebuggerToString()
     {
         return RawText ?? string.Join(SeparatorString, PathSegments.Select(s => s.DebuggerToString()));

@@ -509,7 +509,7 @@ public static class EndpointRouteBuilderExtensions
 
         if (endpoints is GroupRouteBuilder group)
         {
-            fullPattern = RoutePatternFactory.Parse(group.GroupPrefix.RawText + pattern.RawText);
+            fullPattern = RoutePattern.Combine(group.GroupPrefix, pattern);
         }
 
         var routeParams = new List<string>(fullPattern.Parameters.Count);

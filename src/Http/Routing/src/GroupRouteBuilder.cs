@@ -28,7 +28,7 @@ public sealed class GroupRouteBuilder : IEndpointRouteBuilder, IEndpointConventi
 
         if (outerEndpointRouteBuilder is GroupRouteBuilder outerGroup)
         {
-            GroupPrefix = RoutePatternFactory.Parse(outerGroup.GroupPrefix.RawText + pattern.RawText);
+            GroupPrefix = RoutePattern.Combine(outerGroup.GroupPrefix, pattern);
         }
         else
         {
@@ -88,8 +88,7 @@ public sealed class GroupRouteBuilder : IEndpointRouteBuilder, IEndpointConventi
                             endpointToAdd = new RouteEndpoint(
                                 // This cannot be null given a RouteEndpoint.
                                 routeEndpoint.RequestDelegate!,
-                                // TODO: Make sure this works in all cases. What if RawText doesn't end in '/'?
-                                RoutePatternFactory.Parse(_groupRouteBuilder._pattern.RawText + routeEndpoint.RoutePattern.RawText),
+                                RoutePattern.Combine(_groupRouteBuilder._pattern, routeEndpoint.RoutePattern),
                                 routeEndpoint.Order,
                                 new EndpointMetadataCollection(routeEndpoint.Metadata.Concat(groupEndpointBuilder.Metadata)),
                                 routeEndpoint.DisplayName);

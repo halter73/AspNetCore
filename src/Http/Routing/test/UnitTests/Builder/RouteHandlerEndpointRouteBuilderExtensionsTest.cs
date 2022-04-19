@@ -1166,8 +1166,24 @@ public class RouteHandlerEndpointRouteBuilderExtensionsTest : LoggedTest
         Assert.Equal("MapGroup does not support mutating RouteEndpointBuilder.RoutePattern from '/group/foo' to '/bar' via conventions.", ex.Message);
     }
 
+    [Fact]
+    public void MapGroup_GivenNonRouteEndpoint_ThrowsNotSupportedException()
+    {
+        var builder = new DefaultEndpointRouteBuilder(new ApplicationBuilder(new EmptyServiceProvider()));
+
+        var group = builder.MapGroup("/group");
+        ((IEndpointRouteBuilder)group).DataSources.Add(new TestCustomEndpintDataSource());
+
+        var dataSource = GetEndpointDataSource(builder);
+        var ex = Assert.Throws<NotSupportedException>(() => dataSource.Endpoints);
+        Assert.Equal(
+            "MapGroup does not support custom Endpoint type 'Microsoft.AspNetCore.Builder.RouteHandlerEndpointRouteBuilderExtensionsTest+TestCustomEndpoint'. " +
+            "Only RouteEndpoints can be grouped.",
+            ex.Message);
+    }
+
     // TODO:
-    // [] Throws for non-RouteEndpoints
+    // [x] Throws for non-RouteEndpoints
     // [] Metadata gets added in the right order
     // [] Inner metadata isn't visible to group conventions
     // [] GroupDataSource fires change token when a child data source fires
@@ -1293,5 +1309,16 @@ public class RouteHandlerEndpointRouteBuilderExtensionsTest : LoggedTest
 
             return null;
         }
+    }
+
+    private sealed class TestCustomEndpoint : Endpoint
+    {
+        public TestCustomEndpoint() : base(null, null, null) { }
+    }
+
+    private sealed class TestCustomEndpintDataSource : EndpointDataSource
+    {
+        public override IReadOnlyList<Endpoint> Endpoints => new[] { new TestCustomEndpoint() };
+        public override IChangeToken GetChangeToken() => throw new NotImplementedException();
     }
 }

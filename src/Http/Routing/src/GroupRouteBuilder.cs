@@ -88,6 +88,8 @@ public sealed class GroupRouteBuilder : IEndpointRouteBuilder, IEndpointConventi
                             endpointToAdd = new RouteEndpoint(
                                 // This cannot be null given a RouteEndpoint.
                                 routeEndpoint.RequestDelegate!,
+                                // Use _pattern instead of GroupPrefix because we could be calculating an intermediate step.
+                                // RoutePattern.Combine(_groupRouteBuilder.GroupPrefix, routeEndpoint.RoutePattern) will always give the full RoutePattern.
                                 RoutePattern.Combine(_groupRouteBuilder._pattern, routeEndpoint.RoutePattern),
                                 routeEndpoint.Order,
                                 new EndpointMetadataCollection(routeEndpoint.Metadata.Concat(groupEndpointBuilder.Metadata)),

@@ -6,6 +6,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.AspNetCore.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -984,7 +985,7 @@ public class RouteHandlerEndpointRouteBuilderExtensionsTest : LoggedTest
 
         _ = builder
             .MapGroup("/{id}")
-            .MapGet("", (int? id, HttpContext httpContext) =>
+            .MapGet("/", (int? id, HttpContext httpContext) =>
             {
                 httpContext.Items["input"] = id;
             });
@@ -1000,8 +1001,8 @@ public class RouteHandlerEndpointRouteBuilderExtensionsTest : LoggedTest
         var method = Assert.Single(methodMetadata!.HttpMethods);
         Assert.Equal("GET", method);
 
-        Assert.Equal("HTTP: GET /{id}", endpoint.DisplayName);
-        Assert.Equal("/{id}", routeEndpoint.RoutePattern.RawText);
+        Assert.Equal("HTTP: GET /{id}/", endpoint.DisplayName);
+        Assert.Equal("/{id}/", routeEndpoint.RoutePattern.RawText);
 
         var httpContext = new DefaultHttpContext();
         httpContext.Request.RouteValues["id"] = "42";
@@ -1009,6 +1010,17 @@ public class RouteHandlerEndpointRouteBuilderExtensionsTest : LoggedTest
         await endpoint.RequestDelegate!(httpContext);
 
         Assert.Equal(42, httpContext.Items["input"]);
+    }
+
+    [Fact]
+    public void MapGroupWithRepeatedRouteParameter_Throws()
+    {
+        var builder = new DefaultEndpointRouteBuilder(new ApplicationBuilder(new EmptyServiceProvider()));
+
+        var ex = ExceptionAssert.Throws<RoutePatternException>(() => builder.MapGroup("/{id}").MapGroup("/{id}"),
+            "The route parameter name 'id' appears more than one time in the route template.");
+
+        Assert.Equal("/{id}/{id}", ex.Pattern);
     }
 
     class ServiceAccessingRouteHandlerFilter : IRouteHandlerFilter

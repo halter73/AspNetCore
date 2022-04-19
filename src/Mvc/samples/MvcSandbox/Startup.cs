@@ -22,7 +22,7 @@ public class Startup
 
         static void ConfigureEndpoints(IEndpointRouteBuilder endpoints)
         {
-            endpoints.MapGet("/mapget", () => "MapGet");
+            endpoints.MapGet("/MapGet", () => "MapGet");
 
             endpoints.MapControllers();
             endpoints.MapControllerRoute(
@@ -34,10 +34,7 @@ public class Startup
 
         app.UseEndpoints(builder =>
         {
-            builder.MapDefaultControllerRoute();
             ConfigureEndpoints(builder);
-
-
             var group = builder.MapGroup("/group");
             ConfigureEndpoints(group);
         });

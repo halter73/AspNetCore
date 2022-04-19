@@ -1,7 +1,6 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System.Linq;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing.Patterns;
@@ -20,7 +19,7 @@ public sealed class GroupRouteBuilder : IEndpointRouteBuilder, IEndpointConventi
     private readonly RoutePattern _pattern;
 
     private readonly List<EndpointDataSource> _dataSources = new();
-    private readonly GroupEndpointBuilder _groupEndpointBuilder = new();
+    private readonly List<Action<EndpointBuilder>> _conventions = new();
 
     internal GroupRouteBuilder(IEndpointRouteBuilder outerEndpointRouteBuilder, RoutePattern pattern)
     {
@@ -36,11 +35,6 @@ public sealed class GroupRouteBuilder : IEndpointRouteBuilder, IEndpointConventi
             GroupPrefix = pattern;
         }
 
-        _groupEndpointBuilder = new GroupEndpointBuilder
-        {
-            DisplayName = GroupPrefix.RawText
-        };
-
         _outerEndpointRouteBuilder.DataSources.Add(new GroupDataSource(this));
     }
 
@@ -54,7 +48,9 @@ public sealed class GroupRouteBuilder : IEndpointRouteBuilder, IEndpointConventi
     IServiceProvider IEndpointRouteBuilder.ServiceProvider => _outerEndpointRouteBuilder.ServiceProvider;
     IApplicationBuilder IEndpointRouteBuilder.CreateApplicationBuilder() => _outerEndpointRouteBuilder.CreateApplicationBuilder();
     ICollection<EndpointDataSource> IEndpointRouteBuilder.DataSources => _dataSources;
-    void IEndpointConventionBuilder.Add(Action<EndpointBuilder> convention) => convention(_groupEndpointBuilder);
+    void IEndpointConventionBuilder.Add(Action<EndpointBuilder> convention) => _conventions.Add(convention);
+
+    private bool IsRoot => ReferenceEquals(GroupPrefix, _pattern);
 
     private sealed class GroupDataSource : EndpointDataSource
     {
@@ -75,24 +71,56 @@ public sealed class GroupRouteBuilder : IEndpointRouteBuilder, IEndpointConventi
                 {
                     foreach (var endpoint in dataSource.Endpoints)
                     {
-                        var endpointToAdd = endpoint;
-
-                        if (endpointToAdd is RouteEndpoint routeEndpoint)
+                        // Endpoint does not provide a RoutePattern but RouteEndpoint does. So it's impossible to apply a prefix custom Endpoints.
+                        // Supporting arbitrary Endpoints just to add group metadata would require changing the Endpoint type breaking any real scenario.
+                        if (endpoint is not RouteEndpoint routeEndpoint)
                         {
-                            var combinedMetadata = _groupRouteBuilder._groupEndpointBuilder.Metadata.Concat(routeEndpoint.Metadata);
-
-                            endpointToAdd = new RouteEndpoint(
-                                // This cannot be null given a RouteEndpoint.
-                                routeEndpoint.RequestDelegate!,
-                                // Use _pattern instead of GroupPrefix because we could be calculating an intermediate step.
-                                // Using GroupPrefix would always give the full RoutePattern and not the intermediate value.
-                                RoutePattern.Combine(_groupRouteBuilder._pattern, routeEndpoint.RoutePattern),
-                                routeEndpoint.Order,
-                                new EndpointMetadataCollection(combinedMetadata),
-                                routeEndpoint.DisplayName);
+                            throw new NotSupportedException(Resources.MapGroup_CustomEndpointUnsupported);
                         }
 
-                        list.Add(endpointToAdd);
+                        // Make the full route pattern visible to IEndpointConventionBuilder extension methods called on the group.
+                        // This includes patterns from any parent groups.
+                        var fullRoutePattern = RoutePattern.Combine(_groupRouteBuilder.GroupPrefix, routeEndpoint.RoutePattern);
+
+                        // RequestDelegate can never be null on a RouteEndpoint. The nullability carries over from Endpoint.
+                        var routeEndpointBuilder = new RouteEndpointBuilder(routeEndpoint.RequestDelegate!, fullRoutePattern, routeEndpoint.Order)
+                        {
+                            DisplayName = routeEndpoint.DisplayName,
+                        };
+
+                        // Apply group conventions to each endpoint in the group.
+                        foreach (var convention in _groupRouteBuilder._conventions)
+                        {
+                            convention(routeEndpointBuilder);
+                        }
+
+                        // If we supported mutating the route pattern via a group convention, RouteEndpointBuilder.RoutePattern would have
+                        // to be the partialRoutePattern (below) instead of the fullRoutePattern (above) since that's all we can control. We cannot
+                        // change a parent prefix. In order to allow to conventions to read the fullRoutePattern, we do not support mutation.
+                        if (!ReferenceEquals(fullRoutePattern, routeEndpointBuilder.RoutePattern))
+                        {
+                            throw new NotSupportedException(Resources.MapGroup_ChangingRoutePatternUnsupported);
+                        }
+
+                        // Any metadata already on the RouteEndpoint must have been applied directly to the endpoint or to a nested group.
+                        // This makes the metadata more specific than what's being applied to this group. So add it after this group's conventions.
+                        // REVIEW: This means group conventions don't get visibility into endpoint-specific metadata or the ability to override it.
+                        foreach (var metadata in routeEndpoint.Metadata)
+                        {
+                            routeEndpointBuilder.Metadata.Add(metadata);
+                        }
+
+                        // Use _pattern instead of GroupPrefix when we're calculating an intermediate RouteEndpoint.
+                        var partialRoutePattern = _groupRouteBuilder.IsRoot
+                            ? fullRoutePattern : RoutePattern.Combine(_groupRouteBuilder._pattern, routeEndpoint.RoutePattern);
+
+                        list.Add(new RouteEndpoint(
+                            // Again, RequestDelegate can never be null given a RouteEndpoint.
+                            routeEndpointBuilder.RequestDelegate!,
+                            partialRoutePattern,
+                            routeEndpointBuilder.Order,
+                            new(routeEndpointBuilder.Metadata),
+                            routeEndpointBuilder.DisplayName));
                     }
                 }
 
@@ -101,10 +129,5 @@ public sealed class GroupRouteBuilder : IEndpointRouteBuilder, IEndpointConventi
         }
 
         public override IChangeToken GetChangeToken() => new CompositeEndpointDataSource(_groupRouteBuilder._dataSources).GetChangeToken();
-    }
-
-    private sealed class GroupEndpointBuilder : EndpointBuilder
-    {
-        public override Endpoint Build() => throw new NotSupportedException("A single endpoint cannot be built from a route group.");
     }
 }

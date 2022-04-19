@@ -983,13 +983,14 @@ public class RouteHandlerEndpointRouteBuilderExtensionsTest : LoggedTest
     {
         var builder = new DefaultEndpointRouteBuilder(new ApplicationBuilder(new EmptyServiceProvider()));
 
-        _ = builder
-            .MapGroup("/{org}")
-            .MapGet("/{id}", (string org, int id, HttpContext httpContext) =>
-            {
-                httpContext.Items["org"] = org;
-                httpContext.Items["id"] = id;
-            });
+        var group = builder.MapGroup("/{org}");
+        Assert.Equal("/{org}", group.GroupPrefix.RawText);
+
+        group.MapGet("/{id}", (string org, int id, HttpContext httpContext) =>
+        {
+            httpContext.Items["org"] = org;
+            httpContext.Items["id"] = id;
+        });
 
         var dataSource = GetEndpointDataSource(builder);
 
@@ -1020,10 +1021,10 @@ public class RouteHandlerEndpointRouteBuilderExtensionsTest : LoggedTest
     {
         var builder = new DefaultEndpointRouteBuilder(new ApplicationBuilder(new EmptyServiceProvider()));
 
-        _ = builder
-            .MapGroup("/{org}")
-            .MapGroup("/{id}")
-            .MapGet("/", (string org, int id, HttpContext httpContext) =>
+        var group = builder.MapGroup("/{org}").MapGroup("/{id}");
+        Assert.Equal("/{org}/{id}", group.GroupPrefix.RawText);
+
+        group.MapGet("/", (string org, int id, HttpContext httpContext) =>
             {
                 httpContext.Items["org"] = org;
                 httpContext.Items["id"] = id;
@@ -1083,14 +1084,86 @@ public class RouteHandlerEndpointRouteBuilderExtensionsTest : LoggedTest
     }
 
     [Fact]
-    public void MapGroup_BuildingInConvention_ThrowsNotSupportedException()
+    public void MapGroup_RoutePatternInConvention_IncludesFullGroupPrefix()
     {
         var builder = new DefaultEndpointRouteBuilder(new ApplicationBuilder(new EmptyServiceProvider()));
 
-        var group = builder.MapGroup("group");
+        var outer = builder.MapGroup("/outer");
+        var inner = outer.MapGroup("/inner");
+        inner.MapGet("/foo", () => "Hello World!");
 
-        Assert.Throws<NotSupportedException>(() =>
-            ((IEndpointConventionBuilder)group).Add(conventionBuiler => conventionBuiler.Build()));
+        RoutePattern? outerPattern = null;
+        RoutePattern? innerPattern = null;
+
+        ((IEndpointConventionBuilder)outer).Add(builder =>
+        {
+            outerPattern = ((RouteEndpointBuilder)builder).RoutePattern;
+        });
+        ((IEndpointConventionBuilder)inner).Add(builder =>
+        {
+            innerPattern = ((RouteEndpointBuilder)builder).RoutePattern;
+        });
+
+        var dataSource = GetEndpointDataSource(builder);
+        Assert.Single(dataSource.Endpoints);
+
+        Assert.Equal("/outer/inner/foo", outerPattern?.RawText);
+        Assert.Equal("/outer/inner/foo", innerPattern?.RawText);
+    }
+
+    [Fact]
+    public async Task MapGroup_BuildingEndpointInConvention_Works()
+    {
+        var builder = new DefaultEndpointRouteBuilder(new ApplicationBuilder(new EmptyServiceProvider()));
+
+        var group = builder.MapGroup("/group");
+        var mapGetCalled = false;
+
+        group.MapGet("/", () =>
+        {
+            mapGetCalled = true;
+        });
+
+        Endpoint? conventionBuiltEndpoint = null;
+
+        ((IEndpointConventionBuilder)group).Add(builder =>
+        {
+            conventionBuiltEndpoint = builder.Build();
+        });
+
+        var dataSource = GetEndpointDataSource(builder);
+
+        // Trigger Endpoint build by calling getter.
+        var endpoint = Assert.Single(dataSource.Endpoints);
+
+        var httpContext = new DefaultHttpContext();
+
+        Assert.NotNull(conventionBuiltEndpoint);
+        Assert.False(mapGetCalled);
+        await conventionBuiltEndpoint!.RequestDelegate!(httpContext);
+        Assert.True(mapGetCalled);
+
+        mapGetCalled = false;
+        await endpoint.RequestDelegate!(httpContext);
+        Assert.True(mapGetCalled);
+    }
+
+    [Fact]
+    public void MapGroup_ModifyingRoutePatternInConvention_ThrowsNotSupportedException()
+    {
+        var builder = new DefaultEndpointRouteBuilder(new ApplicationBuilder(new EmptyServiceProvider()));
+
+        var group = builder.MapGroup("/group");
+        group.MapGet("/foo", () => "Hello World!");
+
+        ((IEndpointConventionBuilder)group).Add(builder =>
+        {
+            ((RouteEndpointBuilder)builder).RoutePattern = RoutePatternFactory.Parse("/bar");
+        });
+
+        var dataSource = GetEndpointDataSource(builder);
+        var ex = Assert.Throws<NotSupportedException>(() => dataSource.Endpoints);
+        Assert.Equal(Resources.MapGroup_ChangingRoutePatternUnsupported, ex.Message);
     }
 
     class ServiceAccessingRouteHandlerFilter : IRouteHandlerFilter

@@ -29,14 +29,38 @@ public static class EndpointRouteBuilderExtensions
     private static readonly string[] PatchVerb = new[] { HttpMethods.Patch };
 
     /// <summary>
-    /// 
+    /// Create a <see cref="GroupRouteBuilder"/> for defining endpoints all prefixed with the specified <paramref name="prefixPattern"/>.
     /// </summary>
-    /// <param name="endpoints"></param>
-    /// <param name="pattern"></param>
-    /// <returns></returns>
-    public static GroupRouteBuilder MapGroup(this IEndpointRouteBuilder endpoints, string pattern)
+    /// <param name="endpoints">The <see cref="IEndpointRouteBuilder"/> to add the group to.</param>
+    /// <param name="prefixPattern">The pattern that prefixes all routes in this group.</param>
+    /// <returns>
+    /// A <see cref="GroupRouteBuilder"/> that is both a <see cref="IEndpointRouteBuilder"/> and a <see cref="IEndpointConventionBuilder"/>.
+    /// The same builder can be used to add endpoints with the given <paramref name="prefixPattern"/>, and to customize those endpoints using conventions.
+    /// </returns>
+    public static GroupRouteBuilder MapGroup(this IEndpointRouteBuilder endpoints, string prefixPattern) =>
+        endpoints.MapGroup(RoutePatternFactory.Parse(prefixPattern ?? throw new ArgumentNullException(nameof(prefixPattern))));
+
+    /// <summary>
+    /// Create a <see cref="GroupRouteBuilder"/> for defining endpoints all prefixed with the specified <paramref name="prefixPattern"/>.
+    /// </summary>
+    /// <param name="endpoints">The <see cref="IEndpointRouteBuilder"/> to add the group to.</param>
+    /// <param name="prefixPattern">The pattern that prefixes all routes in this group.</param>
+    /// <returns>
+    /// A <see cref="GroupRouteBuilder"/> that is both a <see cref="IEndpointRouteBuilder"/> and a <see cref="IEndpointConventionBuilder"/>.
+    /// The same builder can be used to add endpoints with the given <paramref name="prefixPattern"/>, and to customize those endpoints using conventions.
+    /// </returns>
+    public static GroupRouteBuilder MapGroup(this IEndpointRouteBuilder endpoints, RoutePattern prefixPattern)
     {
-        return new GroupRouteBuilder(endpoints, RoutePatternFactory.Parse(pattern));
+        if (endpoints is null)
+        {
+            throw new ArgumentNullException(nameof(endpoints));
+        }
+        if (prefixPattern is null)
+        {
+            throw new ArgumentNullException(nameof(prefixPattern));
+        }
+
+        return new(endpoints, prefixPattern);
     }
 
     /// <summary>

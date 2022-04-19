@@ -1023,6 +1023,24 @@ public class RouteHandlerEndpointRouteBuilderExtensionsTest : LoggedTest
         Assert.Equal("/{id}/{id}", ex.Pattern);
     }
 
+    [Fact]
+    public void MapGroupWithNullParameters_Throws()
+    {
+        var builder = new DefaultEndpointRouteBuilder(new ApplicationBuilder(new EmptyServiceProvider()));
+
+        var ex = Assert.Throws<ArgumentNullException>(() => builder.MapGroup((string)null!));
+        Assert.Equal("prefixPattern", ex.ParamName);
+        ex = Assert.Throws<ArgumentNullException>(() => builder.MapGroup((RoutePattern)null!));
+        Assert.Equal("prefixPattern", ex.ParamName);
+
+        builder = null;
+
+        ex = Assert.Throws<ArgumentNullException>(() => builder!.MapGroup(RoutePatternFactory.Parse("/")));
+        Assert.Equal("endpoints", ex.ParamName);
+        ex = Assert.Throws<ArgumentNullException>(() => builder!.MapGroup("/"));
+        Assert.Equal("endpoints", ex.ParamName);
+    }
+
     class ServiceAccessingRouteHandlerFilter : IRouteHandlerFilter
     {
         private ILogger _logger;

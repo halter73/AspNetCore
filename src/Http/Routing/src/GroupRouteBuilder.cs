@@ -11,8 +11,10 @@ using Microsoft.Extensions.Primitives;
 namespace Microsoft.AspNetCore.Routing;
 
 /// <summary>
-/// 
+/// A builder that implements both a <see cref="IEndpointRouteBuilder"/> and a <see cref="IEndpointConventionBuilder"/>.
+/// It can be used to add endpoints with the given <see cref="GroupPrefix"/>, and to customize those endpoints using conventions.
 /// </summary>
+
 public sealed class GroupRouteBuilder : IEndpointRouteBuilder, IEndpointConventionBuilder
 {
     private readonly IEndpointRouteBuilder _outerEndpointRouteBuilder;
@@ -37,7 +39,9 @@ public sealed class GroupRouteBuilder : IEndpointRouteBuilder, IEndpointConventi
     }
 
     /// <summary>
-    /// 
+    /// The <see cref="RoutePattern"/> prefixing all endpoints defined using this <see cref="GroupRouteBuilder"/>.
+    /// This accounts nested groups and gives the full group prefix, not just the prefix supplied to the last call to
+    /// <see cref="EndpointRouteBuilderExtensions.MapGroup(IEndpointRouteBuilder, RoutePattern)"/>.
     /// </summary>
     public RoutePattern GroupPrefix { get; }
 
@@ -89,7 +93,7 @@ public sealed class GroupRouteBuilder : IEndpointRouteBuilder, IEndpointConventi
                                 // This cannot be null given a RouteEndpoint.
                                 routeEndpoint.RequestDelegate!,
                                 // Use _pattern instead of GroupPrefix because we could be calculating an intermediate step.
-                                // RoutePattern.Combine(_groupRouteBuilder.GroupPrefix, routeEndpoint.RoutePattern) will always give the full RoutePattern.
+                                // Using GroupPrefix would always give the full RoutePattern and not the intermediate value.
                                 RoutePattern.Combine(_groupRouteBuilder._pattern, routeEndpoint.RoutePattern),
                                 routeEndpoint.Order,
                                 new EndpointMetadataCollection(routeEndpoint.Metadata.Concat(groupEndpointBuilder.Metadata)),

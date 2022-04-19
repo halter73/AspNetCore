@@ -235,7 +235,7 @@
     <value>No media type found for format '{0}'.</value>
   </data>
   <data name="MapGroup_ChangingRoutePatternUnsupported" xml:space="preserve">
-    <value>MapGroup doesn not support mutating RouteEndpointBuilder.RoutePattern via conventions.</value>
+    <value>MapGroup does not support mutating RouteEndpointBuilder.RoutePattern via conventions.</value>
   </data>
   <data name="MapGroup_CustomEndpointUnsupported" xml:space="preserve">
     <value>MapGroup does not support custom Endpoint types. Only RouteEndpoints can be grouped.</value>

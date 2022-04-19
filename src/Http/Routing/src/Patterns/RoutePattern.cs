@@ -178,12 +178,13 @@ public sealed class RoutePattern
 
                 parameters.Add(parameter);
 
-                // All the dictionaries are keyed of parameter names.
+                // All the dictionaries are keyed of parameter names, so we only copy dictionary entries
+                // for parameter names in the given RoutePattern. This guarantees a Route
                 if (pattern.Defaults.TryGetValue(parameter.Name, out var defaultValue))
                 {
                     defaults[parameter.Name] = defaultValue;
                 }
-                if (pattern.Defaults.TryGetValue(parameter.Name, out var requiredValue))
+                if (pattern.RequiredValues.TryGetValue(parameter.Name, out var requiredValue))
                 {
                     requiredValues[parameter.Name] = requiredValue;
                 }

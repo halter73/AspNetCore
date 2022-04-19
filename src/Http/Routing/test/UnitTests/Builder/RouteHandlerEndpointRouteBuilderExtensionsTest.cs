@@ -1059,10 +1059,10 @@ public class RouteHandlerEndpointRouteBuilderExtensionsTest : LoggedTest
     {
         var builder = new DefaultEndpointRouteBuilder(new ApplicationBuilder(new EmptyServiceProvider()));
 
-        var ex = ExceptionAssert.Throws<RoutePatternException>(() => builder.MapGroup("/{id}").MapGroup("/{id}"),
-            "The route parameter name 'id' appears more than one time in the route template.");
+        var ex = Assert.Throws<RoutePatternException>(() => builder.MapGroup("/{id}").MapGroup("/{id}"));
 
         Assert.Equal("/{id}/{id}", ex.Pattern);
+        Assert.Equal("The route parameter name 'id' appears more than one time in the route template.", ex.Message);
     }
 
     [Fact]
@@ -1163,17 +1163,17 @@ public class RouteHandlerEndpointRouteBuilderExtensionsTest : LoggedTest
 
         var dataSource = GetEndpointDataSource(builder);
         var ex = Assert.Throws<NotSupportedException>(() => dataSource.Endpoints);
-        Assert.Equal(Resources.MapGroup_ChangingRoutePatternUnsupported, ex.Message);
+        Assert.Equal("MapGroup does not support mutating RouteEndpointBuilder.RoutePattern via conventions.", ex.Message);
     }
 
     // TODO:
-    // Throws for non-RouteEndpoints
-    // Metadata gets added in the right order
-    // Inner metadata isn't visible to group conventions
-    // GroupDataSource fires change token when a child data source fires.
-    // RequestDelegate, Order and DisplayName can be modified by the group.
-    // RoutePattern merging handles '/' and no-'/' properly
-    // FIX: A RoutePattern cannot add dictionary entries for parameters it doesn't define.
+    // [] Throws for non-RouteEndpoints
+    // [] Metadata gets added in the right order
+    // [] Inner metadata isn't visible to group conventions
+    // [] GroupDataSource fires change token when a child data source fires.
+    // [] RequestDelegate, Order and DisplayName can be modified by the group.
+    // [x] RoutePattern merging handles '/' and no-'/' properly
+    // [] FIX: A RoutePattern cannot add dictionary entries for parameters it doesn't define.
 
     class ServiceAccessingRouteHandlerFilter : IRouteHandlerFilter
     {

@@ -713,4 +713,39 @@ public class RoutePatternFactoryTest
         Assert.Same(paramPartC, actual.Parts[1]);
         Assert.Same(paramPartD, actual.Parts[2]);
     }
+
+    [Fact]
+    public void Combine_WithDuplicateParameters_Throws()
+    {
+        var left = RoutePatternFactory.Parse("/{id}");
+        var right = RoutePatternFactory.Parse("/{id}");
+
+        var ex = Assert.Throws<RoutePatternException>(() => RoutePatternFactory.Combine(left, right));
+        Assert.Equal("/{id}/{id}", ex.Pattern);
+        Assert.Equal("The route parameter name 'id' appears more than one time in the route template.", ex.Message);
+    }
+
+    [Theory]
+    [InlineData("a", "b")]
+    [InlineData("a/", "b")]
+    [InlineData("a", "/b")]
+    [InlineData("a/", "/b")]
+    public void Combine_HandlesMissingAndDuplicateSeperatorsInRawText(string leftTemplate, string rightTemplate)
+    {
+        var left = RoutePatternFactory.Parse(leftTemplate);
+        var right = RoutePatternFactory.Parse(rightTemplate);
+        var combined = RoutePatternFactory.Combine(left, right);
+
+        static Action<RoutePatternPathSegment> AssertLiteral(string literal)
+        {
+            return segment =>
+            {
+                var part = Assert.IsType<RoutePatternLiteralPart>(Assert.Single(segment.Parts));
+                Assert.Equal(literal, part.Content);
+            };
+        }
+
+        Assert.Equal("a/b", combined.RawText);
+        Assert.Collection(combined.PathSegments, AssertLiteral("a"), AssertLiteral("b"));
+     }
 }

@@ -1118,11 +1118,12 @@ public static class RoutePatternFactory
             return combinedList;
         }
 
-        // Technically, the ParameterPolicies could probably be merged because it's a list, but it makes no sense
-        // to have a policy for a Parameter you don't define and a Parameter cannot be repeated. RequiredValues and Defaults
-        // do not have to be Parameters however. Defaults can reference either a Parameter or RequiredValue. The relationships
-        // between Defaults, Parameters and RequiredValues shouldn't need revalidated after merging as long as there are no
-        // conflicting entries.
+        // Technically, the ParameterPolicies could probably be merged because it's a list, but it makes little sense to add policy
+        // for the same parameter in both the left and right part of the combined pattern. Defaults and Required values cannot be
+        // merged because the `TValue` is `object?`, but over-setting a Default or RequiredValue (which may not be in the parameter list)
+        // seems okay as long as the values are the same for a given key in both the left and right pattern. There's already similar logic
+        // in PatternCore for when defaults come from both the `defaults` and `segements` param. `requiredValues` cannot be defined in
+        // `segements` so there's no equivalent to merging these until now.
         static IReadOnlyDictionary<string, TValue> CombineDictionaries<TValue>(
             IReadOnlyDictionary<string, TValue> leftDictionary,
             IReadOnlyDictionary<string, TValue> rightDictionary,
@@ -1145,12 +1146,17 @@ public static class RoutePatternFactory
             }
             foreach (var (key, value) in rightDictionary)
             {
-                if (combinedDictionary.TryGetValue(key, out var leftValue) && !Equals(leftValue, value))
+                if (combinedDictionary.TryGetValue(key, out var leftValue))
                 {
-                    throw new InvalidOperationException(Resources.FormatMapGroup_RepeatedDictionaryEntry(rawText, dictionaryName, key));
+                    if (!Equals(leftValue, value))
+                    {
+                        throw new InvalidOperationException(Resources.FormatMapGroup_RepeatedDictionaryEntry(rawText, dictionaryName, key));
+                    }
                 }
-
-                combinedDictionary.Add(key, value);
+                else
+                {
+                    combinedDictionary.Add(key, value);
+                }
             }
             return combinedDictionary;
         }

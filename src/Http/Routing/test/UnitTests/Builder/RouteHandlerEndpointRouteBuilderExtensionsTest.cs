@@ -1170,10 +1170,10 @@ public class RouteHandlerEndpointRouteBuilderExtensionsTest : LoggedTest
     // [] Throws for non-RouteEndpoints
     // [] Metadata gets added in the right order
     // [] Inner metadata isn't visible to group conventions
-    // [] GroupDataSource fires change token when a child data source fires.
-    // [] RequestDelegate, Order and DisplayName can be modified by the group.
+    // [] GroupDataSource fires change token when a child data source fires
+    // [] RequestDelegate, Order and DisplayName can be modified by the group
     // [x] RoutePattern merging handles '/' and no-'/' properly
-    // [] FIX: A RoutePattern cannot add dictionary entries for parameters it doesn't define.
+    // [x] FIX: A RoutePattern cannot conflicting add dictionary entries
 
     class ServiceAccessingRouteHandlerFilter : IRouteHandlerFilter
     {

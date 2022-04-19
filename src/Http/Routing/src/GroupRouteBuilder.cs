@@ -88,7 +88,7 @@ public sealed class GroupRouteBuilder : IEndpointRouteBuilder, IEndpointConventi
                             DisplayName = routeEndpoint.DisplayName,
                         };
 
-                        // Apply group conventions to each endpoint in the group.
+                        // Apply group conventions to each endpoint in the group at a lower precedent than Metadata already.
                         foreach (var convention in _groupRouteBuilder._conventions)
                         {
                             convention(routeEndpointBuilder);
@@ -104,7 +104,9 @@ public sealed class GroupRouteBuilder : IEndpointRouteBuilder, IEndpointConventi
 
                         // Any metadata already on the RouteEndpoint must have been applied directly to the endpoint or to a nested group.
                         // This makes the metadata more specific than what's being applied to this group. So add it after this group's conventions.
-                        // REVIEW: This means group conventions don't get visibility into endpoint-specific metadata or the ability to override it.
+                        //
+                        // REVIEW: This means group conventions don't get visibility into endpoint-specific metadata nor the ability to override it.
+                        // We should consider allowing group-aware conventions the ability to read and mutate this metadata in future releases.
                         foreach (var metadata in routeEndpoint.Metadata)
                         {
                             routeEndpointBuilder.Metadata.Add(metadata);
@@ -114,6 +116,9 @@ public sealed class GroupRouteBuilder : IEndpointRouteBuilder, IEndpointConventi
                         var partialRoutePattern = _groupRouteBuilder.IsRoot
                             ? fullRoutePattern : RoutePattern.Combine(_groupRouteBuilder._pattern, routeEndpoint.RoutePattern);
 
+                        // The RequestDelegate, Order and DisplayName can all be overridden by non-group-aware conventions. Unlike with metadata,
+                        // if a convention is applied to a group that changes any of these, I would expect these to be overridden as there's no
+                        // reasonable way to merge these properties.
                         list.Add(new RouteEndpoint(
                             // Again, RequestDelegate can never be null given a RouteEndpoint.
                             routeEndpointBuilder.RequestDelegate!,

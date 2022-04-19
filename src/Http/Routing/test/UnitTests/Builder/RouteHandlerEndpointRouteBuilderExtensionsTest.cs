@@ -1025,10 +1025,10 @@ public class RouteHandlerEndpointRouteBuilderExtensionsTest : LoggedTest
         Assert.Equal("/{org}/{id}", group.GroupPrefix.RawText);
 
         group.MapGet("/", (string org, int id, HttpContext httpContext) =>
-            {
-                httpContext.Items["org"] = org;
-                httpContext.Items["id"] = id;
-            });
+        {
+            httpContext.Items["org"] = org;
+            httpContext.Items["id"] = id;
+        });
 
         var dataSource = GetEndpointDataSource(builder);
 
@@ -1165,6 +1165,15 @@ public class RouteHandlerEndpointRouteBuilderExtensionsTest : LoggedTest
         var ex = Assert.Throws<NotSupportedException>(() => dataSource.Endpoints);
         Assert.Equal(Resources.MapGroup_ChangingRoutePatternUnsupported, ex.Message);
     }
+
+    // TODO:
+    // Throws for non-RouteEndpoints
+    // Metadata gets added in the right order
+    // Inner metadata isn't visible to group conventions
+    // GroupDataSource fires change token when a child data source fires.
+    // RequestDelegate, Order and DisplayName can be modified by the group.
+    // RoutePattern merging handles '/' and no-'/' properly
+    // FIX: A RoutePattern cannot add dictionary entries for parameters it doesn't define.
 
     class ServiceAccessingRouteHandlerFilter : IRouteHandlerFilter
     {

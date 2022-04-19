@@ -536,14 +536,6 @@ public static class EndpointRouteBuilderExtensions
             fullPattern = RoutePattern.Combine(group.GroupPrefix, pattern);
         }
 
-        var routeParams = new List<string>(fullPattern.Parameters.Count);
-        foreach (var part in fullPattern.Parameters)
-        {
-            routeParams.Add(part.Name);
-        }
-
-        var routeHandlerOptions = endpoints.ServiceProvider?.GetService<IOptions<RouteHandlerOptions>>();
-
         var builder = new RouteEndpointBuilder(
             pattern,
             defaultOrder)
@@ -569,13 +561,19 @@ public static class EndpointRouteBuilderExtensions
         }
 
         var routeHandlerBuilder = new RouteHandlerBuilder(dataSource.AddEndpointBuilder(builder));
-
         routeHandlerBuilder.Add(RouteHandlerBuilderConvention);
 
         [UnconditionalSuppressMessage("Trimmer", "IL2026", Justification = "We surface a RequireUnreferencedCode in the call to enclosing Map method. " +
             "The trimmer is unable to infer this on the nested lambda.")]
         void RouteHandlerBuilderConvention(EndpointBuilder endpointBuilder)
         {
+            var routeParams = new List<string>(fullPattern.Parameters.Count);
+            foreach (var part in fullPattern.Parameters)
+            {
+                routeParams.Add(part.Name);
+            }
+
+            var routeHandlerOptions = endpoints.ServiceProvider?.GetService<IOptions<RouteHandlerOptions>>();
             var options = new RequestDelegateFactoryOptions
             {
                 ServiceProvider = endpoints.ServiceProvider,

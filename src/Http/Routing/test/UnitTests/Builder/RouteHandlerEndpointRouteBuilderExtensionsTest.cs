@@ -1182,14 +1182,35 @@ public class RouteHandlerEndpointRouteBuilderExtensionsTest : LoggedTest
             ex.Message);
     }
 
+    [Fact]
+    public void MapGroup_AddsOutermostGroupMetadataFirst()
+    {
+        var builder = new DefaultEndpointRouteBuilder(new ApplicationBuilder(new EmptyServiceProvider()));
+
+        var outer = builder.MapGroup("/outer");
+        var inner = outer.MapGroup("/inner");
+        inner.MapGet("/foo", () => "Hello World!").WithMetadata("/foo");
+
+        inner.WithMetadata("/inner");
+        outer.WithMetadata("/outer");
+
+        var dataSource = GetEndpointDataSource(builder);
+        var endpoint = Assert.Single(dataSource.Endpoints);
+
+        Assert.True(endpoint.Metadata.Count >= 3);
+        Assert.Equal("/outer", endpoint.Metadata[0]);
+        Assert.Equal("/inner", endpoint.Metadata[1]);
+        Assert.Equal("/foo", endpoint.Metadata[^1]);
+    }
+
     // TODO:
+    // [x] RoutePattern merging handles '/' and no-'/' properly
+    // [x] FIX: A RoutePattern cannot conflicting add dictionary entries
     // [x] Throws for non-RouteEndpoints
-    // [] Metadata gets added in the right order
+    // [x] Metadata gets added in the right order
     // [] Inner metadata isn't visible to group conventions
     // [] GroupDataSource fires change token when a child data source fires
     // [] RequestDelegate, Order and DisplayName can be modified by the group
-    // [x] RoutePattern merging handles '/' and no-'/' properly
-    // [x] FIX: A RoutePattern cannot conflicting add dictionary entries
 
     class ServiceAccessingRouteHandlerFilter : IRouteHandlerFilter
     {

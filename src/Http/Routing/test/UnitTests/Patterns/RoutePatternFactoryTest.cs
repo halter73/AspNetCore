@@ -718,22 +718,32 @@ public class RoutePatternFactoryTest
     public void Combine_WithDuplicateParameters_Throws()
     {
         var left = RoutePatternFactory.Parse("/{id}");
-        var right = RoutePatternFactory.Parse("/{id}");
+        var right = RoutePatternFactory.Parse("/{ID}");
 
         var ex = Assert.Throws<RoutePatternException>(() => RoutePatternFactory.Combine(left, right));
-        Assert.Equal("/{id}/{id}", ex.Pattern);
-        Assert.Equal("The route parameter name 'id' appears more than one time in the route template.", ex.Message);
+
+        Assert.Equal("/{id}/{ID}", ex.Pattern);
+        Assert.Equal("The route parameter name 'ID' appears more than one time in the route template.", ex.Message);
     }
 
     [Theory]
-    [InlineData("a", "b")]
-    [InlineData("a/", "b")]
-    [InlineData("a", "/b")]
-    [InlineData("a/", "/b")]
+    [InlineData("/a/b", "")]
+    [InlineData("/a/b", "/")]
+    [InlineData("/a/b/", "")]
+    [InlineData("/a/b/", "/")]
+    [InlineData("/a", "b/")]
+    [InlineData("/a/", "b/")]
+    [InlineData("/a", "/b/")]
+    [InlineData("/a/", "/b/")]
+    [InlineData("/", "a/b/")]
+    [InlineData("/", "/a/b/")]
+    [InlineData("", "a/b/")]
+    [InlineData("", "/a/b/")]
     public void Combine_HandlesMissingAndDuplicateSeperatorsInRawText(string leftTemplate, string rightTemplate)
     {
         var left = RoutePatternFactory.Parse(leftTemplate);
         var right = RoutePatternFactory.Parse(rightTemplate);
+
         var combined = RoutePatternFactory.Combine(left, right);
 
         static Action<RoutePatternPathSegment> AssertLiteral(string literal)
@@ -745,7 +755,7 @@ public class RoutePatternFactoryTest
             };
         }
 
-        Assert.Equal("a/b", combined.RawText);
+        Assert.Equal("/a/b/", combined.RawText);
         Assert.Collection(combined.PathSegments, AssertLiteral("a"), AssertLiteral("b"));
-     }
+    }
 }

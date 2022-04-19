@@ -152,59 +152,6 @@ public sealed class RoutePattern
         return null;
     }
 
-    internal static RoutePattern Combine(RoutePattern left, RoutePattern right)
-    {
-        var rawText = $"{left.RawText?.TrimEnd('/')}/{right.RawText?.TrimStart('/')}";
-
-        var totalParameterCount = left.Parameters.Count + right.Parameters.Count;
-        // Make sure parameter names aren't repeated.
-        var parameterNameSet = new HashSet<string>(totalParameterCount);
-        var parameters = new List<RoutePatternParameterPart>(totalParameterCount);
-
-        var defaults = new Dictionary<string, object?>(left.Defaults.Count + right.Defaults.Count);
-        var requiredValues = new Dictionary<string, object?>(left.RequiredValues.Count + right.RequiredValues.Count);
-        var parameterPolicies = new Dictionary<string, IReadOnlyList<RoutePatternParameterPolicyReference>>(
-            left.ParameterPolicies.Count + right.ParameterPolicies.Count);
-
-        void AddParameters(RoutePattern pattern)
-        {
-            foreach (var parameter in pattern.Parameters)
-            {
-                if (!parameterNameSet.Add(parameter.Name))
-                {
-                    var errorText = Resources.FormatTemplateRoute_RepeatedParameter(parameter.Name);
-                    throw new RoutePatternException(rawText, errorText);
-                }
-
-                parameters.Add(parameter);
-
-                // All the dictionaries are keyed of parameter names, so we only copy dictionary entries
-                // for parameter names in the given RoutePattern. This guarantees a Route
-                if (pattern.Defaults.TryGetValue(parameter.Name, out var defaultValue))
-                {
-                    defaults[parameter.Name] = defaultValue;
-                }
-                if (pattern.RequiredValues.TryGetValue(parameter.Name, out var requiredValue))
-                {
-                    requiredValues[parameter.Name] = requiredValue;
-                }
-                if (pattern.ParameterPolicies.TryGetValue(parameter.Name, out var polices))
-                {
-                    parameterPolicies[parameter.Name] = polices;
-                }
-            }
-        }
-
-        AddParameters(left);
-        AddParameters(right);
-
-        var pathSegments = new List<RoutePatternPathSegment>(left.PathSegments.Count + right.PathSegments.Count);
-        pathSegments.AddRange(left.PathSegments);
-        pathSegments.AddRange(right.PathSegments);
-
-        return new RoutePattern(rawText, defaults, parameterPolicies, requiredValues, parameters, pathSegments);
-    }
-
     internal string DebuggerToString()
     {
         return RawText ?? string.Join(SeparatorString, PathSegments.Select(s => s.DebuggerToString()));

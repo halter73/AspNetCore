@@ -28,7 +28,7 @@ public sealed class GroupRouteBuilder : IEndpointRouteBuilder, IEndpointConventi
 
         if (outerEndpointRouteBuilder is GroupRouteBuilder outerGroup)
         {
-            GroupPrefix = RoutePattern.Combine(outerGroup.GroupPrefix, pattern);
+            GroupPrefix = RoutePatternFactory.Combine(outerGroup.GroupPrefix, pattern);
         }
         else
         {
@@ -75,12 +75,12 @@ public sealed class GroupRouteBuilder : IEndpointRouteBuilder, IEndpointConventi
                         // Supporting arbitrary Endpoints just to add group metadata would require changing the Endpoint type breaking any real scenario.
                         if (endpoint is not RouteEndpoint routeEndpoint)
                         {
-                            throw new NotSupportedException(Resources.MapGroup_CustomEndpointUnsupported);
+                            throw new NotSupportedException(Resources.FormatMapGroup_CustomEndpointUnsupported(endpoint.GetType()));
                         }
 
                         // Make the full route pattern visible to IEndpointConventionBuilder extension methods called on the group.
                         // This includes patterns from any parent groups.
-                        var fullRoutePattern = RoutePattern.Combine(_groupRouteBuilder.GroupPrefix, routeEndpoint.RoutePattern);
+                        var fullRoutePattern = RoutePatternFactory.Combine(_groupRouteBuilder.GroupPrefix, routeEndpoint.RoutePattern);
 
                         // RequestDelegate can never be null on a RouteEndpoint. The nullability carries over from Endpoint.
                         var routeEndpointBuilder = new RouteEndpointBuilder(routeEndpoint.RequestDelegate!, fullRoutePattern, routeEndpoint.Order)
@@ -99,7 +99,8 @@ public sealed class GroupRouteBuilder : IEndpointRouteBuilder, IEndpointConventi
                         // change a parent prefix. In order to allow to conventions to read the fullRoutePattern, we do not support mutation.
                         if (!ReferenceEquals(fullRoutePattern, routeEndpointBuilder.RoutePattern))
                         {
-                            throw new NotSupportedException(Resources.MapGroup_ChangingRoutePatternUnsupported);
+                            throw new NotSupportedException(Resources.FormatMapGroup_ChangingRoutePatternUnsupported(
+                                fullRoutePattern.RawText, routeEndpointBuilder.RoutePattern.RawText));
                         }
 
                         // Any metadata already on the RouteEndpoint must have been applied directly to the endpoint or to a nested group.
@@ -114,7 +115,7 @@ public sealed class GroupRouteBuilder : IEndpointRouteBuilder, IEndpointConventi
 
                         // Use _pattern instead of GroupPrefix when we're calculating an intermediate RouteEndpoint.
                         var partialRoutePattern = _groupRouteBuilder.IsRoot
-                            ? fullRoutePattern : RoutePattern.Combine(_groupRouteBuilder._pattern, routeEndpoint.RoutePattern);
+                            ? fullRoutePattern : RoutePatternFactory.Combine(_groupRouteBuilder._pattern, routeEndpoint.RoutePattern);
 
                         // The RequestDelegate, Order and DisplayName can all be overridden by non-group-aware conventions. Unlike with metadata,
                         // if a convention is applied to a group that changes any of these, I would expect these to be overridden as there's no

@@ -1086,53 +1086,96 @@ public static class RoutePatternFactory
 
     internal static RoutePattern Combine(RoutePattern left, RoutePattern right)
     {
-        var rawText = $"{left.RawText?.TrimEnd('/')}/{right.RawText?.TrimStart('/')}";
-
-        var totalParameterCount = left.Parameters.Count + right.Parameters.Count;
-        // Make sure parameter names aren't repeated.
-        var parameterNameSet = new HashSet<string>(totalParameterCount);
-        var parameters = new List<RoutePatternParameterPart>(totalParameterCount);
-
-        var defaults = new Dictionary<string, object?>(left.Defaults.Count + right.Defaults.Count, StringComparer.OrdinalIgnoreCase);
-        var requiredValues = new Dictionary<string, object?>(left.RequiredValues.Count + right.RequiredValues.Count, StringComparer.OrdinalIgnoreCase);
-        var parameterPolicies = new Dictionary<string, IReadOnlyList<RoutePatternParameterPolicyReference>>(
-            left.ParameterPolicies.Count + right.ParameterPolicies.Count, StringComparer.OrdinalIgnoreCase);
-
-        void AddParameters(RoutePattern pattern)
+        static IReadOnlyList<T> CombineLists<T>(
+            IReadOnlyList<T> leftList,
+            IReadOnlyList<T> rightList,
+            Func<int, string, Action<T>>? checkDuplicates = null,
+            string? rawText = null)
         {
-            foreach (var parameter in pattern.Parameters)
+            if (leftList.Count is 0)
             {
-                if (!parameterNameSet.Add(parameter.Name))
-                {
-                    var errorText = Resources.FormatTemplateRoute_RepeatedParameter(parameter.Name);
-                    throw new RoutePatternException(rawText, errorText);
-                }
-
-                parameters.Add(parameter);
-
-                // keyed of parameter names, so we only copy dictionary entries
-                // for parameter names in the given RoutePattern. This guarantees a Route
-                if (pattern.Defaults.TryGetValue(parameter.Name, out var defaultValue))
-                {
-                    defaults[parameter.Name] = defaultValue;
-                }
-                if (pattern.RequiredValues.TryGetValue(parameter.Name, out var requiredValue))
-                {
-                    requiredValues[parameter.Name] = requiredValue;
-                }
-                if (pattern.ParameterPolicies.TryGetValue(parameter.Name, out var polices))
-                {
-                    parameterPolicies[parameter.Name] = polices;
-                }
+                return rightList;
             }
+            if (rightList.Count is 0)
+            {
+                return leftList;
+            }
+
+            var combinedCount = leftList.Count + rightList.Count;
+            var combinedList = new List<T>(combinedCount);
+            // If checkDuplicates is set, so is rawText so the right exception can be thrown from check.
+            var check = checkDuplicates?.Invoke(combinedCount, rawText!);
+            foreach (var item in leftList)
+            {
+                check?.Invoke(item);
+                combinedList.Add(item);
+            }
+            foreach (var item in rightList)
+            {
+                check?.Invoke(item);
+                combinedList.Add(item);
+            }
+            return combinedList;
         }
 
-        AddParameters(left);
-        AddParameters(right);
+        // Technically, the ParameterPolicies could probably be merged because it's a list, but it makes no sense
+        // to have a policy for a Parameter you don't define and a Parameter cannot be repeated. RequiredValues and Defaults
+        // do not have to be Parameters however. Defaults can reference either a Parameter or RequiredValue. The relationships
+        // between Defaults, Parameters and RequiredValues shouldn't need revalidated after merging as long as there are no
+        // conflicting entries.
+        static IReadOnlyDictionary<string, TValue> CombineDictionaries<TValue>(
+            IReadOnlyDictionary<string, TValue> leftDictionary,
+            IReadOnlyDictionary<string, TValue> rightDictionary,
+            string rawText,
+            string dictionaryName)
+        {
+            if (leftDictionary.Count is 0)
+            {
+                return rightDictionary;
+            }
+            if (rightDictionary.Count is 0)
+            {
+                return leftDictionary;
+            }
 
-        var pathSegments = new List<RoutePatternPathSegment>(left.PathSegments.Count + right.PathSegments.Count);
-        pathSegments.AddRange(left.PathSegments);
-        pathSegments.AddRange(right.PathSegments);
+            var combinedDictionary = new Dictionary<string, TValue>(leftDictionary.Count + rightDictionary.Count, StringComparer.OrdinalIgnoreCase);
+            foreach (var (key, value) in leftDictionary)
+            {
+                combinedDictionary.Add(key, value);
+            }
+            foreach (var (key, value) in rightDictionary)
+            {
+                if (combinedDictionary.TryGetValue(key, out var leftValue) && !Equals(leftValue, value))
+                {
+                    throw new InvalidOperationException(Resources.FormatMapGroup_RepeatedDictionaryEntry(rawText, dictionaryName, key));
+                }
+
+                combinedDictionary.Add(key, value);
+            }
+            return combinedDictionary;
+        }
+
+        static Action<RoutePatternParameterPart> CheckDuplicateParameters(int parameterCount, string rawText)
+        {
+            var parameterNameSet = new HashSet<string>(parameterCount, StringComparer.OrdinalIgnoreCase);
+            return parameterPart =>
+            {
+                if (!parameterNameSet.Add(parameterPart.Name))
+                {
+                    var errorText = Resources.FormatTemplateRoute_RepeatedParameter(parameterPart.Name);
+                    throw new RoutePatternException(rawText, errorText);
+                }
+            };
+        }
+
+        var rawText = $"{left.RawText?.TrimEnd('/')}/{right.RawText?.TrimStart('/')}";
+
+        var parameters = CombineLists(left.Parameters, right.Parameters, CheckDuplicateParameters, rawText);
+        var pathSegments = CombineLists(left.PathSegments, right.PathSegments);
+
+        var defaults = CombineDictionaries(left.Defaults, right.Defaults, rawText, nameof(RoutePattern.Defaults));
+        var requiredValues = CombineDictionaries(left.RequiredValues, right.RequiredValues, rawText, nameof(RoutePattern.RequiredValues));
+        var parameterPolicies = CombineDictionaries(left.ParameterPolicies, right.ParameterPolicies, rawText, nameof(RoutePattern.ParameterPolicies));
 
         return new RoutePattern(rawText, defaults, parameterPolicies, requiredValues, parameters, pathSegments);
     }

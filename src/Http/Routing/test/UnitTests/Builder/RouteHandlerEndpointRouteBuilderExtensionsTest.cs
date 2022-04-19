@@ -1059,9 +1059,9 @@ public class RouteHandlerEndpointRouteBuilderExtensionsTest : LoggedTest
     {
         var builder = new DefaultEndpointRouteBuilder(new ApplicationBuilder(new EmptyServiceProvider()));
 
-        var ex = Assert.Throws<RoutePatternException>(() => builder.MapGroup("/{id}").MapGroup("/{id}"));
+        var ex = Assert.Throws<RoutePatternException>(() => builder.MapGroup("/{ID}").MapGroup("/{id}"));
 
-        Assert.Equal("/{id}/{id}", ex.Pattern);
+        Assert.Equal("/{ID}/{id}", ex.Pattern);
         Assert.Equal("The route parameter name 'id' appears more than one time in the route template.", ex.Message);
     }
 
@@ -1163,7 +1163,7 @@ public class RouteHandlerEndpointRouteBuilderExtensionsTest : LoggedTest
 
         var dataSource = GetEndpointDataSource(builder);
         var ex = Assert.Throws<NotSupportedException>(() => dataSource.Endpoints);
-        Assert.Equal("MapGroup does not support mutating RouteEndpointBuilder.RoutePattern via conventions.", ex.Message);
+        Assert.Equal("MapGroup does not support mutating RouteEndpointBuilder.RoutePattern from '/group/foo' to '/bar' via conventions.", ex.Message);
     }
 
     // TODO:

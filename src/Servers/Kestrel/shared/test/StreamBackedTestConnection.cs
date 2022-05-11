@@ -19,11 +19,13 @@ namespace Microsoft.AspNetCore.Testing
 
         private readonly Stream _stream;
         private readonly StreamReader _reader;
+        private readonly string _lineSeperator;
 
-        protected StreamBackedTestConnection(Stream stream, Encoding encoding = null)
+        protected StreamBackedTestConnection(Stream stream, Encoding encoding = null, string lineSeperator = "\r\n")
         {
             _stream = stream;
             _reader = new StreamReader(_stream, encoding ?? Encoding.ASCII);
+            _lineSeperator = lineSeperator;
         }
 
         public Stream Stream => _stream;
@@ -67,7 +69,7 @@ namespace Microsoft.AspNetCore.Testing
 
         public async Task SendAll(params string[] lines)
         {
-            var text = string.Join("\r\n", lines);
+            var text = string.Join(_lineSeperator, lines);
             var writer = new StreamWriter(_stream, Encoding.GetEncoding("iso-8859-1"));
             await writer.WriteAsync(text).ConfigureAwait(false);
             await writer.FlushAsync().ConfigureAwait(false);
@@ -76,7 +78,7 @@ namespace Microsoft.AspNetCore.Testing
 
         public async Task Send(params string[] lines)
         {
-            var text = string.Join("\r\n", lines);
+            var text = string.Join(_lineSeperator, lines);
             var writer = new StreamWriter(_stream, Encoding.GetEncoding("iso-8859-1"));
             for (var index = 0; index < text.Length; index++)
             {

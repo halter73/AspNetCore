@@ -10,8 +10,8 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests.TestTrans
 {
     internal class InMemoryConnection : StreamBackedTestConnection
     {
-        public InMemoryConnection(InMemoryTransportConnection transportConnection, Encoding encoding)
-            : base(new DuplexPipeStream(transportConnection.Output, transportConnection.Input), encoding)
+        public InMemoryConnection(InMemoryTransportConnection transportConnection, Encoding encoding, string lineSeperator)
+            : base(new DuplexPipeStream(transportConnection.Output, transportConnection.Input), encoding, lineSeperator)
         {
             TransportConnection = transportConnection;
         }

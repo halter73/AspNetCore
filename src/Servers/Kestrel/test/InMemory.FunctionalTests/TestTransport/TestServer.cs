@@ -108,11 +108,11 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests.TestTrans
 
         public InMemoryHttpClientSlim HttpClientSlim { get; }
 
-        public InMemoryConnection CreateConnection(Encoding encoding = null)
+        public InMemoryConnection CreateConnection(Encoding encoding = null, string lineSeperator = "\r\n")
         {
             var transportConnection = new InMemoryTransportConnection(_memoryPool, Context.Log, Context.Scheduler);
             _transportFactory.AddConnection(transportConnection);
-            return new InMemoryConnection(transportConnection, encoding);
+            return new InMemoryConnection(transportConnection, encoding, lineSeperator);
         }
 
         public Task StopAsync(CancellationToken cancellationToken = default)

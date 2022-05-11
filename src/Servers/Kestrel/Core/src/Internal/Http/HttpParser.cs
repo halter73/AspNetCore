@@ -228,6 +228,26 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
 
                         KestrelBadHttpRequestException.Throw(RequestRejectionReason.InvalidRequestHeadersNoCRLF);
                     }
+                    else if (_enableLineFeedTerminator && ch1 == ByteLF)
+                    {
+                        // If we got 2 bytes from the span directly so skip ahead 1 so that
+                        // the reader's state matches what we expect
+                        if (readAhead == 0)
+                        {
+                            reader.Advance(1);
+                        }
+                        // If we got 2 bytes from TryRead, rewind 1 so that
+                        // the reader's state matches what we expect
+                        else if (readAhead == 2)
+                        {
+                            reader.Rewind(1);
+                        }
+                        // If we got exactly 1 byte from TryRead, we're already exactly where we want to be.
+
+                        // Double LF found, so end of headers.
+                        handler.OnHeadersComplete(endStream: false);
+                        return true;
+                    }
 
                     var length = 0;
                     // We only need to look for the end if we didn't read ahead; otherwise there isn't enough in

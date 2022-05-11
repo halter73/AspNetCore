@@ -132,7 +132,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
 
             }, new TestServiceContext(LoggerFactory, _enableLineFeedTerminator)))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.Send(
                         "POST / HTTP/1.1",
@@ -174,7 +174,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
                 dataRead = Encoding.ASCII.GetString(data) == "abc";
             }, new TestServiceContext(LoggerFactory, _enableLineFeedTerminator)))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.Send(
                         "GET / HTTP/1.1",
@@ -225,7 +225,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
                 await context.Response.WriteAsync("Done");
             }, new TestServiceContext(LoggerFactory, _enableLineFeedTerminator)))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     var requestTarget = new Uri(requestUrl, UriKind.Absolute);
                     var host = requestTarget.Authority;
@@ -271,7 +271,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
 
             await using (var server = new TestServer(TestApp.EchoAppChunked, testContext))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.Send(
                         "GET http://localhost/ HTTP/1.1",
@@ -326,7 +326,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
             var testContext = new TestServiceContext(LoggerFactory, _enableLineFeedTerminator);
 
             await using var server = new TestServer(ExecuteApplication, testContext);
-            await TestAsyncLocalValues(testContext, server);
+            await TestAsyncLocalValues(testContext, server, _enableLineFeedTerminator);
         }
 
         [Fact]
@@ -363,7 +363,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
             var testContext = new TestServiceContext(LoggerFactory, _enableLineFeedTerminator);
 
             await using var server = new TestServer(ExecuteApplication, testContext);
-            await TestAsyncLocalValues(testContext, server);
+            await TestAsyncLocalValues(testContext, server, _enableLineFeedTerminator);
         }
 
 #pragma warning disable CS1998 // Async method lacks 'await' operators and will run synchronously
@@ -397,7 +397,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
             var testContext = new TestServiceContext(LoggerFactory, _enableLineFeedTerminator);
 
             await using var server = new TestServer(ExecuteApplication, testContext);
-            await TestAsyncLocalValues(testContext, server);
+            await TestAsyncLocalValues(testContext, server, _enableLineFeedTerminator);
         }
 
         [Fact]
@@ -435,7 +435,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
             var testContext = new TestServiceContext(LoggerFactory, _enableLineFeedTerminator);
 
             await using var server = new TestServer(ExecuteApplication, testContext);
-            await TestAsyncLocalValues(testContext, server);
+            await TestAsyncLocalValues(testContext, server, _enableLineFeedTerminator);
         }
 
         [Fact]
@@ -476,7 +476,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
             var testContext = new TestServiceContext(LoggerFactory, _enableLineFeedTerminator);
 
             await using var server = new TestServer(ExecuteApplication, testContext);
-            await TestAsyncLocalValues(testContext, server);
+            await TestAsyncLocalValues(testContext, server, _enableLineFeedTerminator);
         }
 #pragma warning restore CS1998 // Async method lacks 'await' operators and will run synchronously
 
@@ -519,12 +519,12 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
             var testContext = new TestServiceContext(LoggerFactory, _enableLineFeedTerminator);
 
             await using var server = new TestServer(ExecuteApplication, testContext);
-            await TestAsyncLocalValues(testContext, server);
+            await TestAsyncLocalValues(testContext, server, _enableLineFeedTerminator);
         }
 
-        private static async Task TestAsyncLocalValues(TestServiceContext testContext, TestServer server)
+        private static async Task TestAsyncLocalValues(TestServiceContext testContext, TestServer server, bool enableLineFeedTerminator)
         {
-            using var connection = server.CreateConnection();
+            using var connection = server.CreateConnection(null, enableLineFeedTerminator ? "\n" : "\r\n");
 
             await connection.Send(
                 "GET / HTTP/1.1",
@@ -592,7 +592,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
                 });
 
                 // requests on same connection
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     var buffer = new char[identifierLength];
                     for (var i = 0; i < iterations; i++)
@@ -631,7 +631,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
 
             await using (var server = new TestServer(TestApp.EchoAppChunked, testContext))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.Send(
                         "GET / HTTP/1.1",
@@ -665,7 +665,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
 
             await using (var server = new TestServer(TestApp.EchoApp, testContext))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.Send(
                         "GET / HTTP/1.0",
@@ -680,7 +680,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
                         "");
                 }
 
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.Send(
                         "POST / HTTP/1.0",
@@ -704,7 +704,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
 
             await using (var server = new TestServer(TestApp.EchoAppChunked, testContext))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.Send(
                         "GET / HTTP/1.0",
@@ -739,7 +739,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
 
             await using (var server = new TestServer(TestApp.EchoApp, testContext))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.Send(
                         "GET / HTTP/1.0",
@@ -778,7 +778,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
 
             await using (var server = new TestServer(TestApp.EchoAppChunked, testContext))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.Send(
                         "POST / HTTP/1.0",
@@ -834,7 +834,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
 
             await using (var server = new TestServer(TestApp.EchoAppChunked, testContext))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.Send(
                         "POST / HTTP/1.1",
@@ -870,7 +870,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
 
             await using (var server = new TestServer(TestApp.EchoAppChunked, testContext))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.Send(
                         "POST / HTTP/1.1",
@@ -906,7 +906,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
                 Assert.Equal(0, await httpContext.Request.Body.ReadAsync(new byte[1], 0, 1).DefaultTimeout());
             }, testContext))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.Send(
                         "GET / HTTP/1.1",
@@ -923,7 +923,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
                         "");
                 }
 
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.Send(
                         "GET / HTTP/1.0",
@@ -953,7 +953,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
                 Assert.True(readResult.IsCompleted);
             }, testContext))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.Send(
                         "GET / HTTP/1.1",
@@ -970,7 +970,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
                         "");
                 }
 
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.Send(
                         "GET / HTTP/1.0",
@@ -1001,7 +1001,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
                 httpContext.Request.BodyReader.AdvanceTo(readResult.Buffer.End);
             }, testContext))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.SendAll(
                         "POST / HTTP/1.0",
@@ -1036,7 +1036,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
 
             }, testContext))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.SendAll(
                         "POST / HTTP/1.0",
@@ -1075,7 +1075,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
                 }
             }, testContext))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.SendAll(
                         "POST / HTTP/1.0",
@@ -1112,7 +1112,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
                 Assert.Empty(ms2.ToArray());
             }, testContext))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.Send(
                         "POST / HTTP/1.0",
@@ -1180,7 +1180,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
                 Assert.True(readResult.IsCompleted);
             }, testContext))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.Send(
                         "POST / HTTP/1.0",
@@ -1219,7 +1219,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
                 httpContext.Request.BodyReader.AdvanceTo(readResult.Buffer.Slice(1).Start, readResult.Buffer.End);
             }, testContext))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.SendAll(
                         "POST / HTTP/1.0",
@@ -1249,7 +1249,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
 
             await using (var server = new TestServer(TestApp.EchoAppChunked, testContext))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.Send(
                         "POST / HTTP/1.1");
@@ -1258,7 +1258,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
                     await connection.ReceiveEnd();
                 }
 
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.Send(
                         "POST / HTTP/1.1",
@@ -1297,7 +1297,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
                 return Task.CompletedTask;
             }, testContext))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.Send(
                         "GET / HTTP/1.1",
@@ -1339,7 +1339,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
                 await duplexStream.WriteAsync(data, 0, data.Length);
             }, testContext))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.Send(
                         "GET / HTTP/1.1",
@@ -1396,7 +1396,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
                 await context.Response.Body.WriteAsync(request, 0, request.Length);
             }, testContext))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     var requestData =
                         Enumerable.Repeat("GET / HTTP/1.1\r\nHost:\r\n", loopCount)
@@ -1439,7 +1439,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
         {
             await using (var server = new TestServer(context => Task.CompletedTask, new TestServiceContext(LoggerFactory, _enableLineFeedTerminator)))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.Send($"{request} HTTP/1.1",
                         $"Host: {hostHeader}",
@@ -1457,7 +1457,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
             // The app doesn't read the request body, so it should be consumed by the server
             await using (var server = new TestServer(context => Task.CompletedTask, new TestServiceContext(LoggerFactory, _enableLineFeedTerminator)))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.Send(
                         "POST / HTTP/1.1",
@@ -1498,7 +1498,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
             // The app doesn't read the request body, so it should be consumed by the server
             await using (var server = new TestServer(context => Task.CompletedTask, new TestServiceContext(LoggerFactory, _enableLineFeedTerminator)))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.Send(
                         "POST / HTTP/1.1",
@@ -1546,7 +1546,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
             // The app doesn't read the request body, so it should be consumed by the server
             await using (var server = new TestServer(context => Task.CompletedTask, new TestServiceContext(LoggerFactory, _enableLineFeedTerminator)))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.SendAll(
                         "POST / HTTP/1.0",
@@ -1579,7 +1579,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
                 await duplexStream.WriteAsync(response, 0, response.Length);
             }, new TestServiceContext(LoggerFactory, _enableLineFeedTerminator)))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.SendAll(
                         "GET / HTTP/1.1",
@@ -1630,7 +1630,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
                 }
             }, serviceContext))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.Send(
                         "GET / HTTP/1.1",
@@ -1691,7 +1691,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
                 await context.Response.Body.WriteAsync(buffer, 0, 6);
             }, new TestServiceContext(LoggerFactory, _enableLineFeedTerminator)))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.Send(
                         "POST / HTTP/1.1",
@@ -1734,7 +1734,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
                 await context.Response.Body.WriteAsync(buffer, 0, 5);
             }, new TestServiceContext(LoggerFactory, _enableLineFeedTerminator)))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.Send(
                         "POST / HTTP/1.1",
@@ -1779,7 +1779,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
                 Assert.Equal("Hello", Encoding.ASCII.GetString(buffer));
             }, testContext))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.Send(
                         "POST / HTTP/1.1",
@@ -1821,7 +1821,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
                 Assert.Equal("Hello", Encoding.ASCII.GetString(buffer, 0, 5));
             }, testContext))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.Send(
                         "POST / HTTP/1.1",
@@ -1855,7 +1855,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
                 }
             }, testContext))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.Send(
                         "POST / HTTP/1.1",
@@ -1902,7 +1902,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
 
             }, testContext))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.Send(
                         "POST / HTTP/1.1",
@@ -1948,7 +1948,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
 
             }, testContext))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.Send(
                         "POST / HTTP/1.1",
@@ -1986,7 +1986,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
 
             }, testContext))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.Send(
                         "POST / HTTP/1.1",
@@ -2031,7 +2031,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
 
             }, testContext))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.Send(
                         "POST / HTTP/1.1",
@@ -2064,7 +2064,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
                 return Task.CompletedTask;
             }, testContext))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     // First request
                     await connection.Send(
@@ -2124,7 +2124,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
                 return Task.CompletedTask;
             }, testContext))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     // First request
                     await connection.Send(
@@ -2180,7 +2180,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
                 return Task.CompletedTask;
             }, testContext))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     // The StreamBackedTestConnection will encode £ using the "iso-8859-1" aka Latin1 encoding.
                     // It will be encoded as 0xA3 which isn't valid UTF-8.
@@ -2208,7 +2208,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
 
             await using (var server = new TestServer(_ => Task.CompletedTask, testContext))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     // The StreamBackedTestConnection will encode £ using the "iso-8859-1" aka Latin1 encoding.
                     // It will be encoded as 0xA3 which isn't valid UTF-8.
@@ -2243,7 +2243,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
                 return Task.CompletedTask;
             }, testContext))
             {
-                using (var connection = server.CreateConnection())
+                using (var connection = server.CreateConnection(null, _enableLineFeedTerminator ? "\n" : "\r\n"))
                 {
                     await connection.Send(
                         "GET / HTTP/1.1",

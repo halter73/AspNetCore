@@ -63,6 +63,7 @@
       "src\\SignalR\\samples\\JwtSample\\JwtSample.csproj",
       "src\\SignalR\\samples\\SignalRSamples\\SignalRSamples.csproj",
       "src\\SignalR\\samples\\SocialWeather\\SocialWeather.csproj",
+      "src\\SignalR\\samples\\StreamR\\StreamR.csproj",
       "src\\SignalR\\samples\\WebSocketSample\\WebSocketSample.csproj",
       "src\\SignalR\\server\\Core\\src\\Microsoft.AspNetCore.SignalR.Core.csproj",
       "src\\SignalR\\server\\SignalR\\src\\Microsoft.AspNetCore.SignalR.csproj",

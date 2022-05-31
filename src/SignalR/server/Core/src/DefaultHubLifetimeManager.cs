@@ -1,7 +1,6 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Linq;
@@ -160,53 +159,40 @@ public class DefaultHubLifetimeManager<THub> : HubLifetimeManager<THub> where TH
                     else
                     {
                         message = new SerializedHubMessage(new StreamInvocationMessage(null!, methodName, args, streamIds?.ToArray()));
+                        // Mark message as sent initially
+                        connection.Items[message] = true;
                     }
                 }
 
-                var task = connection.WriteAsync(message, cancellationToken);
-
-                if (!task.IsCompletedSuccessfully)
-                {
-                    if (tasks == null)
-                    {
-                        tasks = new List<Task>();
-                    }
-
-                    tasks.Add(task.AsTask());
-                }
-                else
-                {
-                    // If it's a IValueTaskSource backed ValueTask,
-                    // inform it its result has been read so it can reset
-                    task.GetAwaiter().GetResult();
-                }
+                HandleWriteTask(ref tasks, connection.WriteAsync(message, cancellationToken));
             }
         }
 
         if (readers is not null)
         {
-            if (tasks == null)
-            {
-                tasks = new List<Task>();
-            }
+            message ??= new SerializedHubMessage(new StreamInvocationMessage(null!, methodName, args, streamIds?.ToArray()));
 
             foreach ((var streamId, var reader) in readers)
             {
+                ValueTask writeStreamTask;
+
                 // For each stream that needs to be sent, run a "send items" task in the background.
                 // This reads from the channel, attaches streamId, and sends to server.
                 // A single background thread here quickly gets messy.
                 if (ReflectionHelper.IsIAsyncEnumerable(reader.GetType()))
                 {
-                    tasks.Add((Task)_sendIAsyncStreamItemsMethod
+                    writeStreamTask = (ValueTask)_sendIAsyncStreamItemsMethod
                         .MakeGenericMethod(reader.GetType().GetInterface("IAsyncEnumerable`1")!.GetGenericArguments())
-                        .Invoke(this, new object?[] { groupName, excludedConnectionIds, streamId, reader, cancellationToken })!);
+                        .Invoke(this, new object?[] { groupName, excludedConnectionIds, streamId, message, reader, cancellationToken })!;
                 }
                 else
                 {
-                    tasks.Add((Task)_sendStreamItemsMethod
+                    writeStreamTask = (ValueTask)_sendStreamItemsMethod
                         .MakeGenericMethod(reader.GetType().GetGenericArguments())
-                        .Invoke(this, new object?[] { groupName, excludedConnectionIds, streamId, reader, cancellationToken })!);
+                        .Invoke(this, new object?[] { groupName, excludedConnectionIds, streamId, message, reader, cancellationToken })!;
                 }
+
+                HandleWriteTask(ref tasks, writeStreamTask);
             }
         }
     }
@@ -485,7 +471,7 @@ public class DefaultHubLifetimeManager<THub> : HubLifetimeManager<THub> where TH
     }
 
     // this is called via reflection using the `_sendStreamItemsMethod` field
-    private async Task SendStreamItems<T>(string groupName, IReadOnlyList<string>? excludedConnectionIds, string streamId, ChannelReader<T> reader, CancellationToken cancellationToken)
+    private async ValueTask SendStreamItems<T>(string groupName, IReadOnlyList<string>? excludedConnectionIds, string streamId, SerializedHubMessage originalInvocation, ChannelReader<T> reader, CancellationToken cancellationToken)
     {
         List<Task>? tasks = null;
 
@@ -493,7 +479,7 @@ public class DefaultHubLifetimeManager<THub> : HubLifetimeManager<THub> where TH
         {
             while (!cancellationToken.IsCancellationRequested && reader.TryRead(out var item))
             {
-                SendStreamItem(groupName, streamId, item, excludedConnectionIds, ref tasks, cancellationToken);
+                SendStreamItem(groupName, streamId, item, excludedConnectionIds, originalInvocation, ref tasks, cancellationToken);
                 //Log.SendingStreamItem(_logger, streamId);
 
                 if (tasks is { Count: > 0 })
@@ -509,13 +495,13 @@ public class DefaultHubLifetimeManager<THub> : HubLifetimeManager<THub> where TH
     }
 
     // this is called via reflection using the `_sendIAsyncStreamItemsMethod` field
-    private async Task SendIAsyncEnumerableStreamItems<T>(string groupName, IReadOnlyList<string>? excludedConnectionIds, string streamId, IAsyncEnumerable<T> stream, CancellationToken cancellationToken)
+    private async ValueTask SendIAsyncEnumerableStreamItems<T>(string groupName, IReadOnlyList<string>? excludedConnectionIds, string streamId, SerializedHubMessage originalInvocation, IAsyncEnumerable<T> stream, CancellationToken cancellationToken)
     {
         List<Task>? tasks = null;
 
         await foreach (var item in stream)
         {
-            SendStreamItem(groupName, streamId, item, excludedConnectionIds, ref tasks, cancellationToken);
+            SendStreamItem(groupName, streamId, item, excludedConnectionIds, originalInvocation, ref tasks, cancellationToken);
             //Log.SendingStreamItem(_logger, streamId);
 
             if (tasks is { Count: > 0 })
@@ -529,7 +515,7 @@ public class DefaultHubLifetimeManager<THub> : HubLifetimeManager<THub> where TH
         }
     }
 
-    private void SendStreamItem<T>(string groupName, string streamId, T item, IReadOnlyList<string>? excludedConnectionIds, ref List<Task>? tasks, CancellationToken cancellationToken)
+    private void SendStreamItem<T>(string groupName, string streamId, T item, IReadOnlyList<string>? excludedConnectionIds, SerializedHubMessage originalInvocation, ref List<Task>? tasks, CancellationToken cancellationToken)
     {
         var connections = _groups[groupName];
         if (connections is null)
@@ -545,23 +531,33 @@ public class DefaultHubLifetimeManager<THub> : HubLifetimeManager<THub> where TH
                 continue;
             }
 
-            var task = connection.WriteAsync(streamItemMessage, cancellationToken);
-
-            if (!task.IsCompletedSuccessfully)
+            // TODO: Fix this to not leak.
+            if (connection.Items[originalInvocation] is not true)
             {
-                if (tasks == null)
-                {
-                    tasks = new List<Task>();
-                }
+                connection.Items[originalInvocation] = true;
+                HandleWriteTask(ref tasks, connection.WriteAsync(originalInvocation, cancellationToken));
+            }
 
-                tasks.Add(task.AsTask());
-            }
-            else
+            HandleWriteTask(ref tasks, connection.WriteAsync(streamItemMessage, cancellationToken));
+        }
+    }
+
+    private static void HandleWriteTask(ref List<Task>? tasks, ValueTask task)
+    {
+        if (!task.IsCompletedSuccessfully)
+        {
+            if (tasks == null)
             {
-                // If it's a IValueTaskSource backed ValueTask,
-                // inform it its result has been read so it can reset
-                task.GetAwaiter().GetResult();
+                tasks = new List<Task>();
             }
+
+            tasks.Add(task.AsTask());
+        }
+        else
+        {
+            // If it's a IValueTaskSource backed ValueTask,
+            // inform it its result has been read so it can reset
+            task.GetAwaiter().GetResult();
         }
     }
 }

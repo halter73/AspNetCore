@@ -5,6 +5,8 @@ using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Linq;
+using System.Reflection;
+using System.Threading.Channels;
 using Microsoft.AspNetCore.SignalR.Internal;
 using Microsoft.AspNetCore.SignalR.Protocol;
 using Microsoft.Extensions.Logging;
@@ -133,37 +135,78 @@ public class DefaultHubLifetimeManager<THub> : HubLifetimeManager<THub> where TH
 
     // Tasks and message are passed by ref so they can be lazily created inside the method post-filtering,
     // while still being re-usable when sending to multiple groups
-    private static void SendToGroupConnections(string methodName, object?[] args, ConcurrentDictionary<string, HubConnectionContext> connections, Func<HubConnectionContext, object?, bool>? include, object? state, ref List<Task>? tasks, ref SerializedHubMessage? message, CancellationToken cancellationToken)
+    private void SendToGroupConnections(string methodName, object?[] args, string groupName, IReadOnlyList<string>? excludedConnectionIds, ref List<Task>? tasks, ref SerializedHubMessage? message, CancellationToken cancellationToken)
     {
-        // foreach over ConcurrentDictionary avoids allocating an enumerator
-        foreach (var connection in connections)
+        var readers = PackageStreamingParams(ref args, out var streamIds);
+
+        var connections = _groups[groupName];
+
+        if (connections is not null)
         {
-            if (include != null && !include(connection.Value, state))
+            // foreach over ConcurrentDictionary avoids allocating an enumerator
+            foreach ((_, var connection) in connections)
             {
-                continue;
-            }
-
-            if (message == null)
-            {
-                message = DefaultHubLifetimeManager<THub>.CreateSerializedInvocationMessage(methodName, args);
-            }
-
-            var task = connection.Value.WriteAsync(message, cancellationToken);
-
-            if (!task.IsCompletedSuccessfully)
-            {
-                if (tasks == null)
+                if (excludedConnectionIds?.Contains(connection.ConnectionId) is true)
                 {
-                    tasks = new List<Task>();
+                    continue;
                 }
 
-                tasks.Add(task.AsTask());
+                if (message is null)
+                {
+                    if (streamIds is null)
+                    {
+                        message = CreateSerializedInvocationMessage(methodName, args);
+                    }
+                    else
+                    {
+                        message = new SerializedHubMessage(new StreamInvocationMessage(null!, methodName, args, streamIds?.ToArray()));
+                    }
+                }
+
+                var task = connection.WriteAsync(message, cancellationToken);
+
+                if (!task.IsCompletedSuccessfully)
+                {
+                    if (tasks == null)
+                    {
+                        tasks = new List<Task>();
+                    }
+
+                    tasks.Add(task.AsTask());
+                }
+                else
+                {
+                    // If it's a IValueTaskSource backed ValueTask,
+                    // inform it its result has been read so it can reset
+                    task.GetAwaiter().GetResult();
+                }
             }
-            else
+        }
+
+        if (readers is not null)
+        {
+            if (tasks == null)
             {
-                // If it's a IValueTaskSource backed ValueTask,
-                // inform it its result has been read so it can reset
-                task.GetAwaiter().GetResult();
+                tasks = new List<Task>();
+            }
+
+            foreach ((var streamId, var reader) in readers)
+            {
+                // For each stream that needs to be sent, run a "send items" task in the background.
+                // This reads from the channel, attaches streamId, and sends to server.
+                // A single background thread here quickly gets messy.
+                if (ReflectionHelper.IsIAsyncEnumerable(reader.GetType()))
+                {
+                    tasks.Add((Task)_sendIAsyncStreamItemsMethod
+                        .MakeGenericMethod(reader.GetType().GetInterface("IAsyncEnumerable`1")!.GetGenericArguments())
+                        .Invoke(this, new object?[] { groupName, excludedConnectionIds, streamId, reader, cancellationToken })!);
+                }
+                else
+                {
+                    tasks.Add((Task)_sendStreamItemsMethod
+                        .MakeGenericMethod(reader.GetType().GetGenericArguments())
+                        .Invoke(this, new object?[] { groupName, excludedConnectionIds, streamId, reader, cancellationToken })!);
+                }
             }
         }
     }
@@ -198,19 +241,15 @@ public class DefaultHubLifetimeManager<THub> : HubLifetimeManager<THub> where TH
             throw new ArgumentNullException(nameof(groupName));
         }
 
-        var group = _groups[groupName];
-        if (group != null)
-        {
-            // Can't optimize for sending to a single connection in a group because
-            // group might be modified inbetween checking and sending
-            List<Task>? tasks = null;
-            SerializedHubMessage? message = null;
-            DefaultHubLifetimeManager<THub>.SendToGroupConnections(methodName, args, group, null, null, ref tasks, ref message, cancellationToken);
+        // Can't optimize for sending to a single connection in a group because
+        // group might be modified inbetween checking and sending
+        List<Task>? tasks = null;
+        SerializedHubMessage? message = null;
+        SendToGroupConnections(methodName, args, groupName, null, ref tasks, ref message, cancellationToken);
 
-            if (tasks != null)
-            {
-                return Task.WhenAll(tasks);
-            }
+        if (tasks != null)
+        {
+            return Task.WhenAll(tasks);
         }
 
         return Task.CompletedTask;
@@ -230,11 +269,7 @@ public class DefaultHubLifetimeManager<THub> : HubLifetimeManager<THub> where TH
                 throw new InvalidOperationException("Cannot send to an empty group name.");
             }
 
-            var group = _groups[groupName];
-            if (group != null)
-            {
-                DefaultHubLifetimeManager<THub>.SendToGroupConnections(methodName, args, group, null, null, ref tasks, ref message, cancellationToken);
-            }
+            SendToGroupConnections(methodName, args, groupName, null, ref tasks, ref message, cancellationToken);
         }
 
         if (tasks != null)
@@ -259,7 +294,7 @@ public class DefaultHubLifetimeManager<THub> : HubLifetimeManager<THub> where TH
             List<Task>? tasks = null;
             SerializedHubMessage? message = null;
 
-            DefaultHubLifetimeManager<THub>.SendToGroupConnections(methodName, args, group, (connection, state) => !((IReadOnlyList<string>)state!).Contains(connection.ConnectionId), excludedConnectionIds, ref tasks, ref message, cancellationToken);
+            SendToGroupConnections(methodName, args, groupName, excludedConnectionIds, ref tasks, ref message, cancellationToken);
 
             if (tasks != null)
             {
@@ -385,5 +420,148 @@ public class DefaultHubLifetimeManager<THub> : HubLifetimeManager<THub> where TH
         }
         type = null;
         return false;
+    }
+
+    private static long _nextStreamId;
+    private static readonly MethodInfo _sendStreamItemsMethod = typeof(DefaultHubLifetimeManager<THub>).GetMethods(BindingFlags.NonPublic | BindingFlags.Instance).Single(m => m.Name.Equals(nameof(SendStreamItems)));
+    private static readonly MethodInfo _sendIAsyncStreamItemsMethod = typeof(DefaultHubLifetimeManager<THub>).GetMethods(BindingFlags.NonPublic | BindingFlags.Instance).Single(m => m.Name.Equals(nameof(SendIAsyncEnumerableStreamItems)));
+
+    private static Dictionary<string, object>? PackageStreamingParams(ref object?[] args, out List<string>? streamIds)
+    {
+        Dictionary<string, object>? readers = null;
+        streamIds = null;
+        var newArgsCount = args.Length;
+        const int MaxStackSize = 256;
+        Span<bool> isStreaming = args.Length <= MaxStackSize
+            ? stackalloc bool[MaxStackSize].Slice(0, args.Length)
+            : new bool[args.Length];
+        for (var i = 0; i < args.Length; i++)
+        {
+            var arg = args[i];
+            if (arg is not null && ReflectionHelper.IsStreamingType(arg.GetType()))
+            {
+                isStreaming[i] = true;
+                newArgsCount--;
+
+                if (readers is null)
+                {
+                    readers = new Dictionary<string, object>();
+                }
+                if (streamIds is null)
+                {
+                    streamIds = new List<string>();
+                }
+
+                var id = Interlocked.Increment(ref _nextStreamId).ToString(CultureInfo.InvariantCulture)!;
+
+                readers[id] = arg;
+                streamIds.Add(id);
+
+                //Log.StartingStream(_logger, id);
+            }
+        }
+
+        if (newArgsCount == args.Length)
+        {
+            return null;
+        }
+
+        var newArgs = newArgsCount > 0
+            ? new object?[newArgsCount]
+            : Array.Empty<object?>();
+        int newArgsIndex = 0;
+
+        for (var i = 0; i < args.Length; i++)
+        {
+            if (!isStreaming[i])
+            {
+                newArgs[newArgsIndex] = args[i];
+                newArgsIndex++;
+            }
+        }
+
+        args = newArgs;
+        return readers;
+    }
+
+    // this is called via reflection using the `_sendStreamItemsMethod` field
+    private async Task SendStreamItems<T>(string groupName, IReadOnlyList<string>? excludedConnectionIds, string streamId, ChannelReader<T> reader, CancellationToken cancellationToken)
+    {
+        List<Task>? tasks = null;
+
+        while (await reader.WaitToReadAsync(cancellationToken))
+        {
+            while (!cancellationToken.IsCancellationRequested && reader.TryRead(out var item))
+            {
+                SendStreamItem(groupName, streamId, item, excludedConnectionIds, ref tasks, cancellationToken);
+                //Log.SendingStreamItem(_logger, streamId);
+
+                if (tasks is { Count: > 0 })
+                {
+                    foreach (var task in tasks)
+                    {
+                        await task;
+                    }
+                    tasks.Clear();
+                }
+            }
+        }
+    }
+
+    // this is called via reflection using the `_sendIAsyncStreamItemsMethod` field
+    private async Task SendIAsyncEnumerableStreamItems<T>(string groupName, IReadOnlyList<string>? excludedConnectionIds, string streamId, IAsyncEnumerable<T> stream, CancellationToken cancellationToken)
+    {
+        List<Task>? tasks = null;
+
+        await foreach (var item in stream)
+        {
+            SendStreamItem(groupName, streamId, item, excludedConnectionIds, ref tasks, cancellationToken);
+            //Log.SendingStreamItem(_logger, streamId);
+
+            if (tasks is { Count: > 0 })
+            {
+                foreach (var task in tasks)
+                {
+                    await task;
+                }
+                tasks.Clear();
+            }
+        }
+    }
+
+    private void SendStreamItem<T>(string groupName, string streamId, T item, IReadOnlyList<string>? excludedConnectionIds, ref List<Task>? tasks, CancellationToken cancellationToken)
+    {
+        var connections = _groups[groupName];
+        if (connections is null)
+        {
+            return;
+        }
+
+        var streamItemMessage = new StreamItemMessage(streamId, item);
+        foreach ((_, var connection) in connections)
+        {
+            if (excludedConnectionIds?.Contains(connection.ConnectionId) is true)
+            {
+                continue;
+            }
+
+            var task = connection.WriteAsync(streamItemMessage, cancellationToken);
+
+            if (!task.IsCompletedSuccessfully)
+            {
+                if (tasks == null)
+                {
+                    tasks = new List<Task>();
+                }
+
+                tasks.Add(task.AsTask());
+            }
+            else
+            {
+                // If it's a IValueTaskSource backed ValueTask,
+                // inform it its result has been read so it can reset
+                task.GetAwaiter().GetResult();
+            }
+        }
     }
 }

@@ -752,12 +752,12 @@ public partial class HubConnection : IAsyncDisposable
             {
                 _ = _sendIAsyncStreamItemsMethod
                     .MakeGenericMethod(reader.GetType().GetInterface("IAsyncEnumerable`1")!.GetGenericArguments())
-                    .Invoke(this, new object[] { connectionState, kvp.Key.ToString(), reader, cts });
+                    .Invoke(this, new object[] { connectionState, kvp.Key, reader, cts });
                 continue;
             }
             _ = _sendStreamItemsMethod
                 .MakeGenericMethod(reader.GetType().GetGenericArguments())
-                .Invoke(this, new object[] { connectionState, kvp.Key.ToString(), reader, cts });
+                .Invoke(this, new object[] { connectionState, kvp.Key, reader, cts });
         }
     }
 

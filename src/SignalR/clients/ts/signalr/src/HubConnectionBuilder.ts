@@ -10,8 +10,7 @@ import { ILogger, LogLevel } from "./ILogger";
 import { IRetryPolicy } from "./IRetryPolicy";
 import { HttpTransportType } from "./ITransport";
 import { JsonHubProtocol } from "./JsonHubProtocol";
-import { NullLogger } from "./Loggers";
-import { Arg, ConsoleLogger } from "./Utils";
+import { Arg, createLogger } from "./Utils";
 
 const LogLevelNameMapping: {[k: string]: LogLevel} = {
     trace: LogLevel.Trace,
@@ -45,8 +44,6 @@ export class HubConnectionBuilder {
     public httpConnectionOptions?: IHttpConnectionOptions;
     /** @internal */
     public url?: string;
-    /** @internal */
-    public logger?: ILogger;
 
     /** If defined, this indicates the client should automatically attempt to reconnect if the connection is lost. */
     /** @internal */
@@ -83,13 +80,12 @@ export class HubConnectionBuilder {
     public configureLogging(logging: LogLevel | string | ILogger): HubConnectionBuilder {
         Arg.isRequired(logging, "logging");
 
-        if (isLogger(logging)) {
-            this.logger = logging;
-        } else if (typeof logging === "string") {
-            const logLevel = parseLogLevel(logging);
-            this.logger = new ConsoleLogger(logLevel);
+        this.httpConnectionOptions ||= {};
+
+        if (typeof logging === "string") {
+            this.httpConnectionOptions.logger = parseLogLevel(logging);
         } else {
-            this.logger = new ConsoleLogger(logging);
+            this.httpConnectionOptions.logger = logging;
         }
 
         return this;
@@ -188,30 +184,18 @@ export class HubConnectionBuilder {
      * @returns {HubConnection} The configured {@link @microsoft/signalr.HubConnection}.
      */
     public build(): HubConnection {
-        // If httpConnectionOptions has a logger, use it. Otherwise, override it with the one
-        // provided to configureLogger
-        const httpConnectionOptions = this.httpConnectionOptions || {};
-
-        // If it's 'null', the user **explicitly** asked for null, don't mess with it.
-        if (httpConnectionOptions.logger === undefined) {
-            // If our logger is undefined or null, that's OK, the HttpConnection constructor will handle it.
-            httpConnectionOptions.logger = this.logger;
-        }
-
-        // Now create the connection
         if (!this.url) {
             throw new Error("The 'HubConnectionBuilder.withUrl' method must be called before building the connection.");
         }
+
+        const httpConnectionOptions = { ...this.httpConnectionOptions };
+        httpConnectionOptions.logger = createLogger(httpConnectionOptions.logger);
         const connection = new HttpConnection(this.url, httpConnectionOptions);
 
         return HubConnection.create(
             connection,
-            this.logger || NullLogger.instance,
+            httpConnectionOptions.logger,
             this.protocol || new JsonHubProtocol(),
             this.reconnectPolicy);
     }
-}
-
-function isLogger(logger: any): logger is ILogger {
-    return logger.log !== undefined;
 }

@@ -1,19 +1,23 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-namespace StreamR;
+using StreamR;
 
-public class Program
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddMvc();
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<StreamManager>();
+
+var app = builder.Build();
+
+if (!app.Environment.IsDevelopment())
 {
-    public static void Main(string[] args)
-    {
-        CreateWebHostBuilder(args).Build().Run();
-    }
-
-    public static IHostBuilder CreateWebHostBuilder(string[] args) =>
-        Host.CreateDefaultBuilder(args)
-            .ConfigureWebHostDefaults(builder =>
-            {
-                builder.UseStartup<Startup>();
-            });
+    app.UseExceptionHandler("/Error");
 }
+
+app.UseStaticFiles();
+app.MapRazorPages();
+app.MapHub<StreamHub>("/stream");
+
+app.Run();

@@ -14,30 +14,11 @@ public class StreamHub : Hub
         _streamManager = streamManager;
     }
 
-    public List<string> ListStreams()
-    {
-        return _streamManager.ListStreams();
-    }
+    public List<string> ListStreams() => _streamManager.ListStreams();
 
-    public IAsyncEnumerable<string> WatchStream(string streamName, CancellationToken cancellationToken)
-    {
-        return _streamManager.Subscribe(streamName, cancellationToken);
-    }
+    public Task WatchStream(string streamName) =>
+        _streamManager.SubscribeAsync(Context.ConnectionId, streamName);
 
-    public async Task StartStream(string streamName, IAsyncEnumerable<string> streamContent)
-    {
-        try
-        {
-            var streamTask = _streamManager.RunStreamAsync(streamName, streamContent);
-
-            // Tell everyone about your stream!
-            await Clients.Others.SendAsync("NewStream", streamName);
-
-            await streamTask;
-        }
-        finally
-        {
-            await Clients.Others.SendAsync("RemoveStream", streamName);
-        }
-    }
+    public Task RunStream(string streamName, IAsyncEnumerable<string> streamContent) =>
+        _streamManager.RunStreamAsync(streamName, streamContent);
 }

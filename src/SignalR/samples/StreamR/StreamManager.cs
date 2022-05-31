@@ -2,15 +2,19 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Collections.Concurrent;
-using System.Threading.Channels;
 using Microsoft.AspNetCore.SignalR;
 
 namespace StreamR;
 
 public class StreamManager
 {
-    private readonly ConcurrentDictionary<string, StreamHolder> _streams = new ConcurrentDictionary<string, StreamHolder>();
-    private long _globalClientId;
+    private readonly IHubContext<StreamHub> _streamHubContext;
+    private readonly ConcurrentDictionary<string, StreamHolder> _streams = new();
+
+    public StreamManager(IHubContext<StreamHub> streamHubContext)
+    {
+        _streamHubContext = streamHubContext;
+    }
 
     public List<string> ListStreams()
     {
@@ -24,71 +28,39 @@ public class StreamManager
 
     public async Task RunStreamAsync(string streamName, IAsyncEnumerable<string> stream)
     {
-        var streamHolder = new StreamHolder() { Source = stream };
-
-        // Add before yielding
-        // This fixes a race where we tell clients a new stream arrives before adding the stream
-        _streams.TryAdd(streamName, streamHolder);
-
-        await Task.Yield();
+        if (!_streams.TryAdd(streamName, new()))
+        {
+            throw new HubException($"Stream name '{streamName}' already in use.");
+        }
 
         try
         {
-            await foreach (var item in stream)
-            {
-                foreach (var viewer in streamHolder.Viewers)
-                {
-                    try
-                    {
-                        await viewer.Value.Writer.WriteAsync(item);
-                    }
-                    catch { }
-                }
-            }
+            await _streamHubContext.Clients.All.SendAsync("NewStream", streamName);
+            await _streamHubContext.Clients.Group(streamName).SendAsync("ReceiveStream", streamName, stream);
         }
         finally
         {
-            RemoveStream(streamName);
+            _streams.TryRemove(streamName, out _);
+            await _streamHubContext.Clients.All.SendAsync("RemoveStream", streamName);
         }
     }
 
-    public void RemoveStream(string streamName)
-    {
-        _streams.TryRemove(streamName, out var streamHolder);
-        foreach (var viewer in streamHolder.Viewers)
-        {
-            viewer.Value.Writer.TryComplete();
-        }
-    }
-
-    public IAsyncEnumerable<string> Subscribe(string streamName, CancellationToken cancellationToken)
+    public Task SubscribeAsync(string connectionId, string streamName)
     {
         if (!_streams.TryGetValue(streamName, out var source))
         {
-            throw new HubException("stream doesn't exist");
+            throw new HubException($"Stream '{streamName}' does not exist.");
         }
 
-        var id = Interlocked.Increment(ref _globalClientId);
+        return _streamHubContext.Groups.AddToGroupAsync(connectionId, streamName);
+    }
 
-        var channel = Channel.CreateBounded<string>(options: new BoundedChannelOptions(2)
-        {
-            FullMode = BoundedChannelFullMode.DropOldest
-        });
-
-        source.Viewers.TryAdd(id, channel);
-
-        // Register for client closing stream, this token will always fire (handled by SignalR)
-        cancellationToken.Register(() =>
-        {
-            source.Viewers.TryRemove(id, out _);
-        });
-
-        return channel.Reader.ReadAllAsync();
+    public Task UnsubscribeAsync(string connectionId, string streamName)
+    {
+        return _streamHubContext.Groups.RemoveFromGroupAsync(connectionId, streamName);
     }
 
     private class StreamHolder
     {
-        public IAsyncEnumerable<string> Source;
-        public ConcurrentDictionary<long, Channel<string>> Viewers = new ConcurrentDictionary<long, Channel<string>>();
     }
 }

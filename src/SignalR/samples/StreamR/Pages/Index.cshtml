@@ -42,13 +42,9 @@ async function startAsync() {
         }
     });
 
-    connection.on("NewStream", function (name) {
-        addStream(name);
-    });
-
-    connection.on("RemoveStream", function (name) {
-        removeStream(name);
-    });
+    connection.on("NewStream", addStream);
+    connection.on("RemoveStream", removeStream);
+    connection.on("ReceiveStream", receiveStream);
 
     await connection.start();
 
@@ -61,6 +57,8 @@ async function startAsync() {
 
     const startStreamButton = document.getElementById('startStream');
     const stopStreamButton = document.getElementById('stopStream');
+    const feed = document.getElementById("myPre");
+
     stopStreamButton.onclick = function () {
         stopStreamButton.setAttribute("disabled", "disabled");
         startStreamButton.removeAttribute("disabled");
@@ -74,7 +72,6 @@ async function startAsync() {
         startStreamButton.setAttribute("disabled", "disabled");
         stopStreamButton.removeAttribute("disabled");
         let streamName = document.getElementById("streamName").value;
-        const asciiCanvas = document.getElementById("myPre");
 
         subject = new signalR.Subject();
 
@@ -90,7 +87,7 @@ async function startAsync() {
                     contrast: 170,
                     callback: function(asciiString) {
                         subject.next(asciiString);
-                        asciiCanvas.innerHTML = asciiString;
+                        feed.innerHTML = asciiString;
                     }
                 });
             },
@@ -107,21 +104,19 @@ async function startAsync() {
         if (streamName === "") {
             streamName = "random name " + Math.random() * 2;
         }
-        await connection.send("StartStream", streamName, subject);
+        await connection.send("RunStream", streamName, subject);
     }
 }
 
 startAsync();
 
-async function watchStream(streamName) {
+async function receiveStream(streamName, stream) {
     const watchBtn = document.getElementById("button " + streamName);
     watchBtn.setAttribute("disabled", "disabled");
     const closeBtn = document.getElementById("button close " + streamName);
     closeBtn.removeAttribute("disabled");
-
-    const feed = document.getElementById("myPre");
         
-    const ISub = connection.stream("WatchStream", streamName).subscribe({
+    stream.subscribe({
         next: (item) => {
             feed.innerHTML = item;
         },
@@ -136,7 +131,7 @@ async function watchStream(streamName) {
     });
 
     closeBtn.onclick = function () {
-        ISub.dispose();
+        stream.dispose();
         closeBtn.setAttribute("disabled", "disabled");
         watchBtn.removeAttribute("disabled");
     };
@@ -154,7 +149,7 @@ function addStream(streamName) {
     strmButton.id = "button " + streamName;
     strmButton.type = "button";
     strmButton.value = "Watch stream";
-    strmButton.onclick = function () { watchStream(streamName); };
+    strmButton.onclick = function () { connection.send("watchStream", streamName); };
     
     const strmEndButton = document.createElement('input');
     strmEndButton.id = "button close " + streamName;

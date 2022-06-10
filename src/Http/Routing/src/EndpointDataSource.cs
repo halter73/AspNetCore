@@ -14,7 +14,7 @@ namespace Microsoft.AspNetCore.Routing;
 public abstract class EndpointDataSource
 {
     /// <summary>
-    /// Indicates whether <see cref="GetEndpointsForGroup(RoutePattern, IEnumerable{Action{EndpointBuilder}})"/> is supported.
+    /// Indicates whether <see cref="GetEndpointsForGroup(RoutePattern, IEnumerable{Action{EndpointBuilder}}, IServiceProvider)"/> is supported.
     /// </summary>
     public virtual bool SupportsGroups => false;
 
@@ -35,7 +35,8 @@ public abstract class EndpointDataSource
     /// </summary>
     /// <param name="prefix">The prefix passed to <see cref="EndpointRouteBuilderExtensions.MapGroup(IEndpointRouteBuilder, RoutePattern)"/>.</param>
     /// <param name="conventions">Any convention added to the <see cref="RouteGroupBuilder"/> via <see cref="IEndpointConventionBuilder.Add(Action{EndpointBuilder})"/>.</param>
+    /// <param name="applicationServices">Gets the <see cref="IServiceProvider"/> instance used to access application services.</param>
     /// <returns>Returns a read-only collection of <see cref="Endpoint"/> instances given the specified group <paramref name="prefix"/> and <paramref name="conventions"/>.</returns>
-    public virtual IReadOnlyList<Endpoint> GetEndpointsForGroup(RoutePattern prefix, IEnumerable<Action<EndpointBuilder>> conventions)
+    public virtual IReadOnlyList<Endpoint> GetEndpointsForGroup(RoutePattern prefix, IEnumerable<Action<EndpointBuilder>> conventions, IServiceProvider applicationServices)
         => throw new NotSupportedException(Resources.MapGroups_NotSupportedByEndpointDataSrouce);
 }

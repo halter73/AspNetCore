@@ -243,7 +243,4 @@
   <data name="MapGroup_RepeatedDictionaryEntry" xml:space="preserve">
     <value>MapGroup cannot build a pattern for '{0}' because the 'RoutePattern.{1}' dictionary key '{2}' has multiple values.</value>
   </data>
-  <data name="MapGroups_NotSupportedByEndpointDataSrouce" xml:space="preserve">
-    <value>This EndpointDataSource does not support GetEndpointsForGroup. Use the SupportsGroups property to detect support.</value>
-  </data>
 </root>

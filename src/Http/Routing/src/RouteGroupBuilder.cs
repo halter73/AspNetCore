@@ -16,7 +16,6 @@ namespace Microsoft.AspNetCore.Routing;
 public sealed class RouteGroupBuilder : IEndpointRouteBuilder, IEndpointConventionBuilder
 {
     private readonly IEndpointRouteBuilder _outerEndpointRouteBuilder;
-    private readonly RoutePattern _partialPrefix;
 
     private readonly List<EndpointDataSource> _dataSources = new();
     private readonly List<Action<EndpointBuilder>> _conventions = new();
@@ -24,7 +23,6 @@ public sealed class RouteGroupBuilder : IEndpointRouteBuilder, IEndpointConventi
     internal RouteGroupBuilder(IEndpointRouteBuilder outerEndpointRouteBuilder, RoutePattern partialPrefix)
     {
         _outerEndpointRouteBuilder = outerEndpointRouteBuilder;
-        _partialPrefix = partialPrefix;
 
         if (outerEndpointRouteBuilder is RouteGroupBuilder outerGroup)
         {
@@ -50,17 +48,15 @@ public sealed class RouteGroupBuilder : IEndpointRouteBuilder, IEndpointConventi
     ICollection<EndpointDataSource> IEndpointRouteBuilder.DataSources => _dataSources;
     void IEndpointConventionBuilder.Add(Action<EndpointBuilder> convention) => _conventions.Add(convention);
 
-    private bool IsRoot => ReferenceEquals(GroupPrefix, _partialPrefix);
-
-    internal static void WrapGroupEndpoints(
-        RoutePattern fullPrefix,
-        RoutePattern partialPrefix,
+    // REVIEW: Should this be public or is being able to use this via the default implementation of EndpointDataSource.GetGroupEndpoints() enough.
+    internal static IReadOnlyList<Endpoint> WrapGroupEndpoints(
+        RoutePattern prefix,
         IEnumerable<Action<EndpointBuilder>> conventions,
         IServiceProvider? applicationServices,
-        bool isRoot,
-        IReadOnlyList<Endpoint> innerEndpoints,
-        List<Endpoint> wrappedEndpoints)
+        IReadOnlyList<Endpoint> innerEndpoints)
     {
+        var wrappedEndpoints = new List<Endpoint>();
+
         foreach (var endpoint in innerEndpoints)
         {
             // Endpoint does not provide a RoutePattern but RouteEndpoint does. So it's impossible to apply a prefix for custom Endpoints.
@@ -72,7 +68,7 @@ public sealed class RouteGroupBuilder : IEndpointRouteBuilder, IEndpointConventi
 
             // Make the full route pattern visible to IEndpointConventionBuilder extension methods called on the group.
             // This includes patterns from any parent groups.
-            var fullRoutePattern = RoutePatternFactory.Combine(fullPrefix, routeEndpoint.RoutePattern);
+            var fullRoutePattern = RoutePatternFactory.Combine(prefix, routeEndpoint.RoutePattern);
 
             // RequestDelegate can never be null on a RouteEndpoint. The nullability carries over from Endpoint.
             var routeEndpointBuilder = new RouteEndpointBuilder(routeEndpoint.RequestDelegate!, fullRoutePattern, routeEndpoint.Order)
@@ -87,15 +83,6 @@ public sealed class RouteGroupBuilder : IEndpointRouteBuilder, IEndpointConventi
                 convention(routeEndpointBuilder);
             }
 
-            // If we supported mutating the route pattern via a group convention, RouteEndpointBuilder.RoutePattern would have
-            // to be the partialRoutePattern (below) instead of the fullRoutePattern (above) since that's all we can control. We cannot
-            // change a parent prefix. In order to allow to conventions to read the fullRoutePattern, we do not support mutation.
-            if (!ReferenceEquals(fullRoutePattern, routeEndpointBuilder.RoutePattern))
-            {
-                throw new NotSupportedException(Resources.FormatMapGroup_ChangingRoutePatternUnsupported(
-                    fullRoutePattern.RawText, routeEndpointBuilder.RoutePattern.RawText));
-            }
-
             // Any metadata already on the RouteEndpoint must have been applied directly to the endpoint or to a nested group.
             // This makes the metadata more specific than what's being applied to this group. So add it after this group's conventions.
             foreach (var metadata in routeEndpoint.Metadata)
@@ -103,21 +90,19 @@ public sealed class RouteGroupBuilder : IEndpointRouteBuilder, IEndpointConventi
                 routeEndpointBuilder.Metadata.Add(metadata);
             }
 
-            // Use _pattern instead of GroupPrefix when we're calculating an intermediate RouteEndpoint.
-            var partialRoutePattern = isRoot
-                ? fullRoutePattern : RoutePatternFactory.Combine(partialPrefix, routeEndpoint.RoutePattern);
-
             // The RequestDelegate, Order and DisplayName can all be overridden by non-group-aware conventions. Unlike with metadata,
             // if a convention is applied to a group that changes any of these, I would expect these to be overridden as there's no
             // reasonable way to merge these properties.
             wrappedEndpoints.Add(new RouteEndpoint(
                 // Again, RequestDelegate can never be null given a RouteEndpoint.
                 routeEndpointBuilder.RequestDelegate!,
-                partialRoutePattern,
+                fullRoutePattern,
                 routeEndpointBuilder.Order,
                 new(routeEndpointBuilder.Metadata),
                 routeEndpointBuilder.DisplayName));
         }
+
+        return wrappedEndpoints;
     }
 
     private sealed class GroupDataSource : EndpointDataSource
@@ -129,25 +114,47 @@ public sealed class RouteGroupBuilder : IEndpointRouteBuilder, IEndpointConventi
             _groupRouteBuilder = groupRouteBuilder;
         }
 
-        public override IReadOnlyList<Endpoint> Endpoints
+        public override IReadOnlyList<Endpoint> Endpoints => GetGroupedEndpoints(
+            _groupRouteBuilder.GroupPrefix,
+            Array.Empty<Action<EndpointBuilder>>(),
+            _groupRouteBuilder._outerEndpointRouteBuilder.ServiceProvider);
+
+        public override IReadOnlyList<Endpoint> GetGroupedEndpoints(RoutePattern prefix, IReadOnlyList<Action<EndpointBuilder>> conventions, IServiceProvider applicationServices)
         {
-            get
+            if (_groupRouteBuilder._dataSources.Count == 0)
             {
-                var groupedEndpoints = new List<Endpoint>();
-
-                foreach (var dataSource in _groupRouteBuilder._dataSources)
-                {
-                    WrapGroupEndpoints(_groupRouteBuilder.GroupPrefix,
-                        _groupRouteBuilder._partialPrefix,
-                        _groupRouteBuilder._conventions,
-                        _groupRouteBuilder._outerEndpointRouteBuilder.ServiceProvider,
-                        _groupRouteBuilder.IsRoot,
-                        dataSource.Endpoints,
-                        groupedEndpoints);
-                }
-
-                return groupedEndpoints;
+                return Array.Empty<Endpoint>();
             }
+
+            var combinedConventions = conventions;
+
+            if (_groupRouteBuilder._conventions.Count > 0)
+            {
+                if (combinedConventions.Count == 0)
+                {
+                    combinedConventions = _groupRouteBuilder._conventions;
+                }
+                else
+                {
+                    var groupConventionsCopy = new List<Action<EndpointBuilder>>(_groupRouteBuilder._conventions);
+                    groupConventionsCopy.AddRange(conventions);
+                    combinedConventions = groupConventionsCopy;
+                }
+            }
+
+            if (_groupRouteBuilder._dataSources.Count == 1)
+            {
+                return _groupRouteBuilder._dataSources[0].GetGroupedEndpoints(prefix, combinedConventions, applicationServices);
+            }
+
+            var groupedEndpoints = new List<Endpoint>();
+
+            foreach (var dataSource in _groupRouteBuilder._dataSources)
+            {
+                groupedEndpoints.AddRange(dataSource.GetGroupedEndpoints(prefix, combinedConventions, applicationServices));
+            }
+
+            return groupedEndpoints;
         }
 
         public override IChangeToken GetChangeToken() => new CompositeEndpointDataSource(_groupRouteBuilder._dataSources).GetChangeToken();

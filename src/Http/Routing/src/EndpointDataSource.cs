@@ -14,11 +14,6 @@ namespace Microsoft.AspNetCore.Routing;
 public abstract class EndpointDataSource
 {
     /// <summary>
-    /// Indicates whether <see cref="GetEndpointsForGroup(RoutePattern, IEnumerable{Action{EndpointBuilder}}, IServiceProvider)"/> is supported.
-    /// </summary>
-    public virtual bool SupportsGroups => false;
-
-    /// <summary>
     /// Gets a <see cref="IChangeToken"/> used to signal invalidation of cached <see cref="Endpoint"/>
     /// instances.
     /// </summary>
@@ -33,10 +28,13 @@ public abstract class EndpointDataSource
     /// <summary>
     /// Get the <see cref="Endpoint"/> instances for this <see cref="EndpointDataSource"/> given the specified group <paramref name="prefix"/> and <paramref name="conventions"/>.
     /// </summary>
-    /// <param name="prefix">The prefix passed to <see cref="EndpointRouteBuilderExtensions.MapGroup(IEndpointRouteBuilder, RoutePattern)"/>.</param>
+    /// <param name="prefix">
+    /// The <see cref="RouteGroupBuilder.GroupPrefix"/>. This accounts for nested groups and gives the full group prefix, not just the prefix supplied to the last call to
+    /// <see cref="EndpointRouteBuilderExtensions.MapGroup(IEndpointRouteBuilder, RoutePattern)"/>.
+    /// </param>
     /// <param name="conventions">Any convention added to the <see cref="RouteGroupBuilder"/> via <see cref="IEndpointConventionBuilder.Add(Action{EndpointBuilder})"/>.</param>
     /// <param name="applicationServices">Gets the <see cref="IServiceProvider"/> instance used to access application services.</param>
     /// <returns>Returns a read-only collection of <see cref="Endpoint"/> instances given the specified group <paramref name="prefix"/> and <paramref name="conventions"/>.</returns>
-    public virtual IReadOnlyList<Endpoint> GetEndpointsForGroup(RoutePattern prefix, IEnumerable<Action<EndpointBuilder>> conventions, IServiceProvider applicationServices)
-        => throw new NotSupportedException(Resources.MapGroups_NotSupportedByEndpointDataSrouce);
+    public virtual IReadOnlyList<Endpoint> GetGroupedEndpoints(RoutePattern prefix, IReadOnlyList<Action<EndpointBuilder>> conventions, IServiceProvider applicationServices) =>
+        RouteGroupBuilder.WrapGroupEndpoints(prefix, conventions, applicationServices, Endpoints);
 }

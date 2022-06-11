@@ -1,6 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Collections.Immutable;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing.Patterns;
@@ -15,7 +16,17 @@ namespace Microsoft.AspNetCore.Routing;
 /// </summary>
 public sealed class RouteGroupBuilder : IEndpointRouteBuilder, IEndpointConventionBuilder
 {
+    private static readonly RoutePattern _emptyPrefix = new RoutePattern(
+        rawText: null,
+        defaults: ImmutableDictionary<string, object?>.Empty,
+        parameterPolicies: ImmutableDictionary<string, IReadOnlyList<RoutePatternParameterPolicyReference>>.Empty,
+        requiredValues: ImmutableDictionary<string, object?>.Empty,
+        parameters: Array.Empty<RoutePatternParameterPart>(),
+        pathSegments: Array.Empty<RoutePatternPathSegment>());
+
     private readonly IEndpointRouteBuilder _outerEndpointRouteBuilder;
+    private readonly RoutePattern _partialPrefix;
+    private readonly RoutePattern? _parentPrefix;
 
     private readonly List<EndpointDataSource> _dataSources = new();
     private readonly List<Action<EndpointBuilder>> _conventions = new();
@@ -23,13 +34,20 @@ public sealed class RouteGroupBuilder : IEndpointRouteBuilder, IEndpointConventi
     internal RouteGroupBuilder(IEndpointRouteBuilder outerEndpointRouteBuilder, RoutePattern partialPrefix)
     {
         _outerEndpointRouteBuilder = outerEndpointRouteBuilder;
+        _partialPrefix = partialPrefix;
 
+        // You can still nest groups with a custom outerEndpointRouteBuilder (say a wrapper) even though RouteGroupBuilder is sealed and
+        // we read the internal GroupPrefix here. If outerEndpointRouteBuilder.GroupPrefix happens to match the prefix argument to our
+        // EndpointDataSource.GetGroupedEndpoints() implementation we avoid some allocations. If not, no big deal.
+        // It does mean that GroupPrefix property on this RouteGroupBuilder will not count the outer prefix though.
         if (outerEndpointRouteBuilder is RouteGroupBuilder outerGroup)
         {
-            GroupPrefix = RoutePatternFactory.Combine(outerGroup.GroupPrefix, partialPrefix);
+            _parentPrefix = outerGroup.GroupPrefix;
+            GroupPrefix = RoutePatternFactory.Combine(_parentPrefix, partialPrefix);
         }
         else
         {
+            _parentPrefix = _emptyPrefix;
             GroupPrefix = partialPrefix;
         }
 
@@ -41,14 +59,13 @@ public sealed class RouteGroupBuilder : IEndpointRouteBuilder, IEndpointConventi
     /// This accounts for nested groups and gives the full group prefix, not just the prefix supplied to the last call to
     /// <see cref="EndpointRouteBuilderExtensions.MapGroup(IEndpointRouteBuilder, RoutePattern)"/>.
     /// </summary>
-    public RoutePattern GroupPrefix { get; }
+    internal RoutePattern GroupPrefix => RoutePatternFactory.Combine(_parentPrefix, _partialPrefix);
 
     IServiceProvider IEndpointRouteBuilder.ServiceProvider => _outerEndpointRouteBuilder.ServiceProvider;
     IApplicationBuilder IEndpointRouteBuilder.CreateApplicationBuilder() => _outerEndpointRouteBuilder.CreateApplicationBuilder();
     ICollection<EndpointDataSource> IEndpointRouteBuilder.DataSources => _dataSources;
     void IEndpointConventionBuilder.Add(Action<EndpointBuilder> convention) => _conventions.Add(convention);
 
-    // REVIEW: Should this be public or is being able to use this via the default implementation of EndpointDataSource.GetGroupEndpoints() enough.
     internal static IReadOnlyList<Endpoint> WrapGroupEndpoints(
         RoutePattern prefix,
         IEnumerable<Action<EndpointBuilder>> conventions,
@@ -93,13 +110,7 @@ public sealed class RouteGroupBuilder : IEndpointRouteBuilder, IEndpointConventi
             // The RequestDelegate, Order and DisplayName can all be overridden by non-group-aware conventions. Unlike with metadata,
             // if a convention is applied to a group that changes any of these, I would expect these to be overridden as there's no
             // reasonable way to merge these properties.
-            wrappedEndpoints.Add(new RouteEndpoint(
-                // Again, RequestDelegate can never be null given a RouteEndpoint.
-                routeEndpointBuilder.RequestDelegate!,
-                fullRoutePattern,
-                routeEndpointBuilder.Order,
-                new(routeEndpointBuilder.Metadata),
-                routeEndpointBuilder.DisplayName));
+            wrappedEndpoints.Add(routeEndpointBuilder.Build());
         }
 
         return wrappedEndpoints;
@@ -107,56 +118,68 @@ public sealed class RouteGroupBuilder : IEndpointRouteBuilder, IEndpointConventi
 
     private sealed class GroupDataSource : EndpointDataSource
     {
-        private readonly RouteGroupBuilder _groupRouteBuilder;
+        private readonly RouteGroupBuilder _routeGroupBuilder;
 
         public GroupDataSource(RouteGroupBuilder groupRouteBuilder)
         {
-            _groupRouteBuilder = groupRouteBuilder;
+            _routeGroupBuilder = groupRouteBuilder;
         }
 
         public override IReadOnlyList<Endpoint> Endpoints => GetGroupedEndpoints(
-            _groupRouteBuilder.GroupPrefix,
+            _routeGroupBuilder._parentPrefix,
             Array.Empty<Action<EndpointBuilder>>(),
-            _groupRouteBuilder._outerEndpointRouteBuilder.ServiceProvider);
+            _routeGroupBuilder._outerEndpointRouteBuilder.ServiceProvider);
 
         public override IReadOnlyList<Endpoint> GetGroupedEndpoints(RoutePattern prefix, IReadOnlyList<Action<EndpointBuilder>> conventions, IServiceProvider applicationServices)
         {
-            if (_groupRouteBuilder._dataSources.Count == 0)
+            if (_routeGroupBuilder._dataSources.Count == 0)
             {
                 return Array.Empty<Endpoint>();
             }
 
+            // For most EndpointDataSources, prefix is the full prefix for the endpoint, but in the special case of the GroupDataSource we have to add our
+            // partial prefix to this before calling into any nested EndpointDataSources. In most cases where this is called from GroupDataSource.Endpoints
+            // or the outerEndpointRouteBuilder is a RouteGroupBuilder, we've already calculated this GroupPrefix.
+            var fullPrefix = _routeGroupBuilder._partialPrefix;
+            if (!ReferenceEquals(prefix, _emptyPrefix))
+            {
+                fullPrefix = RoutePatternFactory.Combine(prefix, _routeGroupBuilder._partialPrefix);
+            }
+
             var combinedConventions = conventions;
 
-            if (_groupRouteBuilder._conventions.Count > 0)
+            // Avoid copies if this group has no conventions.
+            if (_routeGroupBuilder._conventions.Count > 0)
             {
+                // Or if there are no conventions passed in from the outer group.
                 if (combinedConventions.Count == 0)
                 {
-                    combinedConventions = _groupRouteBuilder._conventions;
+                    combinedConventions = _routeGroupBuilder._conventions;
                 }
                 else
                 {
-                    var groupConventionsCopy = new List<Action<EndpointBuilder>>(_groupRouteBuilder._conventions);
-                    groupConventionsCopy.AddRange(conventions);
+                    // Apply conventions passed in from the outer group first so their metadata is added earlier in the list at a lower precedent.
+                    var groupConventionsCopy = new List<Action<EndpointBuilder>>(conventions);
+                    groupConventionsCopy.AddRange(_routeGroupBuilder._conventions);
                     combinedConventions = groupConventionsCopy;
                 }
             }
 
-            if (_groupRouteBuilder._dataSources.Count == 1)
+            if (_routeGroupBuilder._dataSources.Count == 1)
             {
-                return _groupRouteBuilder._dataSources[0].GetGroupedEndpoints(prefix, combinedConventions, applicationServices);
+                return _routeGroupBuilder._dataSources[0].GetGroupedEndpoints(fullPrefix, combinedConventions, applicationServices);
             }
 
             var groupedEndpoints = new List<Endpoint>();
 
-            foreach (var dataSource in _groupRouteBuilder._dataSources)
+            foreach (var dataSource in _routeGroupBuilder._dataSources)
             {
-                groupedEndpoints.AddRange(dataSource.GetGroupedEndpoints(prefix, combinedConventions, applicationServices));
+                groupedEndpoints.AddRange(dataSource.GetGroupedEndpoints(fullPrefix, combinedConventions, applicationServices));
             }
 
             return groupedEndpoints;
         }
 
-        public override IChangeToken GetChangeToken() => new CompositeEndpointDataSource(_groupRouteBuilder._dataSources).GetChangeToken();
+        public override IChangeToken GetChangeToken() => new CompositeEndpointDataSource(_routeGroupBuilder._dataSources).GetChangeToken();
     }
 }

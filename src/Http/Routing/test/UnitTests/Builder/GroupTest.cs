@@ -33,8 +33,6 @@ public class GroupTest
         });
 
         var dataSource = GetEndpointDataSource(builder);
-
-        // Trigger Endpoint build by calling getter.
         var endpoint = Assert.Single(dataSource.Endpoints);
         var routeEndpoint = Assert.IsType<RouteEndpoint>(endpoint);
 
@@ -69,8 +67,6 @@ public class GroupTest
         });
 
         var dataSource = GetEndpointDataSource(builder);
-
-        // Trigger Endpoint build by calling getter.
         var endpoint = Assert.Single(dataSource.Endpoints);
         var routeEndpoint = Assert.IsType<RouteEndpoint>(endpoint);
 
@@ -107,8 +103,6 @@ public class GroupTest
         });
 
         var dataSource = GetEndpointDataSource(builder);
-
-        // Trigger Endpoint build by calling getter.
         var endpoint = Assert.Single(dataSource.Endpoints);
         var routeEndpoint = Assert.IsType<RouteEndpoint>(endpoint);
 
@@ -230,8 +224,6 @@ public class GroupTest
         });
 
         var dataSource = GetEndpointDataSource(builder);
-
-        // Trigger Endpoint build by calling getter.
         var endpoint = Assert.Single(dataSource.Endpoints);
 
         var httpContext = new DefaultHttpContext();
@@ -247,7 +239,7 @@ public class GroupTest
     }
 
     [Fact]
-    public void ModifyingRoutePatternInConvention_ThrowsNotSupportedException()
+    public void ModifyingRoutePatternInConvention_Works()
     {
         var builder = new DefaultEndpointRouteBuilder(new ApplicationBuilder(serviceProvider: null!));
 
@@ -260,8 +252,10 @@ public class GroupTest
         });
 
         var dataSource = GetEndpointDataSource(builder);
-        var ex = Assert.Throws<NotSupportedException>(() => dataSource.Endpoints);
-        Assert.Equal("MapGroup does not support mutating RouteEndpointBuilder.RoutePattern from '/group/foo' to '/bar' via conventions.", ex.Message);
+        var endpoint = Assert.Single(dataSource.Endpoints);
+        var routeEndpoint = Assert.IsType<RouteEndpoint>(endpoint);
+
+        Assert.Equal("/bar", routeEndpoint.RoutePattern.RawText);
     }
 
     [Fact]
@@ -291,8 +285,6 @@ public class GroupTest
         });
 
         var dataSource = GetEndpointDataSource(builder);
-
-        // Trigger Endpoint build by calling getter.
         var endpoint = Assert.Single(dataSource.Endpoints);
 
         var httpContext = new DefaultHttpContext();

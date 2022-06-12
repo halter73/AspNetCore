@@ -1084,7 +1084,7 @@ public static class RoutePatternFactory
         return ParameterPolicyCore(parameterPolicy);
     }
 
-    internal static RoutePattern Combine(RoutePattern left, RoutePattern right)
+    internal static RoutePattern Combine(RoutePattern? left, RoutePattern right)
     {
         static IReadOnlyList<T> CombineLists<T>(
             IReadOnlyList<T> leftList,
@@ -1172,6 +1172,11 @@ public static class RoutePatternFactory
                     throw new RoutePatternException(rawText, errorText);
                 }
             };
+        }
+
+        if (left is null)
+        {
+            return right;
         }
 
         var rawText = $"{left.RawText?.TrimEnd('/')}/{right.RawText?.TrimStart('/')}";

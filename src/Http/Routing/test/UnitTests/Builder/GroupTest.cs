@@ -129,7 +129,8 @@ public class GroupTest
     {
         var builder = new DefaultEndpointRouteBuilder(new ApplicationBuilder(serviceProvider: null!));
 
-        var ex = Assert.Throws<RoutePatternException>(() => builder.MapGroup("/{ID}").MapGroup("/{id}"));
+        var ex = Assert.Throws<RoutePatternException>(() =>
+            builder.MapGroup("/{ID}").MapGroup("/{id}").MapGet("/", () => { }));
 
         Assert.Equal("/{ID}/{id}", ex.Pattern);
         Assert.Equal("The route parameter name 'id' appears more than one time in the route template.", ex.Message);

@@ -56,36 +56,16 @@ public sealed class RouteGroupBuilder : IEndpointRouteBuilder, IEndpointConventi
 
         public IReadOnlyList<RouteEndpoint> GetGroupedEndpointsWithNullablePrefix(RoutePattern? prefix, IReadOnlyList<Action<EndpointBuilder>> conventions, IServiceProvider applicationServices)
         {
-            if (_routeGroupBuilder._dataSources.Count == 0)
+            if (_routeGroupBuilder._dataSources.Count is 0)
             {
                 return Array.Empty<RouteEndpoint>();
             }
 
-            // For most EndpointDataSources, the prefix parameter is the full group prefix for the endpoint, but in the special case of the GroupDataSource
-            // must add our partial prefix to this before calling into any nested EndpointDataSources. In non-nested cases where this is called from
-            // GroupDataSource.Endpoints, prefix is null, so Combine won't allocate.
             var fullPrefix = RoutePatternFactory.Combine(prefix, _routeGroupBuilder._partialPrefix);
+            // Apply conventions passed in from the outer group first so their metadata is added earlier in the list at a lower precedent.
+            var combinedConventions = RoutePatternFactory.CombineLists(conventions, _routeGroupBuilder._conventions);
 
-            var combinedConventions = conventions;
-
-            // Avoid copies if this group has no conventions.
-            if (_routeGroupBuilder._conventions.Count > 0)
-            {
-                // Or if there are no conventions passed in from the outer group.
-                if (combinedConventions.Count == 0)
-                {
-                    combinedConventions = _routeGroupBuilder._conventions;
-                }
-                else
-                {
-                    // Apply conventions passed in from the outer group first so their metadata is added earlier in the list at a lower precedent.
-                    var groupConventionsCopy = new List<Action<EndpointBuilder>>(conventions);
-                    groupConventionsCopy.AddRange(_routeGroupBuilder._conventions);
-                    combinedConventions = groupConventionsCopy;
-                }
-            }
-
-            if (_routeGroupBuilder._dataSources.Count == 1)
+            if (_routeGroupBuilder._dataSources.Count is 1)
             {
                 return _routeGroupBuilder._dataSources[0].GetGroupedEndpoints(fullPrefix, combinedConventions, applicationServices);
             }

@@ -40,14 +40,18 @@ public abstract class EndpointDataSource
     /// Gets the <see cref="IServiceProvider"/> instance used to access application services.
     /// </param>
     /// <returns>
-    /// Returns a read-only collection of <see cref="Endpoint"/> instances given the specified group <paramref name="prefix"/> and <paramref name="conventions"/>.
+    /// Returns a read-only collection of <see cref="RouteEndpoint"/> instances given the specified group <paramref name="prefix"/> and <paramref name="conventions"/>.
     /// </returns>
     public virtual IReadOnlyList<RouteEndpoint> GetGroupedEndpoints(RoutePattern prefix, IReadOnlyList<Action<EndpointBuilder>> conventions, IServiceProvider applicationServices)
     {
-        var wrappedEndpoints = new List<RouteEndpoint>();
+        // Only evaluate Endpoints once per call.
+        var endpoints = Endpoints;
+        var wrappedEndpoints = new RouteEndpoint[endpoints.Count];
 
-        foreach (var endpoint in Endpoints)
+        for (int i = 0; i < endpoints.Count; i++)
         {
+            var endpoint = endpoints[i];
+
             // Endpoint does not provide a RoutePattern but RouteEndpoint does. So it's impossible to apply a prefix for custom Endpoints.
             // Supporting arbitrary Endpoints just to add group metadata would require changing the Endpoint type breaking any real scenario.
             if (endpoint is not RouteEndpoint routeEndpoint)
@@ -79,10 +83,10 @@ public abstract class EndpointDataSource
                 routeEndpointBuilder.Metadata.Add(metadata);
             }
 
-            // The RequestDelegate, Order and DisplayName can all be overridden by non-group-aware conventions. Unlike with metadata,
-            // if a convention is applied to a group that changes any of these, I would expect these to be overridden as there's no
-            // reasonable way to merge these properties.
-            wrappedEndpoints.Add((RouteEndpoint)routeEndpointBuilder.Build());
+            // The RoutePattern, RequestDelegate, Order and DisplayName can all be overridden by non-group-aware conventions.
+            // Unlike with metadata, if a convention is applied to a group that changes any of these, I would expect these
+            // to be overridden as there's reasonable way to merge these properties.
+            wrappedEndpoints[i] = (RouteEndpoint)routeEndpointBuilder.Build();
         }
 
         return wrappedEndpoints;

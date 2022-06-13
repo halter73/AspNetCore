@@ -39,56 +39,6 @@ public sealed class RouteGroupBuilder : IEndpointRouteBuilder, IEndpointConventi
     // the final prefix used in GroupDataSource.GetGroupedEndpoints() which is why this is not public even though it seems useful.
     internal RoutePattern GroupPrefix => RoutePatternFactory.Combine((_outerEndpointRouteBuilder as RouteGroupBuilder)?.GroupPrefix, _partialPrefix);
 
-    internal static IReadOnlyList<RouteEndpoint> WrapGroupEndpoints(
-        RoutePattern prefix,
-        IReadOnlyList<Action<EndpointBuilder>> conventions,
-        IServiceProvider? applicationServices,
-        IReadOnlyList<Endpoint> innerEndpoints)
-    {
-        var wrappedEndpoints = new List<RouteEndpoint>();
-
-        foreach (var endpoint in innerEndpoints)
-        {
-            // Endpoint does not provide a RoutePattern but RouteEndpoint does. So it's impossible to apply a prefix for custom Endpoints.
-            // Supporting arbitrary Endpoints just to add group metadata would require changing the Endpoint type breaking any real scenario.
-            if (endpoint is not RouteEndpoint routeEndpoint)
-            {
-                throw new NotSupportedException(Resources.FormatMapGroup_CustomEndpointUnsupported(endpoint.GetType()));
-            }
-
-            // Make the full route pattern visible to IEndpointConventionBuilder extension methods called on the group.
-            // This includes patterns from any parent groups.
-            var fullRoutePattern = RoutePatternFactory.Combine(prefix, routeEndpoint.RoutePattern);
-
-            // RequestDelegate can never be null on a RouteEndpoint. The nullability carries over from Endpoint.
-            var routeEndpointBuilder = new RouteEndpointBuilder(routeEndpoint.RequestDelegate!, fullRoutePattern, routeEndpoint.Order)
-            {
-                DisplayName = routeEndpoint.DisplayName,
-                ServiceProvider = applicationServices,
-            };
-
-            // Apply group conventions to each endpoint in the group at a lower precedent than metadata already on the endpoint.
-            foreach (var convention in conventions)
-            {
-                convention(routeEndpointBuilder);
-            }
-
-            // Any metadata already on the RouteEndpoint must have been applied directly to the endpoint or to a nested group.
-            // This makes the metadata more specific than what's being applied to this group. So add it after this group's conventions.
-            foreach (var metadata in routeEndpoint.Metadata)
-            {
-                routeEndpointBuilder.Metadata.Add(metadata);
-            }
-
-            // The RequestDelegate, Order and DisplayName can all be overridden by non-group-aware conventions. Unlike with metadata,
-            // if a convention is applied to a group that changes any of these, I would expect these to be overridden as there's no
-            // reasonable way to merge these properties.
-            wrappedEndpoints.Add((RouteEndpoint)routeEndpointBuilder.Build());
-        }
-
-        return wrappedEndpoints;
-    }
-
     private sealed class GroupDataSource : EndpointDataSource
     {
         private readonly RouteGroupBuilder _routeGroupBuilder;

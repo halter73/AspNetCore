@@ -4,11 +4,9 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
-using Microsoft.CodeAnalysis.CSharp.Symbols;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -475,20 +473,6 @@ public static class EndpointRouteBuilderExtensions
         ArgumentNullException.ThrowIfNull(pattern);
         ArgumentNullException.ThrowIfNull(handler);
 
-        const int defaultOrder = 0;
-
-        var builder = new RouteEndpointBuilder(pattern, defaultOrder);
-
-        // Methods defined in a top-level program are generated as statics so the delegate
-        // target will be null. Inline lambdas are compiler generated method so they can
-        // be filtered that way.
-        if (GeneratedNameParser.TryParseLocalFunctionName(handler.Method.Name, out var endpointName)
-            || !TypeHelper.IsCompilerGeneratedMethod(handler.Method))
-        {
-            endpointName ??= handler.Method.Name;
-            builder.DisplayName = $"{builder.DisplayName} => {endpointName}";
-        }
-
         var dataSource = endpoints.DataSources.OfType<RouteHandlerEndpointDataSource>().FirstOrDefault();
         if (dataSource is null)
         {
@@ -499,8 +483,8 @@ public static class EndpointRouteBuilderExtensions
             endpoints.DataSources.Add(dataSource);
         }
 
-        dataSource.AddEndpoint(builder, handler, initialEndpointMetadata, disableInferBodyFromParameters);
+        var conventions = dataSource.AddEndpoint(pattern, handler, initialEndpointMetadata, disableInferBodyFromParameters);
 
-        return new RouteHandlerBuilder(new DefaultEndpointConventionBuilder(builder));
+        return new RouteHandlerBuilder(conventions);
     }
 }

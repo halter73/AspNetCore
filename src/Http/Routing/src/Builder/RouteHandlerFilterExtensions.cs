@@ -76,8 +76,7 @@ public static class RouteHandlerFilterExtensions
     /// <returns>A <see cref="RouteHandlerBuilder"/> that can be used to further customize the route handler.</returns>
     public static RouteHandlerBuilder AddFilter(this RouteHandlerBuilder builder, Func<RouteHandlerContext, RouteHandlerFilterDelegate, RouteHandlerFilterDelegate> filterFactory)
     {
-        builder.Add(endpointBuilder =>
-            endpointBuilder.Metadata.Add(filterFactory));
+        builder.Add(endpointBuilder => endpointBuilder.Metadata.Add(filterFactory));
         return builder;
     }
 }

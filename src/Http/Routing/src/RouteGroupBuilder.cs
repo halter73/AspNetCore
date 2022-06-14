@@ -10,7 +10,8 @@ namespace Microsoft.AspNetCore.Routing;
 
 /// <summary>
 /// A builder for defining groups of endpoints with a common prefix that implements both the <see cref="IEndpointRouteBuilder"/>
-/// and <see cref="IEndpointConventionBuilder"/> interfaces. This can be used to add endpoints with the given <see cref="GroupPrefix"/>,
+/// and <see cref="IEndpointConventionBuilder"/> interfaces. This can be used to add endpoints with the prefix defined by
+/// <see cref="EndpointRouteBuilderExtensions.MapGroup(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder, RoutePattern)"/>
 /// and to customize those endpoints using conventions.
 /// </summary>
 public sealed class RouteGroupBuilder : IEndpointRouteBuilder, IEndpointConventionBuilder
@@ -39,9 +40,10 @@ public sealed class RouteGroupBuilder : IEndpointRouteBuilder, IEndpointConventi
     // the final prefix used in GroupDataSource.GetGroupedEndpoints() which is why this is not public even though it seems useful.
     internal RoutePattern GroupPrefix => RoutePatternFactory.Combine((_outerEndpointRouteBuilder as RouteGroupBuilder)?.GroupPrefix, _partialPrefix);
 
-    private sealed class GroupDataSource : EndpointDataSource
+    private sealed class GroupDataSource : EndpointDataSource, IDisposable
     {
         private readonly RouteGroupBuilder _routeGroupBuilder;
+        private CompositeEndpointDataSource? _compositeDataSource;
 
         public GroupDataSource(RouteGroupBuilder groupRouteBuilder)
         {
@@ -51,8 +53,8 @@ public sealed class RouteGroupBuilder : IEndpointRouteBuilder, IEndpointConventi
         public override IReadOnlyList<Endpoint> Endpoints =>
             GetGroupedEndpointsWithNullablePrefix(null, Array.Empty<Action<EndpointBuilder>>(), _routeGroupBuilder._outerEndpointRouteBuilder.ServiceProvider);
 
-        public override IReadOnlyList<RouteEndpoint> GetGroupedEndpoints(RoutePattern prefix, IReadOnlyList<Action<EndpointBuilder>> conventions, IServiceProvider applicationServices) =>
-            GetGroupedEndpointsWithNullablePrefix(prefix, conventions, applicationServices);
+        public override IReadOnlyList<RouteEndpoint> GetGroupedEndpoints(RouteGroupContext context) =>
+            GetGroupedEndpointsWithNullablePrefix(context.Prefix, context.Conventions, context.ApplicationServices);
 
         public IReadOnlyList<RouteEndpoint> GetGroupedEndpointsWithNullablePrefix(RoutePattern? prefix, IReadOnlyList<Action<EndpointBuilder>> conventions, IServiceProvider applicationServices)
         {
@@ -67,19 +69,37 @@ public sealed class RouteGroupBuilder : IEndpointRouteBuilder, IEndpointConventi
 
             if (_routeGroupBuilder._dataSources.Count is 1)
             {
-                return _routeGroupBuilder._dataSources[0].GetGroupedEndpoints(fullPrefix, combinedConventions, applicationServices);
+                return _routeGroupBuilder._dataSources[0].GetGroupedEndpoints(new RouteGroupContext(fullPrefix, combinedConventions, applicationServices));
             }
 
             var groupedEndpoints = new List<RouteEndpoint>();
 
             foreach (var dataSource in _routeGroupBuilder._dataSources)
             {
-                groupedEndpoints.AddRange(dataSource.GetGroupedEndpoints(fullPrefix, combinedConventions, applicationServices));
+                groupedEndpoints.AddRange(dataSource.GetGroupedEndpoints(new RouteGroupContext(fullPrefix, combinedConventions, applicationServices)));
             }
 
             return groupedEndpoints;
         }
 
-        public override IChangeToken GetChangeToken() => new CompositeEndpointDataSource(_routeGroupBuilder._dataSources).GetChangeToken();
+        public override IChangeToken GetChangeToken()
+        {
+            lock (_routeGroupBuilder._dataSources)
+            {
+                _compositeDataSource ??= new CompositeEndpointDataSource(_routeGroupBuilder._dataSources);
+            }
+
+            return _compositeDataSource.GetChangeToken();
+        }
+
+        public void Dispose()
+        {
+            _compositeDataSource?.Dispose();
+
+            foreach (var dataSource in _routeGroupBuilder._dataSources)
+            {
+                (dataSource as IDisposable)?.Dispose();
+            }
+        }
     }
 }

@@ -1,9 +1,12 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.AspNetCore.Routing.TestObjects;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Primitives;
 
 namespace Microsoft.AspNetCore.Routing;
@@ -25,6 +28,25 @@ public class CompositeEndpointDataSourceTest
         // Assert
         Assert.NotSame(endpoints, dataSource.Endpoints);
         Assert.Equal(endpoints, dataSource.Endpoints);
+    }
+
+    [Fact]
+    public void CreatesShallowCopyOf_ListOfGroupedEndpoints()
+    {
+        var endpoint1 = CreateEndpoint("/a");
+        var endpoint2 = CreateEndpoint("/b");
+        var dataSource = new TestGroupDataSource(new RouteEndpoint[] { endpoint1, endpoint2 });
+        var compositeDataSource = new CompositeEndpointDataSource(new[] { dataSource });
+
+        var prefix = RoutePatternFactory.Parse("/");
+        var conventions = Array.Empty<Action<EndpointBuilder>>();
+        var applicationServices = new ServiceCollection().BuildServiceProvider();
+
+        var groupedEndpoints = compositeDataSource.GetGroupedEndpoints(new RouteGroupContext(prefix, conventions, applicationServices));
+
+        var resolvedGroupEndpoints = Assert.Single(dataSource.ResolvedGroupedEndpoints);
+        Assert.NotSame(groupedEndpoints, resolvedGroupEndpoints);
+        Assert.Equal(groupedEndpoints, resolvedGroupEndpoints);
     }
 
     [Fact]
@@ -141,6 +163,33 @@ public class CompositeEndpointDataSourceTest
         Assert.False(token.HasChanged);
     }
 
+    [Fact]
+    public void GetGroupedEndpoints_ForwardedToChildDataSources()
+    {
+        var endpoint = CreateEndpoint("/a");
+        var dataSource = new TestGroupDataSource(new RouteEndpoint[] { endpoint });
+        var compositeDataSource = new CompositeEndpointDataSource(new[] { dataSource });
+
+        var prefix = RoutePatternFactory.Parse("/prefix");
+        var applicationServices = new ServiceCollection().BuildServiceProvider();
+        var metadata = new EndpointNameMetadata("name");
+        var conventions = new Action<EndpointBuilder>[]
+        {
+            b => b.Metadata.Add(metadata),
+        };
+
+        var context = new RouteGroupContext(prefix, conventions, applicationServices);
+        var groupedEndpoints = compositeDataSource.GetGroupedEndpoints(context);
+
+        var receivedContext = Assert.Single(dataSource.ReceivedRouteGroupContexts);
+        Assert.Same(context, receivedContext);
+
+        var resolvedEndpoint = Assert.Single(groupedEndpoints);
+        Assert.Equal("/prefix/a", resolvedEndpoint.RoutePattern.RawText);
+        var resolvedMetadata = Assert.Single(resolvedEndpoint.Metadata);
+        Assert.Same(metadata, resolvedMetadata);
+    }
+
     private RouteEndpoint CreateEndpoint(
         string template,
         object defaults = null,
@@ -153,5 +202,26 @@ public class CompositeEndpointDataSourceTest
             order,
             EndpointMetadataCollection.Empty,
             null);
+    }
+
+    private class TestGroupDataSource : EndpointDataSource
+    {
+        public TestGroupDataSource(params RouteEndpoint[] endpoints) => Endpoints = endpoints;
+
+        public override IReadOnlyList<Endpoint> Endpoints { get; }
+
+        public List<RouteGroupContext> ReceivedRouteGroupContexts { get; } = new();
+
+        public List<IReadOnlyList<RouteEndpoint>> ResolvedGroupedEndpoints { get; } = new();
+
+        public override IReadOnlyList<RouteEndpoint> GetGroupedEndpoints(RouteGroupContext context)
+        {
+            ReceivedRouteGroupContexts.Add(context);
+            var resolved = base.GetGroupedEndpoints(context);
+            ResolvedGroupedEndpoints.Add(resolved);
+            return resolved;
+        }
+
+        public override IChangeToken GetChangeToken() => NullChangeToken.Singleton;
     }
 }

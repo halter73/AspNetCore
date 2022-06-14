@@ -1,7 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using Microsoft.AspNetCore.Builder;
+using System.Text;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.Extensions.Primitives;
@@ -26,23 +26,13 @@ public abstract class EndpointDataSource
     public abstract IReadOnlyList<Endpoint> Endpoints { get; }
 
     /// <summary>
-    /// Get the <see cref="Endpoint"/> instances for this <see cref="EndpointDataSource"/> given the specified group
-    /// <paramref name="prefix"/> and <paramref name="conventions"/>.
+    /// Get the <see cref="RouteEndpoint"/> instances for this <see cref="EndpointDataSource"/> given the specified <see cref="RouteGroupContext.Prefix"/>.
     /// </summary>
-    /// <param name="prefix">
-    /// The prefix the precedes. This accounts for nested groups and gives the full group prefix,
-    /// not just the prefix supplied to the last call to <see cref="EndpointRouteBuilderExtensions.MapGroup(IEndpointRouteBuilder, RoutePattern)"/>.
-    /// </param>
-    /// <param name="conventions">
-    /// Any convention added to the <see cref="RouteGroupBuilder"/> via <see cref="IEndpointConventionBuilder.Add(Action{EndpointBuilder})"/>.
-    /// </param>
-    /// <param name="applicationServices">
-    /// Gets the <see cref="IServiceProvider"/> instance used to access application services.
-    /// </param>
+    /// <param name="context">Details about how the returned <see cref="RouteEndpoint"/> instances should be grouped and a reference to application services.</param>
     /// <returns>
-    /// Returns a read-only collection of <see cref="RouteEndpoint"/> instances given the specified group <paramref name="prefix"/> and <paramref name="conventions"/>.
+    /// Returns a read-only collection of <see cref="RouteEndpoint"/> instances given the specified group <see cref="RouteGroupContext.Prefix"/> and <see cref="RouteGroupContext.Conventions"/>.
     /// </returns>
-    public virtual IReadOnlyList<RouteEndpoint> GetGroupedEndpoints(RoutePattern prefix, IReadOnlyList<Action<EndpointBuilder>> conventions, IServiceProvider applicationServices)
+    public virtual IReadOnlyList<RouteEndpoint> GetGroupedEndpoints(RouteGroupContext context)
     {
         // Only evaluate Endpoints once per call.
         var endpoints = Endpoints;
@@ -61,17 +51,17 @@ public abstract class EndpointDataSource
 
             // Make the full route pattern visible to IEndpointConventionBuilder extension methods called on the group.
             // This includes patterns from any parent groups.
-            var fullRoutePattern = RoutePatternFactory.Combine(prefix, routeEndpoint.RoutePattern);
+            var fullRoutePattern = RoutePatternFactory.Combine(context.Prefix, routeEndpoint.RoutePattern);
 
             // RequestDelegate can never be null on a RouteEndpoint. The nullability carries over from Endpoint.
             var routeEndpointBuilder = new RouteEndpointBuilder(routeEndpoint.RequestDelegate!, fullRoutePattern, routeEndpoint.Order)
             {
                 DisplayName = routeEndpoint.DisplayName,
-                ServiceProvider = applicationServices,
+                ServiceProvider = context.ApplicationServices,
             };
 
             // Apply group conventions to each endpoint in the group at a lower precedent than metadata already on the endpoint.
-            foreach (var convention in conventions)
+            foreach (var convention in context.Conventions)
             {
                 convention(routeEndpointBuilder);
             }
@@ -90,5 +80,93 @@ public abstract class EndpointDataSource
         }
 
         return wrappedEndpoints;
+    }
+
+    // We don't implement DebuggerDisplay directly on the EndpointDataSource base type because this could have side effects.
+    // REVIEW: Should we just make this public/protected? Derived types that can provide endpoints without side effects might find this useful.
+    internal static string GetDebuggerDisplayStringForEndpoints(IReadOnlyList<Endpoint>? endpoints)
+    {
+        if (endpoints is null)
+        {
+            return "No endpoints";
+        }
+
+        var sb = new StringBuilder();
+
+        foreach (var endpoint in endpoints)
+        {
+            if (endpoint is RouteEndpoint routeEndpoint)
+            {
+                var template = routeEndpoint.RoutePattern.RawText;
+                template = string.IsNullOrEmpty(template) ? "\"\"" : template;
+                sb.Append(template);
+                sb.Append(", Defaults: new { ");
+                FormatValues(sb, routeEndpoint.RoutePattern.Defaults);
+                sb.Append(" }");
+                var routeNameMetadata = routeEndpoint.Metadata.GetMetadata<IRouteNameMetadata>();
+                sb.Append(", Route Name: ");
+                sb.Append(routeNameMetadata?.RouteName);
+                var routeValues = routeEndpoint.RoutePattern.RequiredValues;
+
+                if (routeValues.Count > 0)
+                {
+                    sb.Append(", Required Values: new { ");
+                    FormatValues(sb, routeValues);
+                    sb.Append(" }");
+                }
+
+                sb.Append(", Order: ");
+                sb.Append(routeEndpoint.Order);
+
+                var httpMethodMetadata = routeEndpoint.Metadata.GetMetadata<IHttpMethodMetadata>();
+
+                if (httpMethodMetadata is not null)
+                {
+                    sb.Append(", Http Methods: ");
+                    sb.AppendJoin(", ", httpMethodMetadata.HttpMethods);
+                }
+
+                sb.Append(", Display Name: ");
+            }
+            else
+            {
+                sb.Append("Non-RouteEndpoint. DisplayName: ");
+            }
+
+            sb.AppendLine(endpoint.DisplayName);
+        }
+
+        return sb.ToString();
+
+        static void FormatValues(StringBuilder sb, IEnumerable<KeyValuePair<string, object?>> values)
+        {
+            var isFirst = true;
+
+            foreach (var (key, value) in values)
+            {
+                if (isFirst)
+                {
+                    isFirst = false;
+                }
+                else
+                {
+                    sb.Append(", ");
+                }
+
+                sb.Append(key);
+                sb.Append('=');
+
+                if (value is null)
+                {
+                    sb.Append("null");
+                }
+                else
+                {
+                    sb.Append('\"');
+                    sb.Append(value);
+                    sb.Append('\"');
+                }
+            }
+        }
     }
 }

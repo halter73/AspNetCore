@@ -18,7 +18,7 @@ public sealed class RouteEndpointBuilder : EndpointBuilder
     public RoutePattern RoutePattern { get; set; }
 
     /// <summary>
-    ///  Gets or sets the order assigned to the endpoint.
+    /// Gets or sets the order assigned to the endpoint.
     /// </summary>
     public int Order { get; set; }
 

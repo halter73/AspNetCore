@@ -88,21 +88,34 @@ internal sealed class RouteHandlerEndpointDataSource : EndpointDataSource
             displayName = $"{displayName} => {endpointName}";
         }
 
-        var builder = new RouteEndpointBuilder(pattern)
+        RequestDelegate? factoryRequestDelegate = null;
+
+        RequestDelegate redirectRequestDelegate = context =>
+        {
+            if (factoryRequestDelegate is null)
+            {
+                throw new InvalidOperationException($"{nameof(RequestDelegateFactory)} has not created the final {nameof(RequestDelegate)} yet.");
+            }
+
+            return factoryRequestDelegate(context);
+        };
+
+        // The Map methods don't support customizing the order, so we always use the default of 0 unless a convention changes it later.
+        var builder = new RouteEndpointBuilder(redirectRequestDelegate, pattern, order: 0)
         {
             DisplayName = displayName,
             ServiceProvider = _applicationServices,
         };
+
+        // We own EndpointBuilder.Metadata (in another assembly), so we know it's just a List.
+        var metadata = (List<object>)builder.Metadata;
 
         // Add MethodInfo as first metadata item
         builder.Metadata.Add(handler.Method);
 
         if (entry.InitialEndpointMetadata is not null)
         {
-            foreach (var item in entry.InitialEndpointMetadata)
-            {
-                builder.Metadata.Add(item);
-            }
+            metadata.AddRange(entry.InitialEndpointMetadata);
         }
 
         // Apply group conventions before entry-specific conventions added to the RouteHandlerBuilder.
@@ -118,10 +131,7 @@ internal sealed class RouteHandlerEndpointDataSource : EndpointDataSource
         var attributes = handler.Method.GetCustomAttributes();
         if (attributes is not null)
         {
-            foreach (var attribute in attributes)
-            {
-                builder.Metadata.Add(attribute);
-            }
+            metadata.AddRange(attributes);
         }
 
         foreach (var entrySpecificConvention in entry.Conventions)
@@ -142,7 +152,6 @@ internal sealed class RouteHandlerEndpointDataSource : EndpointDataSource
         }
 
         var routeParams = pattern.Parameters;
-
         var routeParamNames = new List<string>(routeParams.Count);
         foreach (var parameter in routeParams)
         {
@@ -155,14 +164,20 @@ internal sealed class RouteHandlerEndpointDataSource : EndpointDataSource
             RouteParameterNames = routeParamNames,
             ThrowOnBadRequest = _throwOnBadRequest,
             DisableInferBodyFromParameters = entry.DisableInferFromBodyParameters,
-            InitialEndpointMetadata = builder.Metadata,
+            InitialEndpointMetadata = metadata,
         };
         var filteredRequestDelegateResult = RequestDelegateFactory.Create(entry.RouteHandler, factoryOptions);
 
-        // We own EndpointBuilder.Metadata (in another assembly), so we know it's just a List. Give inferred metadata the lowest precedent.
-        ((List<object>)builder.Metadata).InsertRange(0, filteredRequestDelegateResult.EndpointMetadata);
+        // Give inferred metadata the lowest precedent.
+        metadata.InsertRange(0, filteredRequestDelegateResult.EndpointMetadata);
+        factoryRequestDelegate = filteredRequestDelegateResult.RequestDelegate;
 
-        builder.RequestDelegate = filteredRequestDelegateResult.RequestDelegate;
+        if (ReferenceEquals(filteredRequestDelegateResult.RequestDelegate, redirectRequestDelegate))
+        {
+            // No convention has changed builder.RequestDelegate, so we can just replace it with the final version as an optimization.
+            // We still set factoryRequestDelegate in case something is still referencing the redirected version of the RequestDelegate.
+            builder.RequestDelegate = factoryRequestDelegate;
+        }
 
         return builder;
     }

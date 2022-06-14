@@ -77,6 +77,29 @@ public sealed class CompositeEndpointDataSource : EndpointDataSource, IDisposabl
     }
 
     /// <inheritdoc/>
+    public override IReadOnlyList<RouteEndpoint> GetGroupedEndpoints(RouteGroupContext context)
+    {
+        if (_dataSources.Count is 0)
+        {
+            return Array.Empty<RouteEndpoint>();
+        }
+
+        // We could try to optimize the single data source case by returning its result directly like GroupDataSource does,
+        // but the CompositeEndpointDataSourceTest class was picky about the Endpoints property creating a shallow copy,
+        // so we'll shallow copy here for consistency.
+        var groupedEndpoints = new List<RouteEndpoint>();
+
+        foreach (var dataSource in _dataSources)
+        {
+            groupedEndpoints.AddRange(dataSource.GetGroupedEndpoints(context));
+        }
+
+        // There's no need to cache these the way we do with _endpoints. This is only ever used to get intermediate results.
+        // Anything using the DataSourceDependentCache like the DfaMatcher will resolve the cached Endpoints property.
+        return groupedEndpoints;
+    }
+
+    /// <inheritdoc/>
     public void Dispose()
     {
         // CompositeDataSource is registered as a singleton by default by AddRouting().

@@ -55,8 +55,7 @@ public sealed class CompositeEndpointDataSource : EndpointDataSource, IDisposabl
     public IEnumerable<EndpointDataSource> DataSources => _dataSources;
 
     /// <summary>
-    /// Gets a <see cref="IChangeToken"/> used to signal invalidation of cached <see cref="Endpoint"/>
-    /// instances.
+    /// Gets a <see cref="IChangeToken"/> used to signal invalidation of cached <see cref="Endpoint"/> instances.
     /// </summary>
     /// <returns>The <see cref="IChangeToken"/>.</returns>
     public override IChangeToken GetChangeToken()

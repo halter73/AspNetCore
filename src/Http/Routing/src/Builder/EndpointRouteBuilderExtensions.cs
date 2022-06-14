@@ -477,20 +477,7 @@ public static class EndpointRouteBuilderExtensions
 
         const int defaultOrder = 0;
 
-        var fullPattern = pattern;
-
-        if (endpoints is RouteGroupBuilder group)
-        {
-            fullPattern = RoutePatternFactory.Combine(group.GroupPrefix, pattern);
-        }
-
-        var builder = new RouteEndpointBuilder(
-            pattern,
-            defaultOrder)
-        {
-            DisplayName = fullPattern.RawText ?? fullPattern.DebuggerToString(),
-            ServiceProvider = endpoints.ServiceProvider,
-        };
+        var builder = new RouteEndpointBuilder(pattern, defaultOrder);
 
         // Methods defined in a top-level program are generated as statics so the delegate
         // target will be null. Inline lambdas are compiler generated method so they can
@@ -502,47 +489,18 @@ public static class EndpointRouteBuilderExtensions
             builder.DisplayName = $"{builder.DisplayName} => {endpointName}";
         }
 
-        var dataSource = endpoints.DataSources.OfType<ModelEndpointDataSource>().FirstOrDefault();
+        var dataSource = endpoints.DataSources.OfType<RouteHandlerEndpointDataSource>().FirstOrDefault();
         if (dataSource is null)
         {
-            dataSource = new ModelEndpointDataSource();
+            var routeHandlerOptions = endpoints.ServiceProvider.GetService<IOptions<RouteHandlerOptions>>();
+            var throwOnBadRequest = routeHandlerOptions?.Value.ThrowOnBadRequest ?? false;
+
+            dataSource = new RouteHandlerEndpointDataSource(endpoints.ServiceProvider, throwOnBadRequest);
             endpoints.DataSources.Add(dataSource);
         }
 
-        var routeHandlerBuilder = new RouteHandlerBuilder(dataSource.AddEndpointBuilder(builder));
-        routeHandlerBuilder.Add(RouteHandlerBuilderConvention);
+        dataSource.AddEndpoint(builder, handler, initialEndpointMetadata, disableInferBodyFromParameters);
 
-        [UnconditionalSuppressMessage("Trimmer", "IL2026", Justification = "We surface a RequireUnreferencedCode in the call to enclosing Map method. " +
-            "The trimmer is unable to infer this on the nested lambda.")]
-        void RouteHandlerBuilderConvention(EndpointBuilder endpointBuilder)
-        {
-            var routeParams = new List<string>(fullPattern.Parameters.Count);
-            foreach (var part in fullPattern.Parameters)
-            {
-                routeParams.Add(part.Name);
-            }
-
-            var routeHandlerOptions = endpoints.ServiceProvider?.GetService<IOptions<RouteHandlerOptions>>();
-            var options = new RequestDelegateFactoryOptions
-            {
-                ServiceProvider = endpoints.ServiceProvider,
-                RouteParameterNames = routeParams,
-                ThrowOnBadRequest = routeHandlerOptions?.Value.ThrowOnBadRequest ?? false,
-                DisableInferBodyFromParameters = disableInferBodyFromParameters,
-                RouteHandlerFilterFactories = routeHandlerBuilder.RouteHandlerFilterFactories,
-                InitialEndpointMetadata = initialEndpointMetadata
-            };
-            var filteredRequestDelegateResult = RequestDelegateFactory.Create(handler, options);
-
-            // Add request delegate metadata
-            foreach (var metadata in filteredRequestDelegateResult.EndpointMetadata)
-            {
-                endpointBuilder.Metadata.Add(metadata);
-            }
-
-            endpointBuilder.RequestDelegate = filteredRequestDelegateResult.RequestDelegate;
-        }
-
-        return routeHandlerBuilder;
+        return new RouteHandlerBuilder(new DefaultEndpointConventionBuilder(builder));
     }
 }

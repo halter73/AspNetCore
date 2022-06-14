@@ -26,7 +26,7 @@ public sealed class RouteGroupBuilder : IEndpointRouteBuilder, IEndpointConventi
     {
         _outerEndpointRouteBuilder = outerEndpointRouteBuilder;
         _partialPrefix = partialPrefix;
-        _outerEndpointRouteBuilder.DataSources.Add(new GroupDataSource(this));
+        _outerEndpointRouteBuilder.DataSources.Add(new GroupEndpointDataSource(this));
     }
 
     IServiceProvider IEndpointRouteBuilder.ServiceProvider => _outerEndpointRouteBuilder.ServiceProvider;
@@ -40,12 +40,12 @@ public sealed class RouteGroupBuilder : IEndpointRouteBuilder, IEndpointConventi
     // the final prefix used in GroupDataSource.GetGroupedEndpoints() which is why this is not public even though it seems useful.
     internal RoutePattern GroupPrefix => RoutePatternFactory.Combine((_outerEndpointRouteBuilder as RouteGroupBuilder)?.GroupPrefix, _partialPrefix);
 
-    private sealed class GroupDataSource : EndpointDataSource, IDisposable
+    private sealed class GroupEndpointDataSource : EndpointDataSource, IDisposable
     {
         private readonly RouteGroupBuilder _routeGroupBuilder;
         private CompositeEndpointDataSource? _compositeDataSource;
 
-        public GroupDataSource(RouteGroupBuilder groupRouteBuilder)
+        public GroupEndpointDataSource(RouteGroupBuilder groupRouteBuilder)
         {
             _routeGroupBuilder = groupRouteBuilder;
         }

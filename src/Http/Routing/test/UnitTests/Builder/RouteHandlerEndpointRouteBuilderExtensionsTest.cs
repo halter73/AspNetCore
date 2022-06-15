@@ -16,14 +16,14 @@ namespace Microsoft.AspNetCore.Builder;
 
 public class RouteHandlerEndpointRouteBuilderExtensionsTest : LoggedTest
 {
-    private ModelEndpointDataSource GetBuilderEndpointDataSource(IEndpointRouteBuilder endpointRouteBuilder)
+    private RouteHandlerEndpointDataSource GetBuilderEndpointDataSource(IEndpointRouteBuilder endpointRouteBuilder)
     {
-        return Assert.IsType<ModelEndpointDataSource>(Assert.Single(endpointRouteBuilder.DataSources));
+        return Assert.IsType<RouteHandlerEndpointDataSource>(Assert.Single(endpointRouteBuilder.DataSources));
     }
 
     private RouteEndpointBuilder GetRouteEndpointBuilder(IEndpointRouteBuilder endpointRouteBuilder)
     {
-        return Assert.IsType<RouteEndpointBuilder>(Assert.Single(GetBuilderEndpointDataSource(endpointRouteBuilder).EndpointBuilders));
+        return GetBuilderEndpointDataSource(endpointRouteBuilder).GetSingleRouteEndpointBuilder();
     }
 
     public static object?[]?[] MapMethods

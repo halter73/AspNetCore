@@ -1646,6 +1646,14 @@ public static partial class RequestDelegateFactory
         return Expression.Convert(boundValueExpr, parameter.ParameterType);
     }
 
+    private static void InsertInferredAcceptsMetadata(FactoryContext factoryContext, Type type, string[] contentTypes)
+    {
+        // Unlike most metadata that will probably to be added by filters or metadata providers, we insert the automatically-inferred AcceptsMetadata
+        // to the beginning of the metadata to give it the lowest precedence. It really doesn't makes sense for this metadata to be overridden but
+        // we're preserving the old behavior here out of an abundance of caution.
+        factoryContext.Metadata.Insert(0, new AcceptsMetadata(type, factoryContext.AllowEmptyRequestBody, contentTypes));
+    }
+
     private static Expression BindParameterFromFormFiles(
         ParameterInfo parameter,
         FactoryContext factoryContext)
@@ -1660,7 +1668,7 @@ public static partial class RequestDelegateFactory
         // Do not duplicate the metadata if there are multiple form parameters
         if (!factoryContext.ReadForm)
         {
-            factoryContext.Metadata.Add(new AcceptsMetadata(parameter.ParameterType, factoryContext.AllowEmptyRequestBody, FormFileContentType));
+            InsertInferredAcceptsMetadata(factoryContext, parameter.ParameterType,  FormFileContentType);
         }
 
         factoryContext.ReadForm = true;
@@ -1684,7 +1692,7 @@ public static partial class RequestDelegateFactory
         // Do not duplicate the metadata if there are multiple form parameters
         if (!factoryContext.ReadForm)
         {
-            factoryContext.Metadata.Add(new AcceptsMetadata(parameter.ParameterType, factoryContext.AllowEmptyRequestBody, FormFileContentType));
+            InsertInferredAcceptsMetadata(factoryContext, parameter.ParameterType, FormFileContentType);
         }
 
         factoryContext.ReadForm = true;
@@ -1714,7 +1722,7 @@ public static partial class RequestDelegateFactory
 
         factoryContext.JsonRequestBodyParameter = parameter;
         factoryContext.AllowEmptyRequestBody = allowEmpty || isOptional;
-        factoryContext.Metadata.Add(new AcceptsMetadata(parameter.ParameterType, factoryContext.AllowEmptyRequestBody, DefaultAcceptsContentType));
+        InsertInferredAcceptsMetadata(factoryContext, parameter.ParameterType, DefaultAcceptsContentType);
 
         if (!factoryContext.AllowEmptyRequestBody)
         {

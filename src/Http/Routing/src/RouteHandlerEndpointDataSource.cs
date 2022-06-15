@@ -70,6 +70,17 @@ internal sealed class RouteHandlerEndpointDataSource : EndpointDataSource
 
     public override IChangeToken GetChangeToken() => NullChangeToken.Singleton;
 
+    // For testing
+    internal RouteEndpointBuilder GetSingleRouteEndpointBuilder()
+    {
+        if (_routeEntries.Count != 1)
+        {
+            throw new InvalidOperationException($"There are {_routeEntries.Count} endpoints defined! This ican only be called for a single endpoint.");
+        }
+
+        return CreateRouteEndpointBuilder(_routeEntries[0]);
+    }
+
     [UnconditionalSuppressMessage("Trimmer", "IL2026",
         Justification = "We surface a RequireUnreferencedCode in the call to Map method adding this EndpointDataSource. " +
                         "The trimmer is unable to infer this.")]
@@ -167,11 +178,8 @@ internal sealed class RouteHandlerEndpointDataSource : EndpointDataSource
             RouteHandlerFilterFactories = routeHandlerFilterFactories,
         };
 
-        var requestDelegateResult = RequestDelegateFactory.Create(entry.RouteHandler, factoryOptions);
-
-        // Give inferred metadata the lowest precedent.
-        metadata.InsertRange(0, requestDelegateResult.EndpointMetadata);
-        factoryCreatedRequestDelegate = requestDelegateResult.RequestDelegate;
+        // We ignore the returned EndpointMetadata has been already populated since we passed in non-null EndpointMetadata.
+        factoryCreatedRequestDelegate = RequestDelegateFactory.Create(entry.RouteHandler, factoryOptions).RequestDelegate;
 
         if (ReferenceEquals(builder.RequestDelegate, redirectedRequestDelegate))
         {

@@ -155,10 +155,10 @@ internal sealed class RouteEndpointDataSource : EndpointDataSource
 
         foreach (var item in builder.Metadata)
         {
-            if (item is Func<RouteHandlerContext, RouteHandlerFilterDelegate, RouteHandlerFilterDelegate> filter)
+            if (item is RouteFilterMetadata filterMetadata)
             {
                 routeHandlerFilterFactories ??= new();
-                routeHandlerFilterFactories.Add(filter);
+                routeHandlerFilterFactories.AddRange(filterMetadata.FilterFactories);
             }
         }
 

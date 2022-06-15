@@ -243,4 +243,7 @@
   <data name="MapGroup_RepeatedDictionaryEntry" xml:space="preserve">
     <value>MapGroup cannot build a pattern for '{0}' because the 'RoutePattern.{1}' dictionary key '{2}' has multiple values.</value>
   </data>
+  <data name="Conventions_CannotBeModifiedAfterBuild" xml:space="preserve">
+    <value>Conventions cannot be added after building the endpoint.</value>
+  </data>
 </root>

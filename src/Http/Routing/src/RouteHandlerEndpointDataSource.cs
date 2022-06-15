@@ -25,7 +25,7 @@ internal sealed class RouteHandlerEndpointDataSource : EndpointDataSource
         _throwOnBadRequest = throwOnBadRequest;
     }
 
-    public List<Action<EndpointBuilder>> AddEndpoint(
+    public ICollection<Action<EndpointBuilder>> AddEndpoint(
         RoutePattern pattern,
         Delegate routeHandler,
         IEnumerable<object>? initialEndpointMetadata,
@@ -144,6 +144,7 @@ internal sealed class RouteHandlerEndpointDataSource : EndpointDataSource
             metadata.AddRange(attributes);
         }
 
+        entry.Conventions.HasBeenBuilt = true;
         foreach (var entrySpecificConvention in entry.Conventions)
         {
             entrySpecificConvention(builder);
@@ -194,9 +195,25 @@ internal sealed class RouteHandlerEndpointDataSource : EndpointDataSource
     private struct RouteEntry
     {
         public RoutePattern RoutePattern { get; init; }
-        public List<Action<EndpointBuilder>> Conventions { get; init; }
+        public ThrowOnAddAfterBuildCollection Conventions { get; init; }
         public Delegate RouteHandler { get; init; }
         public IEnumerable<object>? InitialEndpointMetadata { get; init; }
         public bool DisableInferFromBodyParameters { get; init; }
+    }
+
+    // This private class is only exposed to internal code via ICollection<Action<EndpointBuilder>> in RouteEndpointBuilder where only Add is called.
+    private class ThrowOnAddAfterBuildCollection : List<Action<EndpointBuilder>>, ICollection<Action<EndpointBuilder>>
+    {
+        public bool HasBeenBuilt { get; set; }
+
+        void ICollection<Action<EndpointBuilder>>.Add(Action<EndpointBuilder> convention)
+        {
+            if (HasBeenBuilt)
+            {
+                throw new InvalidOperationException(Resources.Conventions_CannotBeModifiedAfterBuild);
+            }
+
+            Add(convention);
+        }
     }
 }

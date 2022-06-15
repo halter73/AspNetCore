@@ -195,7 +195,7 @@ public class GroupTest
 
         ((IEndpointConventionBuilder)group).Add(builder =>
         {
-            endpointBuilderServiceProvider = builder.ServiceProvider;
+            endpointBuilderServiceProvider = builder.ApplicationServices;
         });
 
         var dataSource = GetEndpointDataSource(builder);

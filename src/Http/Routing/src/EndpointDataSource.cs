@@ -57,7 +57,7 @@ public abstract class EndpointDataSource
             var routeEndpointBuilder = new RouteEndpointBuilder(routeEndpoint.RequestDelegate!, fullRoutePattern, routeEndpoint.Order)
             {
                 DisplayName = routeEndpoint.DisplayName,
-                ServiceProvider = context.ApplicationServices,
+                ApplicationServices = context.ApplicationServices,
             };
 
             // Apply group conventions to each endpoint in the group at a lower precedent than metadata already on the endpoint.

@@ -114,7 +114,7 @@ internal sealed class RouteEndpointDataSource : EndpointDataSource
         var builder = new RouteEndpointBuilder(redirectedRequestDelegate, pattern, order: 0)
         {
             DisplayName = displayName,
-            ServiceProvider = _applicationServices,
+            ApplicationServices = _applicationServices,
         };
 
         // We own EndpointBuilder.Metadata (in another assembly), so we know it's just a List.

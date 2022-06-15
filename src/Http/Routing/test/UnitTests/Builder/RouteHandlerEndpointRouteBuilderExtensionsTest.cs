@@ -851,52 +851,22 @@ public class RouteHandlerEndpointRouteBuilderExtensionsTest : LoggedTest
 
     public static object[][] AddFiltersByClassData =
     {
-        new object[] { (Action<RouteHandlerBuilder>)((RouteHandlerBuilder builder) => builder.AddRouteHandlerFilter(new IncrementArgFilter())) },
-        new object[] { (Action<RouteHandlerBuilder>)((RouteHandlerBuilder builder) => builder.AddRouteHandlerFilter<IncrementArgFilter>()) }
+        new object[] { (Action<IEndpointConventionBuilder>)((IEndpointConventionBuilder builder) => builder.AddRouteHandlerFilter(new IncrementArgFilter())) },
+        new object[] { (Action<IEndpointConventionBuilder>)((IEndpointConventionBuilder builder) => builder.AddRouteHandlerFilter<IEndpointConventionBuilder, IncrementArgFilter>()) }
     };
-
-    [Theory]
-    [MemberData(nameof(AddFiltersByClassData))]
-    public async Task AddFilterMethods_CanRegisterFilterWithClassImplementation(Action<RouteHandlerBuilder> addFilter)
-    {
-        var builder = new DefaultEndpointRouteBuilder(new ApplicationBuilder(new ServiceCollection().BuildServiceProvider()));
-
-        string PrintId(int id) => $"ID: {id}";
-        var routeHandlerBuilder = builder.Map("/{id}", PrintId);
-        addFilter(routeHandlerBuilder);
-
-        var dataSource = GetBuilderEndpointDataSource(builder);
-        // Trigger Endpoint build by calling getter.
-        var endpoint = Assert.Single(dataSource.Endpoints);
-
-        var httpContext = new DefaultHttpContext();
-        httpContext.Request.RouteValues["id"] = "2";
-        var outStream = new MemoryStream();
-        httpContext.Response.Body = outStream;
-
-        await endpoint.RequestDelegate!(httpContext);
-
-        // Assert;
-        var httpResponse = httpContext.Response;
-        httpResponse.Body.Seek(0, SeekOrigin.Begin);
-        var streamReader = new StreamReader(httpResponse.Body);
-        var body = streamReader.ReadToEndAsync().Result;
-        Assert.Equal(200, httpContext.Response.StatusCode);
-        Assert.Equal("ID: 3", body);
-    }
 
     public static object[][] AddFiltersByDelegateData
     {
         get
         {
-            void WithFilter(RouteHandlerBuilder builder) =>
+            void WithFilter(IEndpointConventionBuilder builder) =>
                 builder.AddRouteHandlerFilter(async (context, next) =>
                 {
                     context.Arguments[0] = ((int)context.Arguments[0]!) + 1;
                     return await next(context);
                 });
 
-            void WithFilterFactory(RouteHandlerBuilder builder) =>
+            void WithFilterFactory(IEndpointConventionBuilder builder) =>
                 builder.AddRouteHandlerFilter((routeHandlerContext, next) => async (context) =>
                 {
                     Assert.NotNull(routeHandlerContext.MethodInfo);
@@ -908,32 +878,23 @@ public class RouteHandlerEndpointRouteBuilderExtensionsTest : LoggedTest
                 });
 
             return new object[][] {
-                new object[] { (Action<RouteHandlerBuilder>)WithFilter },
-                new object[] { (Action<RouteHandlerBuilder>)WithFilterFactory  }
+                new object[] { (Action<IEndpointConventionBuilder>)WithFilter },
+                new object[] { (Action<IEndpointConventionBuilder>)WithFilterFactory  }
             };
         }
     }
 
-    [Theory]
-    [MemberData(nameof(AddFiltersByDelegateData))]
-    public async Task AddFilterMethods_CanRegisterFilterWithDelegateImplementation(Action<RouteHandlerBuilder> addFilter)
+    private static async Task AssertIdAsync(Endpoint endpoint, string expectedPattern, int expectedId)
     {
-        var builder = new DefaultEndpointRouteBuilder(new ApplicationBuilder(new ServiceCollection().BuildServiceProvider()));
-
-        string PrintId(int id) => $"ID: {id}";
-        var routeHandlerBuilder = builder.Map("/{id}", PrintId);
-        addFilter(routeHandlerBuilder);
-
-        var dataSource = GetBuilderEndpointDataSource(builder);
-        // Trigger Endpoint build by calling getter.
-        var endpoint = Assert.Single(dataSource.Endpoints);
+        var routeEndpoint = Assert.IsType<RouteEndpoint>(endpoint);
+        Assert.Equal(expectedPattern, routeEndpoint.RoutePattern.RawText);
 
         var httpContext = new DefaultHttpContext();
         httpContext.Request.RouteValues["id"] = "2";
         var outStream = new MemoryStream();
         httpContext.Response.Body = outStream;
 
-        await endpoint.RequestDelegate!(httpContext);
+        await routeEndpoint.RequestDelegate!(httpContext);
 
         // Assert;
         var httpResponse = httpContext.Response;
@@ -941,7 +902,53 @@ public class RouteHandlerEndpointRouteBuilderExtensionsTest : LoggedTest
         var streamReader = new StreamReader(httpResponse.Body);
         var body = streamReader.ReadToEndAsync().Result;
         Assert.Equal(200, httpContext.Response.StatusCode);
-        Assert.Equal("ID: 3", body);
+        Assert.Equal($"ID: {expectedId}", body);
+    }
+
+    [Theory]
+    [MemberData(nameof(AddFiltersByClassData))]
+    [MemberData(nameof(AddFiltersByDelegateData))]
+    public async Task AddRouteHandlerFilterMethods_CanRegisterFilterWithClassAndDelegateImplementations(Action<IEndpointConventionBuilder> addFilter)
+    {
+        var builder = new DefaultEndpointRouteBuilder(new ApplicationBuilder(new ServiceCollection().BuildServiceProvider()));
+
+        string PrintId(int id) => $"ID: {id}";
+        addFilter(builder.Map("/{id}", PrintId));
+
+        var dataSource = GetBuilderEndpointDataSource(builder);
+        // Trigger Endpoint build by calling getter.
+        var endpoint = Assert.Single(dataSource.Endpoints);
+        await AssertIdAsync(endpoint, "/{id}", 3);
+    }
+
+    [Theory]
+    [MemberData(nameof(AddFiltersByClassData))]
+    [MemberData(nameof(AddFiltersByDelegateData))]
+    public async Task AddRouteHandlerFilterMethods_WorkWithMapGroup(Action<IEndpointConventionBuilder> addFilter)
+    {
+        var builder = new DefaultEndpointRouteBuilder(new ApplicationBuilder(new ServiceCollection().BuildServiceProvider()));
+
+        string PrintId(int id) => $"ID: {id}";
+        addFilter(builder.Map("/{id}", PrintId));
+
+        var outerGroup = builder.MapGroup("/outer");
+        addFilter(outerGroup);
+        addFilter(outerGroup.Map("/{id}", PrintId));
+
+        var innerGroup = outerGroup.MapGroup("/inner");
+        addFilter(innerGroup);
+        addFilter(innerGroup.Map("/{id}", PrintId));
+
+        var endpoints = builder.DataSources
+            .SelectMany(ds => ds.Endpoints)
+            .ToDictionary(e => ((RouteEndpoint)e).RoutePattern.RawText!);
+
+        Assert.Equal(3, endpoints.Count);
+
+        // For each layer of grouping, another filter is applies which increments the expectedId by 1 each time.
+        await AssertIdAsync(endpoints["/{id}"], expectedPattern: "/{id}", expectedId: 3);
+        await AssertIdAsync(endpoints["/outer/{id}"], expectedPattern: "/outer/{id}", expectedId: 4);
+        await AssertIdAsync(endpoints["/outer/inner/{id}"], expectedPattern: "/outer/inner/{id}", expectedId: 5);
     }
 
     [Fact]

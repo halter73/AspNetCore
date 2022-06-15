@@ -124,7 +124,6 @@ public class OpenApiRouteHandlerBuilderExtensionTests
         });
 
         WithLocalSummary(outerGroup.MapDelete("/outer-b", GetString));
-
         WithLocalSummary(innerGroup.MapDelete("/inner-a", GetString));
 
         innerGroup.WithOpenApi(operation =>

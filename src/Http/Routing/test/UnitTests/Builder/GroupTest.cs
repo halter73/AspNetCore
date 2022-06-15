@@ -205,13 +205,17 @@ public class GroupTest
     }
 
     [Fact]
-    public void BuildingEndpointInConvention_Throws()
+    public async Task BuildingEndpointInConvention_Works()
     {
         var builder = new DefaultEndpointRouteBuilder(new ApplicationBuilder(EmptyServiceProvider.Instance));
 
         var group = builder.MapGroup("/group");
+        var mapGetCalled = false;
 
-        group.MapGet("/", () => { });
+        group.MapGet("/", () =>
+        {
+            mapGetCalled = true;
+        });
 
         Endpoint? conventionBuiltEndpoint = null;
 
@@ -221,8 +225,18 @@ public class GroupTest
         });
 
         var dataSource = GetEndpointDataSource(builder);
-        var ex = Assert.Throws<InvalidOperationException>(() => dataSource.Endpoints);
-        Assert.Equal("RequestDelegate must be specified to construct a RouteEndpoint.", ex.Message);
+        var endpoint = Assert.Single(dataSource.Endpoints);
+
+        var httpContext = new DefaultHttpContext();
+
+        Assert.NotNull(conventionBuiltEndpoint);
+        Assert.False(mapGetCalled);
+        await conventionBuiltEndpoint!.RequestDelegate!(httpContext);
+        Assert.True(mapGetCalled);
+
+        mapGetCalled = false;
+        await endpoint.RequestDelegate!(httpContext);
+        Assert.True(mapGetCalled);
     }
 
     [Fact]
@@ -252,20 +266,11 @@ public class GroupTest
 
         var group = builder.MapGroup("/group");
         var mapGetCalled = false;
-        var specificReplacementCalled = false;
-        var groupReplacementCalled = false;
+        var replacementCalled = false;
 
         group.MapGet("/", () =>
         {
             mapGetCalled = true;
-        }).Add(builder =>
-        {
-            builder.DisplayName = "Replaced!";
-            builder.RequestDelegate = ctx =>
-            {
-                specificReplacementCalled = true;
-                return Task.CompletedTask;
-            };
         });
 
         ((IEndpointConventionBuilder)group).Add(builder =>
@@ -273,7 +278,7 @@ public class GroupTest
             builder.DisplayName = "Replaced!";
             builder.RequestDelegate = ctx =>
             {
-                groupReplacementCalled = true;
+                replacementCalled = true;
                 return Task.CompletedTask;
             };
 
@@ -287,10 +292,9 @@ public class GroupTest
 
         await endpoint!.RequestDelegate!(httpContext);
 
-        Assert.True(mapGetCalled);
-        Assert.False(groupReplacementCalled);
-        Assert.False(specificReplacementCalled);
-        Assert.Equal("Replaced!", endpoint.DisplayName);
+        Assert.False(mapGetCalled);
+        Assert.True(replacementCalled);
+        Assert.Equal("HTTP: GET Replaced!", endpoint.DisplayName);
 
         var routeEndpoint = Assert.IsType<RouteEndpoint>(endpoint);
         Assert.Equal(42, routeEndpoint.Order);

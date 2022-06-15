@@ -88,20 +88,19 @@ internal sealed class RouteHandlerEndpointDataSource : EndpointDataSource
             displayName = $"{displayName} => {endpointName}";
         }
 
-        RequestDelegate? factoryRequestDelegate = null;
-
-        RequestDelegate redirectRequestDelegate = context =>
+        RequestDelegate? factoryCreatedRequestDelegate = null;
+        RequestDelegate redirectedRequestDelegate = context =>
         {
-            if (factoryRequestDelegate is null)
+            if (factoryCreatedRequestDelegate is null)
             {
                 throw new InvalidOperationException($"{nameof(RequestDelegateFactory)} has not created the final {nameof(RequestDelegate)} yet.");
             }
 
-            return factoryRequestDelegate(context);
+            return factoryCreatedRequestDelegate(context);
         };
 
         // The Map methods don't support customizing the order, so we always use the default of 0 unless a convention changes it later.
-        var builder = new RouteEndpointBuilder(redirectRequestDelegate, pattern, order: 0)
+        var builder = new RouteEndpointBuilder(redirectedRequestDelegate, pattern, order: 0)
         {
             DisplayName = displayName,
             ServiceProvider = _applicationServices,
@@ -164,19 +163,21 @@ internal sealed class RouteHandlerEndpointDataSource : EndpointDataSource
             RouteParameterNames = routeParamNames,
             ThrowOnBadRequest = _throwOnBadRequest,
             DisableInferBodyFromParameters = entry.DisableInferFromBodyParameters,
-            InitialEndpointMetadata = metadata,
+            EndpointMetadata = metadata,
+            RouteHandlerFilterFactories = routeHandlerFilterFactories,
         };
-        var filteredRequestDelegateResult = RequestDelegateFactory.Create(entry.RouteHandler, factoryOptions);
+
+        var requestDelegateResult = RequestDelegateFactory.Create(entry.RouteHandler, factoryOptions);
 
         // Give inferred metadata the lowest precedent.
-        metadata.InsertRange(0, filteredRequestDelegateResult.EndpointMetadata);
-        factoryRequestDelegate = filteredRequestDelegateResult.RequestDelegate;
+        metadata.InsertRange(0, requestDelegateResult.EndpointMetadata);
+        factoryCreatedRequestDelegate = requestDelegateResult.RequestDelegate;
 
-        if (ReferenceEquals(filteredRequestDelegateResult.RequestDelegate, redirectRequestDelegate))
+        if (ReferenceEquals(builder.RequestDelegate, redirectedRequestDelegate))
         {
             // No convention has changed builder.RequestDelegate, so we can just replace it with the final version as an optimization.
             // We still set factoryRequestDelegate in case something is still referencing the redirected version of the RequestDelegate.
-            builder.RequestDelegate = factoryRequestDelegate;
+            builder.RequestDelegate = factoryCreatedRequestDelegate;
         }
 
         return builder;

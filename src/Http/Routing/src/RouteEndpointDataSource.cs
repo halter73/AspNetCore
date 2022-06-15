@@ -75,7 +75,7 @@ internal sealed class RouteEndpointDataSource : EndpointDataSource
     {
         if (_routeEntries.Count != 1)
         {
-            throw new InvalidOperationException($"There are {_routeEntries.Count} endpoints defined! This ican only be called for a single endpoint.");
+            throw new InvalidOperationException($"There are {_routeEntries.Count} endpoints defined! This can only be called for a single endpoint.");
         }
 
         return CreateRouteEndpointBuilder(_routeEntries[0]);

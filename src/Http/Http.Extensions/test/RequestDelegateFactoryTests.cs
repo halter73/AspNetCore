@@ -5931,10 +5931,10 @@ public class RequestDelegateFactoryTests : LoggedTest
 
         // Assert
         Assert.Collection(result.EndpointMetadata,
-            // Initial metadata from RequestDelegateFactoryOptions.InitialEndpointMetadata
-            m => Assert.True(m is CustomEndpointMetadata { Source: MetadataSource.Caller }),
             // Inferred AcceptsMetadata from RDF for complex type
             m => Assert.True(m is AcceptsMetadata am && am.RequestType == typeof(AddsCustomParameterMetadata)),
+            // Initial metadata from RequestDelegateFactoryOptions.InitialEndpointMetadata
+            m => Assert.True(m is CustomEndpointMetadata { Source: MetadataSource.Caller }),
             // Metadata provided by parameters implementing IEndpointParameterMetadataProvider
             m => Assert.True(m is ParameterNameMetadata { Name: "param1" }),
             // Metadata provided by parameters implementing IEndpointMetadataProvider

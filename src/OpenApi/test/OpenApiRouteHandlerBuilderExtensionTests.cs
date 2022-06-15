@@ -58,8 +58,8 @@ public class OpenApiRouteHandlerBuilderExtensionTests
         Assert.Empty(operation.Responses);
     }
 
-    private ModelEndpointDataSource GetBuilderEndpointDataSource(IEndpointRouteBuilder endpointRouteBuilder)
+    private RouteEndpointDataSource GetBuilderEndpointDataSource(IEndpointRouteBuilder endpointRouteBuilder)
     {
-        return Assert.IsType<ModelEndpointDataSource>(Assert.Single(endpointRouteBuilder.DataSources));
+        return Assert.IsType<RouteEndpointDataSource>(Assert.Single(endpointRouteBuilder.DataSources));
     }
 }

@@ -23,7 +23,7 @@ public static class OpenApiRouteHandlerBuilderExtensions
     /// </summary>
     /// <param name="builder">The <see cref="RouteHandlerBuilder"/>.</param>
     /// <returns>A <see cref="RouteHandlerBuilder"/> that can be used to further customize the endpoint.</returns>
-    public static RouteHandlerBuilder WithOpenApi(this RouteHandlerBuilder builder)
+    public static TBuilder WithOpenApi<TBuilder>(this TBuilder builder) where TBuilder : IEndpointConventionBuilder
     {
         builder.Add(endpointBuilder =>
         {
@@ -46,7 +46,8 @@ public static class OpenApiRouteHandlerBuilderExtensions
     /// <param name="builder">The <see cref="RouteHandlerBuilder"/>.</param>
     /// <param name="configureOperation">An <see cref="Func{T, TResult}"/> that returns a new OpenAPI annotation given a generated operation.</param>
     /// <returns>A <see cref="RouteHandlerBuilder"/> that can be used to further customize the endpoint.</returns>
-    public static RouteHandlerBuilder WithOpenApi(this RouteHandlerBuilder builder, Func<OpenApiOperation, OpenApiOperation> configureOperation)
+    public static TBuilder WithOpenApi<TBuilder>(this TBuilder builder, Func<OpenApiOperation, OpenApiOperation> configureOperation)
+        where TBuilder : IEndpointConventionBuilder
     {
         builder.Add(endpointBuilder =>
         {

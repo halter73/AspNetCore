@@ -24,7 +24,7 @@ internal sealed class DefaultEndpointConventionBuilder : IEndpointConventionBuil
 
         if (conventions is null)
         {
-            throw new InvalidOperationException(Resources.Conventions_CannotBeModifiedAfterBuild);
+            throw new InvalidOperationException(Resources.RouteEndpointDataSource_ConventionsCannotBeModifiedAfterBuild);
         }
 
         conventions.Add(convention);

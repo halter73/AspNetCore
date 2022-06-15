@@ -104,7 +104,7 @@ internal sealed class RouteEndpointDataSource : EndpointDataSource
         {
             if (factoryCreatedRequestDelegate is null)
             {
-                throw new InvalidOperationException($"{nameof(RequestDelegateFactory)} has not created the final {nameof(RequestDelegate)} yet.");
+                throw new InvalidOperationException(Resources.RouteEndpointDataSource_RequestDelegateCannotBeCalledBeforeBuild);
             }
 
             return factoryCreatedRequestDelegate(context);
@@ -195,10 +195,10 @@ internal sealed class RouteEndpointDataSource : EndpointDataSource
     private struct RouteEntry
     {
         public RoutePattern RoutePattern { get; init; }
-        public ThrowOnAddAfterBuildCollection Conventions { get; init; }
         public Delegate RouteHandler { get; init; }
         public IEnumerable<object>? InitialEndpointMetadata { get; init; }
         public bool DisableInferFromBodyParameters { get; init; }
+        public ThrowOnAddAfterBuildCollection Conventions { get; init; }
     }
 
     // This private class is only exposed to internal code via ICollection<Action<EndpointBuilder>> in RouteEndpointBuilder where only Add is called.
@@ -210,7 +210,7 @@ internal sealed class RouteEndpointDataSource : EndpointDataSource
         {
             if (HasBeenBuilt)
             {
-                throw new InvalidOperationException(Resources.Conventions_CannotBeModifiedAfterBuild);
+                throw new InvalidOperationException(Resources.RouteEndpointDataSource_ConventionsCannotBeModifiedAfterBuild);
             }
 
             Add(convention);

@@ -13,13 +13,13 @@ using Microsoft.Extensions.Primitives;
 
 namespace Microsoft.AspNetCore.Routing;
 
-internal sealed class RouteHandlerEndpointDataSource : EndpointDataSource
+internal sealed class RouteEndpointDataSource : EndpointDataSource
 {
     private readonly List<RouteEntry> _routeEntries = new();
     private readonly IServiceProvider _applicationServices;
     private readonly bool _throwOnBadRequest;
 
-    public RouteHandlerEndpointDataSource(IServiceProvider applicationServices, bool throwOnBadRequest)
+    public RouteEndpointDataSource(IServiceProvider applicationServices, bool throwOnBadRequest)
     {
         _applicationServices = applicationServices;
         _throwOnBadRequest = throwOnBadRequest;

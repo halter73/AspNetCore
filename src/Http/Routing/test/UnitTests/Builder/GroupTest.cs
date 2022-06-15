@@ -400,7 +400,6 @@ public class GroupTest
     private sealed class EmptyServiceProvider : IServiceProvider
     {
         public static EmptyServiceProvider Instance { get; } = new EmptyServiceProvider();
-
         public object? GetService(Type serviceType) => null;
     }
 }

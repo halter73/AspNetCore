@@ -1,1 +1,9 @@
 #nullable enable
+*REMOVED*Microsoft.AspNetCore.Hosting.IHostingEnvironment.WebRootPath.get -> string!
+*REMOVED*Microsoft.AspNetCore.Hosting.IHostingEnvironment.WebRootPath.set -> void
+*REMOVED*Microsoft.AspNetCore.Hosting.IWebHostEnvironment.WebRootPath.get -> string!
+*REMOVED*Microsoft.AspNetCore.Hosting.IWebHostEnvironment.WebRootPath.set -> void
+Microsoft.AspNetCore.Hosting.IHostingEnvironment.WebRootPath.get -> string?
+Microsoft.AspNetCore.Hosting.IHostingEnvironment.WebRootPath.set -> void
+Microsoft.AspNetCore.Hosting.IWebHostEnvironment.WebRootPath.get -> string?
+Microsoft.AspNetCore.Hosting.IWebHostEnvironment.WebRootPath.set -> void

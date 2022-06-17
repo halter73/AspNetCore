@@ -2,16 +2,30 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Mvc;
 
 var builder = WebApplication.CreateBuilder(args);
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
+//app.MapControllers().AddRouteHandlerFilter()
+
+var outer = app.MapGroup("/outer");
+var inner = outer.MapGroup("/inner");
+
+inner.AddRouteHandlerFilter((routeContext, next) =>
 {
-    app.UseDeveloperExceptionPage();
-}
+    var tags = routeContext.EndpointMetadata.OfType<ITagsMetadata>().FirstOrDefault();
+
+    Console.WriteLine($"Building filter! Num args: {routeContext.MethodInfo.GetParameters().Length}"); ;
+    return async invocationContext =>
+    {
+        Console.WriteLine("Running filter!");
+        var result = await next(invocationContext);
+        return ((string)result) + " filtered!" + string.Join(", ", tags.Tags);
+    };
+});
 
 string Plaintext() => "Hello, World!";
 app.MapGet("/plaintext", Plaintext);
@@ -23,12 +37,33 @@ app.MapGet("/", () => $"""
     Date and Time: {DateTime.Now}
     """);
 
-var nestedGroup = app.MapGroup("/group/{groupName}")
+var nestedGroup = inner.MapGroup("/group/{groupName}")
    .MapGroup("/nested/{nestedName}")
-   .WithTags("nested");
+   .WithTags("nested", "more", "things");
+
+outer.MapGet("/outergroup", () => "I'm even less nested.");
+
+inner.MapGet("/innergroup", () => "I'm not super nested.");
 
 nestedGroup
    .MapGet("/", (string groupName, string nestedName) =>
+   {
+       return $"Hello from {groupName}:{nestedName}!";
+   });
+
+inner.AddRouteHandlerFilter((routeContext, next) =>
+{
+    Console.WriteLine($"Building filter! Num args: {routeContext.MethodInfo.GetParameters().Length}"); ;
+    return async invocationContext =>
+    {
+        Console.WriteLine("Running filter!");
+        var result = await next(invocationContext);
+        return ((string)result) + "| nested filtered!";
+    };
+});
+
+nestedGroup
+   .MapGet("/2", (string groupName, string nestedName) =>
    {
        return $"Hello from {groupName}:{nestedName}!";
    });

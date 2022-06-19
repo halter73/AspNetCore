@@ -76,8 +76,8 @@ public static partial class RequestDelegateFactory
         Log.ImplicitBodyNotProvided(httpContext, parameterName, shouldThrow));
 
     private static readonly ParameterExpression TargetExpr = Expression.Parameter(typeof(object), "target");
-    private static readonly ParameterExpression BodyValueExpr = Expression.Parameter(typeof(object), "bodyValue");
     private static readonly ParameterExpression WasParamCheckFailureExpr = Expression.Variable(typeof(bool), "wasParamCheckFailure");
+    private static readonly ParameterExpression BodyValueExpr = Expression.Parameter(typeof(object), "bodyValue");
     private static readonly ParameterExpression BoundValuesArrayExpr = Expression.Parameter(typeof(object[]), "boundValues");
 
     private static readonly ParameterExpression HttpContextExpr = ParameterBindingMethodCache.HttpContextExpr;
@@ -114,6 +114,9 @@ public static partial class RequestDelegateFactory
 
     private static readonly string[] DefaultAcceptsContentType = new[] { "application/json" };
     private static readonly string[] FormFileContentType = new[] { "multipart/form-data" };
+
+    // Returned by our default JSON and form ParameterBinder implementations to indicate failed reads.
+    private static readonly object FailedBodyReadSentinalValue = new object();
 
     /// <summary>
     /// Creates a <see cref="RequestDelegate"/> implementation for <paramref name="handler"/>.
@@ -966,46 +969,75 @@ public static partial class RequestDelegateFactory
 
     private static Func<object?, HttpContext, Task> HandleRequestBodyAndCompileRequestDelegate(Expression responseWritingMethodCall, FactoryContext factoryContext)
     {
-        if (factoryContext.JsonRequestBodyParameter is null && !factoryContext.ReadForm)
+        if (factoryContext.JsonRequestBodyParameter is null && !factoryContext.ReadForm && factoryContext.ParameterBinders.Count is 0)
         {
-            if (factoryContext.ParameterBinders.Count > 0)
-            {
-                // We need to generate the code for reading from the custom binders calling into the delegate
-                var continuation = Expression.Lambda<Func<object?, HttpContext, object?[], Task>>(
-                    responseWritingMethodCall, TargetExpr, HttpContextExpr, BoundValuesArrayExpr).Compile();
-
-                // Looping over arrays is faster
-                var binders = factoryContext.ParameterBinders.ToArray();
-                var count = binders.Length;
-
-                return async (target, httpContext) =>
-                {
-                    var boundValues = new object?[count];
-
-                    for (var i = 0; i < count; i++)
-                    {
-                        boundValues[i] = await binders[i](httpContext);
-                    }
-
-                    await continuation(target, httpContext, boundValues);
-                };
-            }
-
             return Expression.Lambda<Func<object?, HttpContext, Task>>(
                 responseWritingMethodCall, TargetExpr, HttpContextExpr).Compile();
         }
 
-        if (factoryContext.ReadForm)
+        if (factoryContext.JsonRequestBodyParameter is null)
         {
-            return HandleRequestBodyAndCompileRequestDelegateForForm(responseWritingMethodCall, factoryContext);
+            factoryContext.ParameterBinders.Add(CreateFormParameterBinder(factoryContext));
+        }
+        else if (factoryContext.ReadForm)
+        {
+            factoryContext.ParameterBinders.Add(CreateFormParameterBinder(factoryContext));
+        }
+
+        if (factoryContext.ParameterBinders.Count is 1)
+        {
+            // We need to generate the code for reading from the body before calling into the delegate
+            var continuation = Expression.Lambda<Func<object?, HttpContext, object?, Task>>(
+                responseWritingMethodCall, TargetExpr, HttpContextExpr, BodyValueExpr).Compile();
+
+            var binder = factoryContext.ParameterBinders[0];
+
+            return async (target, httpContext) =>
+            {
+                var boundValue = await binder(httpContext);
+
+                if (ReferenceEquals(boundValue, FailedBodyReadSentinalValue))
+                {
+                    // A default parameter binder has already logged the failed body read. We're done.
+                    return;
+                }
+
+                await continuation(target, httpContext, boundValue);
+            };
         }
         else
         {
-            return HandleRequestBodyAndCompileRequestDelegateForJson(responseWritingMethodCall, factoryContext);
+            // We need to generate the code for reading from the custom binders calling into the delegate
+            var continuation = Expression.Lambda<Func<object?, HttpContext, object?[], Task>>(
+                responseWritingMethodCall, TargetExpr, HttpContextExpr, BoundValuesArrayExpr).Compile();
+
+            // Looping over arrays is faster
+            var binders = factoryContext.ParameterBinders.ToArray();
+            var count = binders.Length;
+
+            return async (target, httpContext) =>
+            {
+                var boundValues = new object?[count];
+
+                for (var i = 0; i < count; i++)
+                {
+                    var boundValue = await binders[i](httpContext);
+
+                    if (ReferenceEquals(boundValue, FailedBodyReadSentinalValue))
+                    {
+                        // A default parameter binder has already logged the failed body read. We're done.
+                        return;
+                    }
+
+                    boundValues[i] = boundValue;
+                }
+
+                await continuation(target, httpContext, boundValues);
+            };
         }
     }
 
-    private static Func<object?, HttpContext, Task> HandleRequestBodyAndCompileRequestDelegateForJson(Expression responseWritingMethodCall, FactoryContext factoryContext)
+    static Func<HttpContext, ValueTask<object?>> CreateJsonParameterBinder(FactoryContext factoryContext)
     {
         Debug.Assert(factoryContext.JsonRequestBodyParameter is not null, "factoryContext.JsonRequestBodyParameter is null for a JSON body.");
 
@@ -1015,27 +1047,7 @@ public static partial class RequestDelegateFactory
 
         Debug.Assert(parameterName is not null, "CreateArgument() should throw if parameter.Name is null.");
 
-        if (factoryContext.ParameterBinders.Count > 0)
-        {
-            // We need to generate the code for reading from the body before calling into the delegate
-            var continuation = Expression.Lambda<Func<object?, HttpContext, object?, object?[], Task>>(
-            responseWritingMethodCall, TargetExpr, HttpContextExpr, BodyValueExpr, BoundValuesArrayExpr).Compile();
-
-            // Looping over arrays is faster
-            var binders = factoryContext.ParameterBinders.ToArray();
-            var count = binders.Length;
-
-            return async (target, httpContext) =>
-            {
-                // Run these first so that they can potentially read and rewind the body
-                var boundValues = new object?[count];
-
-                for (var i = 0; i < count; i++)
-                {
-                    boundValues[i] = await binders[i](httpContext);
-                }
-
-                var (bodyValue, successful) = await TryReadBodyAsync(
+        return httpContext => ReadJsonBodyAsync(
                     httpContext,
                     bodyType,
                     parameterTypeName,
@@ -1043,93 +1055,9 @@ public static partial class RequestDelegateFactory
                     factoryContext.AllowEmptyRequestBody,
                     factoryContext.ThrowOnBadRequest);
 
-                if (!successful)
-                {
-                    return;
-                }
-
-                await continuation(target, httpContext, bodyValue, boundValues);
-            };
-        }
-        else
-        {
-            // We need to generate the code for reading from the body before calling into the delegate
-            var continuation = Expression.Lambda<Func<object?, HttpContext, object?, Task>>(
-            responseWritingMethodCall, TargetExpr, HttpContextExpr, BodyValueExpr).Compile();
-
-            return async (target, httpContext) =>
-            {
-                var (bodyValue, successful) = await TryReadBodyAsync(
-                    httpContext,
-                    bodyType,
-                    parameterTypeName,
-                    parameterName,
-                    factoryContext.AllowEmptyRequestBody,
-                    factoryContext.ThrowOnBadRequest);
-
-                if (!successful)
-                {
-                    return;
-                }
-
-                await continuation(target, httpContext, bodyValue);
-            };
-        }
-
-        static async Task<(object? FormValue, bool Successful)> TryReadBodyAsync(
-            HttpContext httpContext,
-            [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] Type bodyType,
-            string parameterTypeName,
-            string parameterName,
-            bool allowEmptyRequestBody,
-            bool throwOnBadRequest)
-        {
-            object? defaultBodyValue = null;
-
-            if (allowEmptyRequestBody && bodyType.IsValueType)
-            {
-                defaultBodyValue = CreateValueType(bodyType);
-            }
-
-            var bodyValue = defaultBodyValue;
-            var feature = httpContext.Features.Get<IHttpRequestBodyDetectionFeature>();
-
-            if (feature?.CanHaveBody == true)
-            {
-                if (!httpContext.Request.HasJsonContentType())
-                {
-                    Log.UnexpectedJsonContentType(httpContext, httpContext.Request.ContentType, throwOnBadRequest);
-                    httpContext.Response.StatusCode = StatusCodes.Status415UnsupportedMediaType;
-                    return (null, false);
-                }
-                try
-                {
-                    bodyValue = await httpContext.Request.ReadFromJsonAsync(bodyType);
-                }
-                catch (IOException ex)
-                {
-                    Log.RequestBodyIOException(httpContext, ex);
-                    return (null, false);
-                }
-                catch (JsonException ex)
-                {
-                    Log.InvalidJsonRequestBody(httpContext, parameterTypeName, parameterName, ex, throwOnBadRequest);
-                    httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
-                    return (null, false);
-                }
-            }
-
-            return (bodyValue, true);
-        }
     }
 
-    [UnconditionalSuppressMessage("ReflectionAnalysis", "IL2067:UnrecognizedReflectionPattern",
-        Justification = "CreateValueType is only called on a ValueType. You can always create an instance of a ValueType.")]
-    private static object? CreateValueType(Type t) => RuntimeHelpers.GetUninitializedObject(t);
-
-    private static Func<object?, HttpContext, Task> HandleRequestBodyAndCompileRequestDelegateForForm(
-        Expression responseWritingMethodCall,
-        FactoryContext factoryContext)
+    static Func<HttpContext, ValueTask<object?>> CreateFormParameterBinder(FactoryContext factoryContext)
     {
         Debug.Assert(factoryContext.FirstFormRequestBodyParameter is not null, "factoryContext.FirstFormRequestBodyParameter is null for a form body.");
 
@@ -1139,102 +1067,95 @@ public static partial class RequestDelegateFactory
         var parameterName = factoryContext.FirstFormRequestBodyParameter.Name;
 
         Debug.Assert(parameterName is not null, "CreateArgument() should throw if parameter.Name is null.");
-
-        if (factoryContext.ParameterBinders.Count > 0)
-        {
-            // We need to generate the code for reading from the body or form before calling into the delegate
-            var continuation = Expression.Lambda<Func<object?, HttpContext, object?, object?[], Task>>(
-            responseWritingMethodCall, TargetExpr, HttpContextExpr, BodyValueExpr, BoundValuesArrayExpr).Compile();
-
-            // Looping over arrays is faster
-            var binders = factoryContext.ParameterBinders.ToArray();
-            var count = binders.Length;
-
-            return async (target, httpContext) =>
-            {
-                // Run these first so that they can potentially read and rewind the body
-                var boundValues = new object?[count];
-
-                for (var i = 0; i < count; i++)
-                {
-                    boundValues[i] = await binders[i](httpContext);
-                }
-
-                var (formValue, successful) = await TryReadFormAsync(
+        return httpContext => ReadFormAsync(
                     httpContext,
                     parameterTypeName,
                     parameterName,
                     factoryContext.ThrowOnBadRequest);
+    }
 
-                if (!successful)
-                {
-                    return;
-                }
+    private static async ValueTask<object?> ReadJsonBodyAsync(
+        HttpContext httpContext,
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] Type bodyType,
+        string parameterTypeName,
+        string parameterName,
+        bool allowEmptyRequestBody,
+        bool throwOnBadRequest)
+    {
+        object? defaultBodyValue = null;
 
-                await continuation(target, httpContext, formValue, boundValues);
-            };
-        }
-        else
+        if (allowEmptyRequestBody && bodyType.IsValueType)
         {
-            // We need to generate the code for reading from the form before calling into the delegate
-            var continuation = Expression.Lambda<Func<object?, HttpContext, object?, Task>>(
-            responseWritingMethodCall, TargetExpr, HttpContextExpr, BodyValueExpr).Compile();
-
-            return async (target, httpContext) =>
-            {
-                var (formValue, successful) = await TryReadFormAsync(
-                    httpContext,
-                    parameterTypeName,
-                    parameterName,
-                    factoryContext.ThrowOnBadRequest);
-
-                if (!successful)
-                {
-                    return;
-                }
-
-                await continuation(target, httpContext, formValue);
-            };
+            defaultBodyValue = CreateValueType(bodyType);
         }
 
-        static async Task<(object? FormValue, bool Successful)> TryReadFormAsync(
-            HttpContext httpContext,
-            string parameterTypeName,
-            string parameterName,
-            bool throwOnBadRequest)
+        var bodyValue = defaultBodyValue;
+        var feature = httpContext.Features.Get<IHttpRequestBodyDetectionFeature>();
+
+        if (feature?.CanHaveBody == true)
         {
-            object? formValue = null;
-            var feature = httpContext.Features.Get<IHttpRequestBodyDetectionFeature>();
-
-            if (feature?.CanHaveBody == true)
+            if (!httpContext.Request.HasJsonContentType())
             {
-                if (!httpContext.Request.HasFormContentType)
-                {
-                    Log.UnexpectedNonFormContentType(httpContext, httpContext.Request.ContentType, throwOnBadRequest);
-                    httpContext.Response.StatusCode = StatusCodes.Status415UnsupportedMediaType;
-                    return (null, false);
-                }
-
-                ThrowIfRequestIsAuthenticated(httpContext);
-
-                try
-                {
-                    formValue = await httpContext.Request.ReadFormAsync();
-                }
-                catch (IOException ex)
-                {
-                    Log.RequestBodyIOException(httpContext, ex);
-                    return (null, false);
-                }
-                catch (InvalidDataException ex)
-                {
-                    Log.InvalidFormRequestBody(httpContext, parameterTypeName, parameterName, ex, throwOnBadRequest);
-                    httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
-                    return (null, false);
-                }
+                Log.UnexpectedJsonContentType(httpContext, httpContext.Request.ContentType, throwOnBadRequest);
+                httpContext.Response.StatusCode = StatusCodes.Status415UnsupportedMediaType;
+                return FailedBodyReadSentinalValue;
             }
+            try
+            {
+                bodyValue = await httpContext.Request.ReadFromJsonAsync(bodyType);
+            }
+            catch (IOException ex)
+            {
+                Log.RequestBodyIOException(httpContext, ex);
+                return FailedBodyReadSentinalValue;
+            }
+            catch (JsonException ex)
+            {
+                Log.InvalidJsonRequestBody(httpContext, parameterTypeName, parameterName, ex, throwOnBadRequest);
+                httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
+                return FailedBodyReadSentinalValue;
+            }
+        }
 
-            return (formValue, true);
+        return bodyValue;
+    }
+
+    private static async ValueTask<object?> ReadFormAsync(
+        HttpContext httpContext,
+        string parameterTypeName,
+        string parameterName,
+        bool throwOnBadRequest)
+    {
+        var feature = httpContext.Features.Get<IHttpRequestBodyDetectionFeature>();
+
+        if (feature?.CanHaveBody is not true)
+        {
+            return null;
+        }
+
+        if (!httpContext.Request.HasFormContentType)
+        {
+            Log.UnexpectedNonFormContentType(httpContext, httpContext.Request.ContentType, throwOnBadRequest);
+            httpContext.Response.StatusCode = StatusCodes.Status415UnsupportedMediaType;
+            return FailedBodyReadSentinalValue;
+        }
+
+        ThrowIfRequestIsAuthenticated(httpContext);
+
+        try
+        {
+            return await httpContext.Request.ReadFormAsync();
+        }
+        catch (IOException ex)
+        {
+            Log.RequestBodyIOException(httpContext, ex);
+            return FailedBodyReadSentinalValue;
+        }
+        catch (InvalidDataException ex)
+        {
+            Log.InvalidFormRequestBody(httpContext, parameterTypeName, parameterName, ex, throwOnBadRequest);
+            httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
+            return FailedBodyReadSentinalValue;
         }
 
         static void ThrowIfRequestIsAuthenticated(HttpContext httpContext)
@@ -1264,6 +1185,11 @@ public static partial class RequestDelegateFactory
             }
         }
     }
+
+    [UnconditionalSuppressMessage("ReflectionAnalysis", "IL2067:UnrecognizedReflectionPattern",
+        Justification = "CreateValueType is only called on a ValueType. You can always create an instance of a ValueType.")]
+    private static object? CreateValueType(Type t) => RuntimeHelpers.GetUninitializedObject(t);
+
 
     private static Expression GetValueFromProperty(MemberExpression sourceExpression, PropertyInfo itemProperty, string key, Type? returnType = null)
     {

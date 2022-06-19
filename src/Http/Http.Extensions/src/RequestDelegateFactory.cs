@@ -116,7 +116,7 @@ public static partial class RequestDelegateFactory
     private static readonly string[] FormFileContentType = new[] { "multipart/form-data" };
 
     // Returned by our default JSON and form ParameterBinder implementations to indicate failed reads.
-    private static readonly object FailedBodyReadSentinalValue = new object();
+    private static readonly object FailedBodyReadAlreadyHandledSentinel = new();
 
     /// <summary>
     /// Creates a <see cref="RequestDelegate"/> implementation for <paramref name="handler"/>.
@@ -524,7 +524,7 @@ public static partial class RequestDelegateFactory
             return Array.Empty<Expression>();
         }
 
-        var args = new Expression[parameters.Length];
+        var args = new Expression?[parameters.Length];
 
         factoryContext.ArgumentTypes = new Type[parameters.Length];
         factoryContext.ArgumentExpressions = new Expression[parameters.Length];
@@ -536,7 +536,22 @@ public static partial class RequestDelegateFactory
         for (var i = 0; i < parameters.Length; i++)
         {
             args[i] = CreateArgument(parameters[i], factoryContext);
+        }
 
+        // Always add default parameter binders last for backwards compatibility. 
+        if (factoryContext.JsonRequestBodyParameter is null)
+        {
+            factoryContext.AsyncParameterBinders.Add(CreateJsonParameterBinder(factoryContext));
+        }
+        else if (factoryContext.ReadForm)
+        {
+            factoryContext.AsyncParameterBinders.Add(CreateFormParameterBinder(factoryContext));
+        }
+
+        // TODO: fill in null body args now that we know how many there are.
+
+        for (var i = 0; i < args.Length; i++)
+        {
             // Only populate the context args if there are filters for this handler
             if (hasFilters)
             {
@@ -584,7 +599,10 @@ public static partial class RequestDelegateFactory
         return args;
     }
 
-    private static Expression CreateArgument(ParameterInfo parameter, FactoryContext factoryContext)
+    // Return null for arguments that must be returned asynchronously like body and BindAsync args.
+    // This allows us to determine if there's more than one, and if we should be storing the results in
+    // object? bodyValue or object[]? boundValues.
+    private static Expression? CreateArgument(ParameterInfo parameter, FactoryContext factoryContext)
     {
         if (parameter.Name is null)
         {
@@ -969,34 +987,23 @@ public static partial class RequestDelegateFactory
 
     private static Func<object?, HttpContext, Task> HandleRequestBodyAndCompileRequestDelegate(Expression responseWritingMethodCall, FactoryContext factoryContext)
     {
-        if (factoryContext.JsonRequestBodyParameter is null && !factoryContext.ReadForm && factoryContext.ParameterBinders.Count is 0)
+        if (factoryContext.JsonRequestBodyParameter is null && !factoryContext.ReadForm && factoryContext.AsyncParameterBinders.Count is 0)
         {
-            return Expression.Lambda<Func<object?, HttpContext, Task>>(
-                responseWritingMethodCall, TargetExpr, HttpContextExpr).Compile();
+            return Expression.Lambda<Func<object?, HttpContext, Task>>(responseWritingMethodCall, TargetExpr, HttpContextExpr).Compile();
         }
-
-        if (factoryContext.JsonRequestBodyParameter is null)
-        {
-            factoryContext.ParameterBinders.Add(CreateFormParameterBinder(factoryContext));
-        }
-        else if (factoryContext.ReadForm)
-        {
-            factoryContext.ParameterBinders.Add(CreateFormParameterBinder(factoryContext));
-        }
-
-        if (factoryContext.ParameterBinders.Count is 1)
+        else if (factoryContext.AsyncParameterBinders.Count is 1)
         {
             // We need to generate the code for reading from the body before calling into the delegate
             var continuation = Expression.Lambda<Func<object?, HttpContext, object?, Task>>(
                 responseWritingMethodCall, TargetExpr, HttpContextExpr, BodyValueExpr).Compile();
 
-            var binder = factoryContext.ParameterBinders[0];
+            var binder = factoryContext.AsyncParameterBinders[0];
 
             return async (target, httpContext) =>
             {
                 var boundValue = await binder(httpContext);
 
-                if (ReferenceEquals(boundValue, FailedBodyReadSentinalValue))
+                if (ReferenceEquals(boundValue, FailedBodyReadAlreadyHandledSentinel))
                 {
                     // A default parameter binder has already logged the failed body read. We're done.
                     return;
@@ -1012,7 +1019,7 @@ public static partial class RequestDelegateFactory
                 responseWritingMethodCall, TargetExpr, HttpContextExpr, BoundValuesArrayExpr).Compile();
 
             // Looping over arrays is faster
-            var binders = factoryContext.ParameterBinders.ToArray();
+            var binders = factoryContext.AsyncParameterBinders.ToArray();
             var count = binders.Length;
 
             return async (target, httpContext) =>
@@ -1023,7 +1030,7 @@ public static partial class RequestDelegateFactory
                 {
                     var boundValue = await binders[i](httpContext);
 
-                    if (ReferenceEquals(boundValue, FailedBodyReadSentinalValue))
+                    if (ReferenceEquals(boundValue, FailedBodyReadAlreadyHandledSentinel))
                     {
                         // A default parameter binder has already logged the failed body read. We're done.
                         return;
@@ -1046,7 +1053,6 @@ public static partial class RequestDelegateFactory
         var parameterName = factoryContext.JsonRequestBodyParameter.Name;
 
         Debug.Assert(parameterName is not null, "CreateArgument() should throw if parameter.Name is null.");
-
         return httpContext => ReadJsonBodyAsync(
                     httpContext,
                     bodyType,
@@ -1098,7 +1104,7 @@ public static partial class RequestDelegateFactory
             {
                 Log.UnexpectedJsonContentType(httpContext, httpContext.Request.ContentType, throwOnBadRequest);
                 httpContext.Response.StatusCode = StatusCodes.Status415UnsupportedMediaType;
-                return FailedBodyReadSentinalValue;
+                return FailedBodyReadAlreadyHandledSentinel;
             }
             try
             {
@@ -1107,13 +1113,13 @@ public static partial class RequestDelegateFactory
             catch (IOException ex)
             {
                 Log.RequestBodyIOException(httpContext, ex);
-                return FailedBodyReadSentinalValue;
+                return FailedBodyReadAlreadyHandledSentinel;
             }
             catch (JsonException ex)
             {
                 Log.InvalidJsonRequestBody(httpContext, parameterTypeName, parameterName, ex, throwOnBadRequest);
                 httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
-                return FailedBodyReadSentinalValue;
+                return FailedBodyReadAlreadyHandledSentinel;
             }
         }
 
@@ -1137,7 +1143,7 @@ public static partial class RequestDelegateFactory
         {
             Log.UnexpectedNonFormContentType(httpContext, httpContext.Request.ContentType, throwOnBadRequest);
             httpContext.Response.StatusCode = StatusCodes.Status415UnsupportedMediaType;
-            return FailedBodyReadSentinalValue;
+            return FailedBodyReadAlreadyHandledSentinel;
         }
 
         ThrowIfRequestIsAuthenticated(httpContext);
@@ -1149,13 +1155,13 @@ public static partial class RequestDelegateFactory
         catch (IOException ex)
         {
             Log.RequestBodyIOException(httpContext, ex);
-            return FailedBodyReadSentinalValue;
+            return FailedBodyReadAlreadyHandledSentinel;
         }
         catch (InvalidDataException ex)
         {
             Log.InvalidFormRequestBody(httpContext, parameterTypeName, parameterName, ex, throwOnBadRequest);
             httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
-            return FailedBodyReadSentinalValue;
+            return FailedBodyReadAlreadyHandledSentinel;
         }
 
         static void ThrowIfRequestIsAuthenticated(HttpContext httpContext)
@@ -1200,6 +1206,7 @@ public static partial class RequestDelegateFactory
 
     private static Expression BindParameterFromProperties(ParameterInfo parameter, FactoryContext factoryContext)
     {
+        // Let's do this instead for all async values. We'll assign the locals at the end!
         var argumentExpression = Expression.Variable(parameter.ParameterType, $"{parameter.Name}_local");
         var (constructor, parameters) = ParameterBindingMethodCache.FindConstructor(parameter.ParameterType);
 
@@ -1585,10 +1592,10 @@ public static partial class RequestDelegateFactory
 
         // Compile the delegate to the BindAsync method for this parameter index
         var bindAsyncDelegate = Expression.Lambda<Func<HttpContext, ValueTask<object?>>>(bindAsyncMethod.Expression, HttpContextExpr).Compile();
-        factoryContext.ParameterBinders.Add(bindAsyncDelegate);
+        factoryContext.AsyncParameterBinders.Add(bindAsyncDelegate);
 
         // boundValues[index]
-        var boundValueExpr = Expression.ArrayIndex(BoundValuesArrayExpr, Expression.Constant(factoryContext.ParameterBinders.Count - 1));
+        var boundValueExpr = Expression.ArrayIndex(BoundValuesArrayExpr, Expression.Constant(factoryContext.AsyncParameterBinders.Count - 1));
 
         if (!isOptional)
         {
@@ -2028,7 +2035,7 @@ public static partial class RequestDelegateFactory
         public bool UsingTempSourceString { get; set; }
         public List<ParameterExpression> ExtraLocals { get; } = new();
         public List<Expression> ParamCheckExpressions { get; } = new();
-        public List<Func<HttpContext, ValueTask<object?>>> ParameterBinders { get; } = new();
+        public List<Func<HttpContext, ValueTask<object?>>> AsyncParameterBinders { get; } = new();
 
         public Dictionary<string, string> TrackedParameters { get; } = new();
         public bool HasMultipleBodyParameters { get; set; }

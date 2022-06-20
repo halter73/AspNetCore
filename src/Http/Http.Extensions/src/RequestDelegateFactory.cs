@@ -563,12 +563,10 @@ public static partial class RequestDelegateFactory
             factoryContext.BoxedArgs[i] = Expression.Convert(args[i], typeof(object));
         }
 
-        var jsonParametBinder = CreateJsonParameterBinder(factoryContext);
-
         // Always add default parameter binders last. 
         if (factoryContext.JsonBodyLocal is not null)
         {
-            factoryContext.AsyncParameterBinders.Add(jsonParametBinder);
+            factoryContext.AsyncParameterBinders.Add(CreateJsonParameterBinder(factoryContext));
         }
         else if (factoryContext.FirstFormRequestBodyParameter is not null)
         {

@@ -261,7 +261,7 @@ public static partial class RequestDelegateFactory
                 );
         }
 
-        var responseWritingMethodCall = factoryContext.ParamCheckExpressions.Count > 0 ?
+        var responseWritingMethodCall = factoryContext.InitialExpressions.Count > 0 ?
             CreateParamCheckingResponseWritingMethodCall(returnType, factoryContext) :
             AddResponseWritingToMethodCall(factoryContext.MethodCall, returnType);
 
@@ -602,7 +602,7 @@ public static partial class RequestDelegateFactory
     // Return null for arguments that must be returned asynchronously like body and BindAsync args.
     // This allows us to determine if there's more than one, and if we should be storing the results in
     // object? bodyValue or object[]? boundValues.
-    private static Expression? CreateArgument(ParameterInfo parameter, FactoryContext factoryContext)
+    private static Expression CreateArgument(ParameterInfo parameter, FactoryContext factoryContext)
     {
         if (parameter.Name is null)
         {
@@ -635,7 +635,7 @@ public static partial class RequestDelegateFactory
         else if (parameterCustomAttributes.OfType<IFromBodyMetadata>().FirstOrDefault() is { } bodyAttribute)
         {
             factoryContext.TrackedParameters.Add(parameter.Name, RequestDelegateFactoryConstants.BodyAttribute);
-            return BindParameterFromBody(parameter, bodyAttribute.AllowEmpty, factoryContext);
+            return BindParameterFromJsonBody(parameter, bodyAttribute.AllowEmpty, factoryContext);
         }
         else if (parameterCustomAttributes.OfType<IFromFormMetadata>().FirstOrDefault() is { } formAttribute)
         {
@@ -760,7 +760,7 @@ public static partial class RequestDelegateFactory
 
             factoryContext.HasInferredBody = true;
             factoryContext.TrackedParameters.Add(parameter.Name, RequestDelegateFactoryConstants.BodyParameter);
-            return BindParameterFromBody(parameter, allowEmpty: false, factoryContext);
+            return BindParameterFromJsonBody(parameter, allowEmpty: false, factoryContext);
         }
     }
 
@@ -812,16 +812,16 @@ public static partial class RequestDelegateFactory
         // }
 
         var localVariables = new ParameterExpression[factoryContext.ExtraLocals.Count + 1];
-        var checkParamAndCallMethod = new Expression[factoryContext.ParamCheckExpressions.Count + 1];
+        var checkParamAndCallMethod = new Expression[factoryContext.InitialExpressions.Count + 1];
 
         for (var i = 0; i < factoryContext.ExtraLocals.Count; i++)
         {
             localVariables[i] = factoryContext.ExtraLocals[i];
         }
 
-        for (var i = 0; i < factoryContext.ParamCheckExpressions.Count; i++)
+        for (var i = 0; i < factoryContext.InitialExpressions.Count; i++)
         {
-            checkParamAndCallMethod[i] = factoryContext.ParamCheckExpressions[i];
+            checkParamAndCallMethod[i] = factoryContext.InitialExpressions[i];
         }
 
         localVariables[factoryContext.ExtraLocals.Count] = WasParamCheckFailureExpr;
@@ -842,7 +842,7 @@ public static partial class RequestDelegateFactory
                 AddResponseWritingToMethodCall(factoryContext.MethodCall!, returnType)
             );
 
-            checkParamAndCallMethod[factoryContext.ParamCheckExpressions.Count] = checkWasParamCheckFailureWithFilters;
+            checkParamAndCallMethod[factoryContext.InitialExpressions.Count] = checkWasParamCheckFailureWithFilters;
         }
         else
         {
@@ -858,7 +858,7 @@ public static partial class RequestDelegateFactory
                     Expression.Assign(StatusCodeExpr, Expression.Constant(400)),
                     CompletedTaskExpr),
                 AddResponseWritingToMethodCall(factoryContext.MethodCall!, returnType));
-            checkParamAndCallMethod[factoryContext.ParamCheckExpressions.Count] = checkWasParamCheckFailure;
+            checkParamAndCallMethod[factoryContext.InitialExpressions.Count] = checkWasParamCheckFailure;
         }
 
         return Expression.Block(localVariables, checkParamAndCallMethod);
@@ -1196,7 +1196,6 @@ public static partial class RequestDelegateFactory
         Justification = "CreateValueType is only called on a ValueType. You can always create an instance of a ValueType.")]
     private static object? CreateValueType(Type t) => RuntimeHelpers.GetUninitializedObject(t);
 
-
     private static Expression GetValueFromProperty(MemberExpression sourceExpression, PropertyInfo itemProperty, string key, Type? returnType = null)
     {
         var indexArguments = new[] { Expression.Constant(key) };
@@ -1224,7 +1223,7 @@ public static partial class RequestDelegateFactory
                 factoryContext.Parameters.Add(parameterInfo);
             }
 
-            factoryContext.ParamCheckExpressions.Add(
+            factoryContext.InitialExpressions.Add(
                 Expression.Assign(
                     argumentExpression,
                     Expression.New(constructor, constructorArguments)));
@@ -1255,7 +1254,7 @@ public static partial class RequestDelegateFactory
                 Expression.New(parameter.ParameterType) :
                 Expression.New(constructor);
 
-            factoryContext.ParamCheckExpressions.Add(
+            factoryContext.InitialExpressions.Add(
                 Expression.Assign(
                     argumentExpression,
                     Expression.MemberInit(newExpression, bindings)));
@@ -1500,7 +1499,7 @@ public static partial class RequestDelegateFactory
         };
 
         factoryContext.ExtraLocals.Add(argument);
-        factoryContext.ParamCheckExpressions.Add(fullParamCheckBlock);
+        factoryContext.InitialExpressions.Add(fullParamCheckBlock);
 
         return argument;
     }
@@ -1543,7 +1542,7 @@ public static partial class RequestDelegateFactory
             );
 
             factoryContext.ExtraLocals.Add(argument);
-            factoryContext.ParamCheckExpressions.Add(checkRequiredStringParameterBlock);
+            factoryContext.InitialExpressions.Add(checkRequiredStringParameterBlock);
             return argument;
         }
 
@@ -1616,7 +1615,7 @@ public static partial class RequestDelegateFactory
                     )
                 );
 
-            factoryContext.ParamCheckExpressions.Add(checkRequiredBodyBlock);
+            factoryContext.InitialExpressions.Add(checkRequiredBodyBlock);
         }
 
         // (ParameterType)boundValues[i]
@@ -1671,7 +1670,7 @@ public static partial class RequestDelegateFactory
         return BindParameterFromExpression(parameter, valueExpression, factoryContext, "form file");
     }
 
-    private static Expression BindParameterFromBody(ParameterInfo parameter, bool allowEmpty, FactoryContext factoryContext)
+    private static Expression BindParameterFromJsonBody(ParameterInfo parameter, bool allowEmpty, FactoryContext factoryContext)
     {
         if (factoryContext.JsonRequestBodyParameter is not null)
         {
@@ -1702,7 +1701,7 @@ public static partial class RequestDelegateFactory
                 //    wasParamCheckFailure = true;
                 //    Log.ImplicitBodyNotProvided(httpContext, "todo", ThrowOnBadRequest);
                 // }
-                factoryContext.ParamCheckExpressions.Add(Expression.Block(
+                factoryContext.InitialExpressions.Add(Expression.Block(
                     Expression.IfThen(
                         Expression.Equal(BodyValueExpr, Expression.Constant(null)),
                         Expression.Block(
@@ -1740,7 +1739,7 @@ public static partial class RequestDelegateFactory
                         )
                     )
                 );
-                factoryContext.ParamCheckExpressions.Add(checkRequiredBodyBlock);
+                factoryContext.InitialExpressions.Add(checkRequiredBodyBlock);
             }
         }
         else if (parameter.HasDefaultValue)
@@ -2034,7 +2033,7 @@ public static partial class RequestDelegateFactory
 
         public bool UsingTempSourceString { get; set; }
         public List<ParameterExpression> ExtraLocals { get; } = new();
-        public List<Expression> ParamCheckExpressions { get; } = new();
+        public List<Expression> InitialExpressions { get; } = new();
         public List<Func<HttpContext, ValueTask<object?>>> AsyncParameterBinders { get; } = new();
 
         public Dictionary<string, string> TrackedParameters { get; } = new();

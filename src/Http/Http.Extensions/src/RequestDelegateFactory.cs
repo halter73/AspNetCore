@@ -564,19 +564,19 @@ public static partial class RequestDelegateFactory
         }
 
         // Always add default parameter binders last for backwards compatibility. 
-        if (factoryContext.JsonRequestBodyArgument is not null)
+        if (factoryContext.JsonRequestBodyParameter is not null)
         {
             factoryContext.AsyncParameterBinders.Add(CreateJsonParameterBinder(factoryContext));
 
-            Expression jsonBodyValue = factoryContext.AsyncParameterBinders switch
+            Expression jsonBodyValue = factoryContext.AsyncParameterBinders.Count switch
             {
-                // boundValues[^1]
-                { Count: > 0 } => Expression.ArrayIndex(BoundValuesArrayExpr, Expression.Constant(factoryContext.AsyncParameterBinders.Count - 1)),
                 // bodyValue
-                _ => BodyValueExpr,
+                0 => BodyValueExpr,
+                // boundValues[^1]
+                _ => Expression.ArrayIndex(BoundValuesArrayExpr, Expression.Constant(factoryContext.AsyncParameterBinders.Count - 1)),
             };
 
-            factoryContext.InitialExpressions.Add(Expression.Assign(factoryContext.JsonRequestBodyArgument, jsonBodyValue));
+            factoryContext.InitialExpressions.Add(Expression.Assign(factoryContext.AsyncArguments[^1], jsonBodyValue));
         }
         else if (factoryContext.ReadForm)
         {
@@ -1692,8 +1692,7 @@ public static partial class RequestDelegateFactory
         }
 
         var argumentExpression = Expression.Variable(parameter.ParameterType, $"{parameter.Name}_json_body_local");
-
-        factoryContext.JsonRequestBodyArgument = argumentExpression;
+        factoryContext.JsonBodyLocal = argumentExpression;
         factoryContext.ExtraLocals.Add(argumentExpression);
 
         var isOptional = IsOptionalParameter(parameter, factoryContext);
@@ -2039,13 +2038,14 @@ public static partial class RequestDelegateFactory
 
         // Temporary State
         public ParameterInfo? JsonRequestBodyParameter { get; set; }
-        public ParameterExpression? JsonRequestBodyArgument { get; set; }
+        public ParameterExpression? JsonBodyLocal { get; set; }
         public bool AllowEmptyRequestBody { get; set; }
 
         public bool UsingTempSourceString { get; set; }
         public List<ParameterExpression> ExtraLocals { get; } = new();
         public List<Expression> InitialExpressions { get; } = new();
         public List<Func<HttpContext, ValueTask<object?>>> AsyncParameterBinders { get; } = new();
+        public List<ParameterExpression> AsyncArguments { get; set; } = new();
 
         public Dictionary<string, string> TrackedParameters { get; } = new();
         public bool HasMultipleBodyParameters { get; set; }

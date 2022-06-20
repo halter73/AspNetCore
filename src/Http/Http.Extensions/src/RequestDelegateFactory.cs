@@ -563,10 +563,12 @@ public static partial class RequestDelegateFactory
             factoryContext.BoxedArgs[i] = Expression.Convert(args[i], typeof(object));
         }
 
+        var jsonParametBinder = CreateJsonParameterBinder(factoryContext);
+
         // Always add default parameter binders last. 
         if (factoryContext.JsonBodyLocal is not null)
         {
-            factoryContext.AsyncParameterBinders.Add(CreateJsonParameterBinder(factoryContext));
+            factoryContext.AsyncParameterBinders.Add(jsonParametBinder);
         }
         else if (factoryContext.ReadForm)
         {
@@ -579,25 +581,25 @@ public static partial class RequestDelegateFactory
             {
                 Expression jsonBodyValue = factoryContext.AsyncParameterBinders.Count switch
                 {
-                    // bodyValue
-                    0 => BodyValueExpr,
-                    // boundValues[^1]
+                    1 => BodyValueExpr,
                     _ => Expression.ArrayIndex(BoundValuesArrayExpr, Expression.Constant(factoryContext.AsyncParameterBinders.Count - 1)),
                 };
 
+                // Either:
+                // object json_local = bodyValue;
+                // object json_local = boundValues[^1];
                 factoryContext.InitialExpressions.Add(Expression.Assign(factoryContext.JsonBodyLocal, jsonBodyValue));
+            }
 
-                if (factoryContext.BindAsyncArguments.Count > 0)
+            if (factoryContext.AsyncParameterBinders.Count is 1)
+            {
+                if (factoryContext.BindAsyncArguments is [ParameterExpression singleArgument])
                 {
-                    int boundValuesIndex = 0;
-                    foreach (var bindAsyncArgument in factoryContext.BindAsyncArguments)
-                    {
-                        var getBoundValue = Expression.ArrayIndex(BoundValuesArrayExpr, Expression.Constant(boundValuesIndex++));
-                        factoryContext.InitialExpressions.Add(Expression.Assign(bindAsyncArgument, getBoundValue));
-                    }
+                    // object BindAsync_local = bodyValue;
+                    factoryContext.InitialExpressions.Add(Expression.Assign(singleArgument, BodyValueExpr));
                 }
             }
-            else if (factoryContext.BindAsyncArguments.Count > 1)
+            else
             {
                 int boundValuesIndex = 0;
                 foreach (var bindAsyncArgument in factoryContext.BindAsyncArguments)
@@ -605,10 +607,6 @@ public static partial class RequestDelegateFactory
                     var getBoundValue = Expression.ArrayIndex(BoundValuesArrayExpr, Expression.Constant(boundValuesIndex++));
                     factoryContext.InitialExpressions.Add(Expression.Assign(bindAsyncArgument, getBoundValue));
                 }
-            }
-            else
-            {
-                factoryContext.InitialExpressions.Add(Expression.Assign(bindAsyncArgument, getBoundValue));
             }
         }
 

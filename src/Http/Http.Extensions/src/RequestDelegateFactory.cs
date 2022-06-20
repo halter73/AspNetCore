@@ -577,13 +577,13 @@ public static partial class RequestDelegateFactory
         {
             if (factoryContext.JsonBodyLocal is not null)
             {
-                // object json_local = bodyValue;
-                factoryContext.InitialExpressions.Add(Expression.Assign(factoryContext.JsonBodyLocal, BodyValueExpr));
+                // ParamterType json_local = (ParamterType)bodyValue;
+                factoryContext.InitialExpressions.Add(Expression.Assign(factoryContext.JsonBodyLocal, Expression.Convert(BodyValueExpr, factoryContext.JsonBodyLocal.Type)));
             }
             else if (factoryContext.BindAsyncArguments.Count > 0)
             {
-                // object BindAsync_local = bodyValue;
-                factoryContext.InitialExpressions.Add(Expression.Assign(factoryContext.BindAsyncArguments[0], BodyValueExpr));
+                // ParameterType BindAsync_local = (ParameterType)bodyValue;
+                factoryContext.InitialExpressions.Add(Expression.Assign(factoryContext.BindAsyncArguments[0], Expression.Convert(BodyValueExpr, factoryContext.BindAsyncArguments[0].Type)));
             }    
         }
         else if (factoryContext.AsyncParameterBinders.Count > 1)
@@ -593,14 +593,15 @@ public static partial class RequestDelegateFactory
             foreach (var bindAsyncArgument in factoryContext.BindAsyncArguments)
             {
                 // object BindAsync_local = boundValue[i];
-                var getBoundValue = Expression.ArrayIndex(BoundValuesArrayExpr, Expression.Constant(boundValuesIndex++));
+                var getBoundValue = Expression.Convert(Expression.ArrayIndex(BoundValuesArrayExpr, Expression.Constant(boundValuesIndex)), bindAsyncArgument.Type);
+                boundValuesIndex++;
                 factoryContext.InitialExpressions.Add(Expression.Assign(bindAsyncArgument, getBoundValue));
             }
 
             if (factoryContext.JsonBodyLocal is not null)
             {
                 // object json_local = boundValue[^1];
-                var getLastIndex = Expression.ArrayIndex(BoundValuesArrayExpr, Expression.Constant(boundValuesIndex));
+                var getLastIndex = Expression.Convert(Expression.ArrayIndex(BoundValuesArrayExpr, Expression.Constant(boundValuesIndex)), factoryContext.JsonBodyLocal.Type);
                 factoryContext.InitialExpressions.Add(Expression.Assign(factoryContext.JsonBodyLocal, getLastIndex));
             }
         }

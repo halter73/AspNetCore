@@ -563,7 +563,7 @@ public static partial class RequestDelegateFactory
             factoryContext.BoxedArgs[i] = Expression.Convert(args[i], typeof(object));
         }
 
-        // Always add default parameter binders last for backwards compatibility. 
+        // Always add default parameter binders last. 
         if (factoryContext.JsonRequestBodyParameter is not null)
         {
             factoryContext.AsyncParameterBinders.Add(CreateJsonParameterBinder(factoryContext));
@@ -640,7 +640,7 @@ public static partial class RequestDelegateFactory
         else if (parameterCustomAttributes.OfType<IFromBodyMetadata>().FirstOrDefault() is { } bodyAttribute)
         {
             factoryContext.TrackedParameters.Add(parameter.Name, RequestDelegateFactoryConstants.BodyAttribute);
-            return BindParameterFromJsonBody(parameter, bodyAttribute.AllowEmpty, factoryContext);
+            return BindParameterFromJson(parameter, bodyAttribute.AllowEmpty, factoryContext);
         }
         else if (parameterCustomAttributes.OfType<IFromFormMetadata>().FirstOrDefault() is { } formAttribute)
         {
@@ -765,7 +765,7 @@ public static partial class RequestDelegateFactory
 
             factoryContext.HasInferredBody = true;
             factoryContext.TrackedParameters.Add(parameter.Name, RequestDelegateFactoryConstants.BodyParameter);
-            return BindParameterFromJsonBody(parameter, allowEmpty: false, factoryContext);
+            return BindParameterFromJson(parameter, allowEmpty: false, factoryContext);
         }
     }
 
@@ -992,7 +992,7 @@ public static partial class RequestDelegateFactory
 
     private static Func<object?, HttpContext, Task> HandleRequestBodyAndCompileRequestDelegate(Expression responseWritingMethodCall, FactoryContext factoryContext)
     {
-        if (factoryContext.JsonRequestBodyParameter is null && !factoryContext.ReadForm && factoryContext.AsyncParameterBinders.Count is 0)
+        if (factoryContext.AsyncParameterBinders.Count is 0)
         {
             return Expression.Lambda<Func<object?, HttpContext, Task>>(responseWritingMethodCall, TargetExpr, HttpContextExpr).Compile();
         }
@@ -1586,6 +1586,10 @@ public static partial class RequestDelegateFactory
 
     private static Expression BindParameterFromBindAsync(ParameterInfo parameter, FactoryContext factoryContext)
     {
+        var argumentExpression = Expression.Variable(parameter.ParameterType, $"{parameter.Name}_BindAsync_local");
+        factoryContext.AsyncArguments.Add(argumentExpression);
+        factoryContext.ExtraLocals.Add(argumentExpression);
+
         // We reference the boundValues array by parameter index here
         var isOptional = IsOptionalParameter(parameter, factoryContext);
 
@@ -1607,7 +1611,7 @@ public static partial class RequestDelegateFactory
             var message = bindAsyncMethod.ParamCount == 2 ? $"{typeName}.BindAsync(HttpContext, ParameterInfo)" : $"{typeName}.BindAsync(HttpContext)";
             var checkRequiredBodyBlock = Expression.Block(
                     Expression.IfThen(
-                    Expression.Equal(boundValueExpr, Expression.Constant(null)),
+                    Expression.Equal(argumentExpression, Expression.Constant(null)),
                         Expression.Block(
                             Expression.Assign(WasParamCheckFailureExpr, Expression.Constant(true)),
                             Expression.Call(LogRequiredParameterNotProvidedMethod,
@@ -1623,8 +1627,8 @@ public static partial class RequestDelegateFactory
             factoryContext.InitialExpressions.Add(checkRequiredBodyBlock);
         }
 
-        // (ParameterType)boundValues[i]
-        return Expression.Convert(boundValueExpr, parameter.ParameterType);
+        // (ParameterType)parameterName_BindAsync_local
+        return Expression.Convert(argumentExpression, parameter.ParameterType);
     }
 
     private static Expression BindParameterFromFormFiles(
@@ -1675,7 +1679,7 @@ public static partial class RequestDelegateFactory
         return BindParameterFromExpression(parameter, valueExpression, factoryContext, "form file");
     }
 
-    private static Expression BindParameterFromJsonBody(ParameterInfo parameter, bool allowEmpty, FactoryContext factoryContext)
+    private static Expression BindParameterFromJson(ParameterInfo parameter, bool allowEmpty, FactoryContext factoryContext)
     {
         if (factoryContext.JsonRequestBodyParameter is not null)
         {
@@ -1691,7 +1695,7 @@ public static partial class RequestDelegateFactory
             }
         }
 
-        var argumentExpression = Expression.Variable(parameter.ParameterType, $"{parameter.Name}_json_body_local");
+        var argumentExpression = Expression.Variable(parameter.ParameterType, $"{parameter.Name}_json_local");
         factoryContext.JsonBodyLocal = argumentExpression;
         factoryContext.ExtraLocals.Add(argumentExpression);
 

@@ -564,23 +564,52 @@ public static partial class RequestDelegateFactory
         }
 
         // Always add default parameter binders last. 
-        if (factoryContext.JsonRequestBodyParameter is not null)
+        if (factoryContext.JsonBodyLocal is not null)
         {
             factoryContext.AsyncParameterBinders.Add(CreateJsonParameterBinder(factoryContext));
-
-            Expression jsonBodyValue = factoryContext.AsyncParameterBinders.Count switch
-            {
-                // bodyValue
-                0 => BodyValueExpr,
-                // boundValues[^1]
-                _ => Expression.ArrayIndex(BoundValuesArrayExpr, Expression.Constant(factoryContext.AsyncParameterBinders.Count - 1)),
-            };
-
-            factoryContext.InitialExpressions.Add(Expression.Assign(factoryContext.AsyncArguments[^1], jsonBodyValue));
         }
         else if (factoryContext.ReadForm)
         {
             factoryContext.AsyncParameterBinders.Add(CreateFormParameterBinder(factoryContext));
+        }
+
+        if (factoryContext.AsyncParameterBinders.Count > 0)
+        {
+            if (factoryContext.JsonBodyLocal is not null)
+            {
+                Expression jsonBodyValue = factoryContext.AsyncParameterBinders.Count switch
+                {
+                    // bodyValue
+                    0 => BodyValueExpr,
+                    // boundValues[^1]
+                    _ => Expression.ArrayIndex(BoundValuesArrayExpr, Expression.Constant(factoryContext.AsyncParameterBinders.Count - 1)),
+                };
+
+                factoryContext.InitialExpressions.Add(Expression.Assign(factoryContext.JsonBodyLocal, jsonBodyValue));
+
+                if (factoryContext.BindAsyncArguments.Count > 0)
+                {
+                    int boundValuesIndex = 0;
+                    foreach (var bindAsyncArgument in factoryContext.BindAsyncArguments)
+                    {
+                        var getBoundValue = Expression.ArrayIndex(BoundValuesArrayExpr, Expression.Constant(boundValuesIndex++));
+                        factoryContext.InitialExpressions.Add(Expression.Assign(bindAsyncArgument, getBoundValue));
+                    }
+                }
+            }
+            else if (factoryContext.BindAsyncArguments.Count > 1)
+            {
+                int boundValuesIndex = 0;
+                foreach (var bindAsyncArgument in factoryContext.BindAsyncArguments)
+                {
+                    var getBoundValue = Expression.ArrayIndex(BoundValuesArrayExpr, Expression.Constant(boundValuesIndex++));
+                    factoryContext.InitialExpressions.Add(Expression.Assign(bindAsyncArgument, getBoundValue));
+                }
+            }
+            else
+            {
+                factoryContext.InitialExpressions.Add(Expression.Assign(bindAsyncArgument, getBoundValue));
+            }
         }
 
         if (factoryContext.HasInferredBody && factoryContext.DisableInferredFromBody)
@@ -1587,7 +1616,7 @@ public static partial class RequestDelegateFactory
     private static Expression BindParameterFromBindAsync(ParameterInfo parameter, FactoryContext factoryContext)
     {
         var argumentExpression = Expression.Variable(parameter.ParameterType, $"{parameter.Name}_BindAsync_local");
-        factoryContext.AsyncArguments.Add(argumentExpression);
+        factoryContext.BindAsyncArguments.Add(argumentExpression);
         factoryContext.ExtraLocals.Add(argumentExpression);
 
         // We reference the boundValues array by parameter index here
@@ -2049,7 +2078,7 @@ public static partial class RequestDelegateFactory
         public List<ParameterExpression> ExtraLocals { get; } = new();
         public List<Expression> InitialExpressions { get; } = new();
         public List<Func<HttpContext, ValueTask<object?>>> AsyncParameterBinders { get; } = new();
-        public List<ParameterExpression> AsyncArguments { get; set; } = new();
+        public List<ParameterExpression> BindAsyncArguments { get; set; } = new();
 
         public Dictionary<string, string> TrackedParameters { get; } = new();
         public bool HasMultipleBodyParameters { get; set; }

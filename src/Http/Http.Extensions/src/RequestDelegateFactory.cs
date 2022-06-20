@@ -572,13 +572,13 @@ public static partial class RequestDelegateFactory
         {
             if (factoryContext.BindAsyncArguments.Count > 0)
             {
-                // ParameterType BindAsync_local = (ParameterType)bodyValue;
-                factoryContext.InitialExpressions.Add(Expression.Assign(factoryContext.BindAsyncArguments[0], Expression.Convert(BodyValueExpr, factoryContext.BindAsyncArguments[0].Type)));
+                // ParameterType name_BindAsync_local = (ParameterType)bodyValue;
+                factoryContext.InitialExpressions.Insert(0, Expression.Assign(factoryContext.BindAsyncArguments[0], Expression.Convert(BodyValueExpr, factoryContext.BindAsyncArguments[0].Type)));
             }    
             else if (factoryContext.JsonBodyLocal is not null)
             {
-                // ParamterType json_local = (ParamterType)bodyValue;
-                factoryContext.InitialExpressions.Add(Expression.Assign(factoryContext.JsonBodyLocal, Expression.Convert(BodyValueExpr, factoryContext.JsonBodyLocal.Type)));
+                // ParamterType name_json_local = (ParamterType)bodyValue;
+                factoryContext.InitialExpressions.Insert(0,Expression.Assign(factoryContext.JsonBodyLocal, Expression.Convert(BodyValueExpr, factoryContext.JsonBodyLocal.Type)));
             }
         }
         else if (factoryContext.AsyncParameterBinders.Count > 1)
@@ -587,17 +587,17 @@ public static partial class RequestDelegateFactory
 
             foreach (var bindAsyncArgument in factoryContext.BindAsyncArguments)
             {
-                // ParameterType = boundValue[i];
+                // ParameterType name_BindAsync_local = boundValue[i];
                 var getIndex = Expression.Convert(Expression.ArrayIndex(BoundValuesArrayExpr, Expression.Constant(boundValuesIndex)), bindAsyncArgument.Type);
-                factoryContext.InitialExpressions.Add(Expression.Assign(bindAsyncArgument, getIndex));
+                factoryContext.InitialExpressions.Insert(0, Expression.Assign(bindAsyncArgument, getIndex));
                 boundValuesIndex++;
             }
 
             if (factoryContext.JsonBodyLocal is not null)
             {
-                // ParameterType json_local = boundValue[^1];
+                // ParameterType name_json_local = boundValue[^1];
                 var getLastIndex = Expression.Convert(Expression.ArrayIndex(BoundValuesArrayExpr, Expression.Constant(boundValuesIndex)), factoryContext.JsonBodyLocal.Type);
-                factoryContext.InitialExpressions.Add(Expression.Assign(factoryContext.JsonBodyLocal, getLastIndex));
+                factoryContext.InitialExpressions.Insert(0, Expression.Assign(factoryContext.JsonBodyLocal, getLastIndex));
             }
         }
 

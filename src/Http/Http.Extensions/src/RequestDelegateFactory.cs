@@ -570,7 +570,7 @@ public static partial class RequestDelegateFactory
         {
             factoryContext.AsyncParameterBinders.Add(jsonParametBinder);
         }
-        else if (factoryContext.ReadForm)
+        else if (factoryContext.FirstFormRequestBodyParameter is not null)
         {
             factoryContext.AsyncParameterBinders.Add(CreateFormParameterBinder(factoryContext));
         }
@@ -1662,17 +1662,11 @@ public static partial class RequestDelegateFactory
         if (factoryContext.FirstFormRequestBodyParameter is null)
         {
             factoryContext.FirstFormRequestBodyParameter = parameter;
-        }
-
-        factoryContext.TrackedParameters.Add(parameter.Name!, RequestDelegateFactoryConstants.FormFileParameter);
-
-        // Do not duplicate the metadata if there are multiple form parameters
-        if (!factoryContext.ReadForm)
-        {
+            // Do not duplicate the metadata if there are multiple form parameters
             factoryContext.Metadata.Add(new AcceptsMetadata(parameter.ParameterType, factoryContext.AllowEmptyRequestBody, FormFileContentType));
         }
 
-        factoryContext.ReadForm = true;
+        factoryContext.TrackedParameters.Add(parameter.Name!, RequestDelegateFactoryConstants.FormFileParameter);
 
         return BindParameterFromExpression(parameter, FormFilesExpr, factoryContext, "body");
     }
@@ -1686,18 +1680,10 @@ public static partial class RequestDelegateFactory
         if (factoryContext.FirstFormRequestBodyParameter is null)
         {
             factoryContext.FirstFormRequestBodyParameter = parameter;
-        }
-
-        factoryContext.TrackedParameters.Add(key, trackedParameterSource);
-
-        // Do not duplicate the metadata if there are multiple form parameters
-        if (!factoryContext.ReadForm)
-        {
             factoryContext.Metadata.Add(new AcceptsMetadata(parameter.ParameterType, factoryContext.AllowEmptyRequestBody, FormFileContentType));
         }
 
-        factoryContext.ReadForm = true;
-
+        factoryContext.TrackedParameters.Add(key, trackedParameterSource);
         var valueExpression = GetValueFromProperty(FormFilesExpr, FormFilesIndexerProperty, key, typeof(IFormFile));
 
         return BindParameterFromExpression(parameter, valueExpression, factoryContext, "form file");
@@ -2083,7 +2069,6 @@ public static partial class RequestDelegateFactory
 
         public NullabilityInfoContext NullabilityContext { get; } = new();
 
-        public bool ReadForm { get; set; }
         public ParameterInfo? FirstFormRequestBodyParameter { get; set; }
         // Properties for constructing and managing filters
         public List<Expression> ContextArgAccess { get; } = new();

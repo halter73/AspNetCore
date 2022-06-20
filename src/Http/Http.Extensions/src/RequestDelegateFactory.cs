@@ -558,7 +558,7 @@ public static partial class RequestDelegateFactory
             factoryContext.BoxedArgs[i] = Expression.Convert(args[i], typeof(object));
         }
 
-        // Always add default parameter binders last. 
+        // Always add default parameter binders last to preserve existing behavior. 
         if (factoryContext.JsonBodyLocal is not null)
         {
             factoryContext.AsyncParameterBinders.Add(CreateJsonParameterBinder(factoryContext));
@@ -587,7 +587,7 @@ public static partial class RequestDelegateFactory
 
             foreach (var bindAsyncArgument in factoryContext.BindAsyncArguments)
             {
-                // ParameterType name_BindAsync_local = boundValue[i];
+                // ParameterType name_BindAsync_local = (ParamterType)boundValue[i];
                 var getIndex = Expression.Convert(Expression.ArrayIndex(BoundValuesArrayExpr, Expression.Constant(boundValuesIndex)), bindAsyncArgument.Type);
                 factoryContext.InitialExpressions.Insert(0, Expression.Assign(bindAsyncArgument, getIndex));
                 boundValuesIndex++;
@@ -595,7 +595,7 @@ public static partial class RequestDelegateFactory
 
             if (factoryContext.JsonBodyLocal is not null)
             {
-                // ParameterType name_json_local = boundValue[^1];
+                // ParameterType name_json_local = (ParamterType)boundValue[^1];
                 var getLastIndex = Expression.Convert(Expression.ArrayIndex(BoundValuesArrayExpr, Expression.Constant(boundValuesIndex)), factoryContext.JsonBodyLocal.Type);
                 factoryContext.InitialExpressions.Insert(0, Expression.Assign(factoryContext.JsonBodyLocal, getLastIndex));
             }
@@ -1716,7 +1716,7 @@ public static partial class RequestDelegateFactory
                 // }
                 factoryContext.InitialExpressions.Add(Expression.Block(
                     Expression.IfThen(
-                        Expression.Equal(argumentExpression, Expression.Constant(null)),
+                        Expression.Equal(argumentExpression, Expression.Default(argumentExpression.Type)),
                         Expression.Block(
                             Expression.Assign(WasParamCheckFailureExpr, Expression.Constant(true)),
                             Expression.Call(LogImplicitBodyNotProvidedMethod,

@@ -265,11 +265,6 @@ public static partial class RequestDelegateFactory
             CreateParamCheckingResponseWritingMethodCall(returnType, factoryContext) :
             AddResponseWritingToMethodCall(factoryContext.MethodCall, returnType);
 
-        if (factoryContext.UsingTempSourceString)
-        {
-            responseWritingMethodCall = Expression.Block(new[] { TempSourceStringExpr }, responseWritingMethodCall);
-        }
-
         return HandleRequestBodyAndCompileRequestDelegate(responseWritingMethodCall, factoryContext);
     }
 
@@ -575,16 +570,16 @@ public static partial class RequestDelegateFactory
 
         if (factoryContext.AsyncParameterBinders.Count is 1)
         {
-            if (factoryContext.JsonBodyLocal is not null)
-            {
-                // ParamterType json_local = (ParamterType)bodyValue;
-                factoryContext.InitialExpressions.Add(Expression.Assign(factoryContext.JsonBodyLocal, Expression.Convert(BodyValueExpr, factoryContext.JsonBodyLocal.Type)));
-            }
-            else if (factoryContext.BindAsyncArguments.Count > 0)
+            if (factoryContext.BindAsyncArguments.Count > 0)
             {
                 // ParameterType BindAsync_local = (ParameterType)bodyValue;
                 factoryContext.InitialExpressions.Add(Expression.Assign(factoryContext.BindAsyncArguments[0], Expression.Convert(BodyValueExpr, factoryContext.BindAsyncArguments[0].Type)));
             }    
+            else if (factoryContext.JsonBodyLocal is not null)
+            {
+                // ParamterType json_local = (ParamterType)bodyValue;
+                factoryContext.InitialExpressions.Add(Expression.Assign(factoryContext.JsonBodyLocal, Expression.Convert(BodyValueExpr, factoryContext.JsonBodyLocal.Type)));
+            }
         }
         else if (factoryContext.AsyncParameterBinders.Count > 1)
         {
@@ -592,15 +587,15 @@ public static partial class RequestDelegateFactory
 
             foreach (var bindAsyncArgument in factoryContext.BindAsyncArguments)
             {
-                // object BindAsync_local = boundValue[i];
-                var getBoundValue = Expression.Convert(Expression.ArrayIndex(BoundValuesArrayExpr, Expression.Constant(boundValuesIndex)), bindAsyncArgument.Type);
+                // ParameterType = boundValue[i];
+                var getIndex = Expression.Convert(Expression.ArrayIndex(BoundValuesArrayExpr, Expression.Constant(boundValuesIndex)), bindAsyncArgument.Type);
+                factoryContext.InitialExpressions.Add(Expression.Assign(bindAsyncArgument, getIndex));
                 boundValuesIndex++;
-                factoryContext.InitialExpressions.Add(Expression.Assign(bindAsyncArgument, getBoundValue));
             }
 
             if (factoryContext.JsonBodyLocal is not null)
             {
-                // object json_local = boundValue[^1];
+                // ParameterType json_local = boundValue[^1];
                 var getLastIndex = Expression.Convert(Expression.ArrayIndex(BoundValuesArrayExpr, Expression.Constant(boundValuesIndex)), factoryContext.JsonBodyLocal.Type);
                 factoryContext.InitialExpressions.Add(Expression.Assign(factoryContext.JsonBodyLocal, getLastIndex));
             }
@@ -839,20 +834,21 @@ public static partial class RequestDelegateFactory
         //         };
         // }
 
-        var localVariables = new ParameterExpression[factoryContext.ExtraLocals.Count + 1];
+        var localVariables = new ParameterExpression[factoryContext.ExtraLocals.Count + 2];
         var checkParamAndCallMethod = new Expression[factoryContext.InitialExpressions.Count + 1];
+
+        localVariables[0] = TempSourceStringExpr;
+        localVariables[1] = WasParamCheckFailureExpr;
 
         for (var i = 0; i < factoryContext.ExtraLocals.Count; i++)
         {
-            localVariables[i] = factoryContext.ExtraLocals[i];
+            localVariables[i + 2] = factoryContext.ExtraLocals[i];
         }
 
         for (var i = 0; i < factoryContext.InitialExpressions.Count; i++)
         {
             checkParamAndCallMethod[i] = factoryContext.InitialExpressions[i];
         }
-
-        localVariables[factoryContext.ExtraLocals.Count] = WasParamCheckFailureExpr;
 
         // If filters have been registered, we set the `wasParamCheckFailure` property
         // but do not return from the invocation to allow the filters to run.
@@ -1320,8 +1316,6 @@ public static partial class RequestDelegateFactory
             return BindParameterFromExpression(parameter, valueExpression, factoryContext, source);
         }
 
-        factoryContext.UsingTempSourceString = true;
-
         var targetParseType = parameter.ParameterType.IsArray ? parameter.ParameterType.GetElementType()! : parameter.ParameterType;
 
         var underlyingNullableType = Nullable.GetUnderlyingType(targetParseType);
@@ -1624,9 +1618,6 @@ public static partial class RequestDelegateFactory
         // Compile the delegate to the BindAsync method for this parameter index
         var bindAsyncDelegate = Expression.Lambda<Func<HttpContext, ValueTask<object?>>>(bindAsyncMethod.Expression, HttpContextExpr).Compile();
         factoryContext.AsyncParameterBinders.Add(bindAsyncDelegate);
-
-        // boundValues[index]
-        var boundValueExpr = Expression.ArrayIndex(BoundValuesArrayExpr, Expression.Constant(factoryContext.AsyncParameterBinders.Count - 1));
 
         if (!isOptional)
         {
@@ -2054,7 +2045,6 @@ public static partial class RequestDelegateFactory
         public ParameterExpression? JsonBodyLocal { get; set; }
         public bool AllowEmptyRequestBody { get; set; }
 
-        public bool UsingTempSourceString { get; set; }
         public List<ParameterExpression> ExtraLocals { get; } = new();
         public List<Expression> InitialExpressions { get; } = new();
         public List<Func<HttpContext, ValueTask<object?>>> AsyncParameterBinders { get; } = new();

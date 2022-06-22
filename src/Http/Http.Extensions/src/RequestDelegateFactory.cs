@@ -1568,19 +1568,14 @@ public static partial class RequestDelegateFactory
 
     private static Expression GetValueOrParameterDefault(Expression valueExpression, ParameterInfo parameter)
     {
-        // The following is produced if the parameter is optional. Note that we convert the
-        // default value to the target ParameterType to address scenarios where the user is
-        // is setting null as the default value in a context where nullability is disabled.
-        //
-        // param1_local = httpContext.RouteValue["param1"] ?? httpContext.Query["param1"];
-        // param1_local != null ? param1_local : Convert(0, Int32)
-        Expression defaultValueExpression = parameter.HasDefaultValue ?
-            Expression.Constant(parameter.DefaultValue) :
-            Expression.Default(parameter.ParameterType);
+        if (parameter.HasDefaultValue)
+        {
+            return Expression.Block(
+                Expression.Condition(Expression.NotEqual(valueExpression, Expression.Default(parameter.ParameterType)),
+                    valueExpression, Expression.Constant(parameter.DefaultValue)));
+        }
 
-        return Expression.Block(
-            Expression.Condition(Expression.NotEqual(valueExpression, Expression.Default(parameter.ParameterType)),
-                valueExpression, defaultValueExpression));
+        return valueExpression;
     }
 
     private static Expression BindParameterFromProperty(ParameterInfo parameter, MemberExpression property, PropertyInfo itemProperty, string key, FactoryContext factoryContext, string source) =>
@@ -1604,6 +1599,7 @@ public static partial class RequestDelegateFactory
         factoryContext.BindAsyncArguments.Add(localVariableExpression);
         factoryContext.ExtraLocals.Add(localVariableExpression);
 
+        var nullabilityInfo = factoryContext.NullabilityContext.Create(parameter);
         var isOptional = IsOptionalParameter(parameter, factoryContext);
 
         // Get the BindAsync method for the type.
@@ -1615,7 +1611,8 @@ public static partial class RequestDelegateFactory
         var bindAsyncDelegate = Expression.Lambda<Func<HttpContext, ValueTask<object?>>>(bindAsyncMethod.Expression, HttpContextExpr).Compile();
         factoryContext.AsyncParameterBinders.Add(bindAsyncDelegate);
 
-        if (!isOptional)
+        // If BindAsync returns a non-nullable struct, we have no way to check if a value was set even if it was optional
+        if (!isOptional && (!parameter.ParameterType.IsValueType || (parameter.ParameterType.IsGenericType && parameter.ParameterType.GetGenericTypeDefinition() == typeof(Nullable<>))))
         {
             var typeName = TypeNameHelper.GetTypeDisplayName(parameter.ParameterType, fullName: false);
             var message = bindAsyncMethod.ParamCount == 2 ? $"{typeName}.BindAsync(HttpContext, ParameterInfo)" : $"{typeName}.BindAsync(HttpContext)";
@@ -1640,9 +1637,9 @@ public static partial class RequestDelegateFactory
             //    Log.RequiredParameterNotProvided(httpContext, "Todo", "todo", "body", ThrowOnBadRequest);
             // }
             factoryContext.InitialExpressions.Add(checkRequiredBodyBlock);
+            return localVariableExpression;
         }
 
-        // parameterName_BindAsync_local
         return GetValueOrParameterDefault(localVariableExpression, parameter);
     }
 

@@ -1308,7 +1308,7 @@ public static partial class RequestDelegateFactory
 
         if (parameter.ParameterType == typeof(string) || parameter.ParameterType == typeof(string[]) || parameter.ParameterType == typeof(StringValues))
         {
-            return BindParameterFromExpression(parameter, valueExpression, factoryContext, source);
+            return BindParameterFromReferenceExpression(parameter, valueExpression, factoryContext, source);
         }
 
         var targetParseType = parameter.ParameterType.IsArray ? parameter.ParameterType.GetElementType()! : parameter.ParameterType;
@@ -1521,23 +1521,23 @@ public static partial class RequestDelegateFactory
         return argument;
     }
 
-    private static Expression BindParameterFromExpression(
+    private static Expression BindParameterFromReferenceExpression(
         ParameterInfo parameter,
         Expression valueExpression,
         FactoryContext factoryContext,
         string source)
     {
-        var nullability = factoryContext.NullabilityContext.Create(parameter);
         var isOptional = IsOptionalParameter(parameter, factoryContext);
-
-        var argument = Expression.Variable(parameter.ParameterType, $"{parameter.Name}_local");
-
-        var parameterTypeNameConstant = Expression.Constant(TypeNameHelper.GetTypeDisplayName(parameter.ParameterType, fullName: false));
-        var parameterNameConstant = Expression.Constant(parameter.Name);
-        var sourceConstant = Expression.Constant(source);
 
         if (!isOptional)
         {
+            // Use variable to avoid reevaluating expression.
+            var argument = Expression.Variable(parameter.ParameterType, $"{parameter.Name}_local");
+
+            var parameterTypeNameConstant = Expression.Constant(TypeNameHelper.GetTypeDisplayName(parameter.ParameterType, fullName: false));
+            var parameterNameConstant = Expression.Constant(parameter.Name);
+            var sourceConstant = Expression.Constant(source);
+
             // The following is produced if the parameter is required:
             //
             // argument = value["param1"];
@@ -1563,22 +1563,24 @@ public static partial class RequestDelegateFactory
             return argument;
         }
 
-        // Allow nullable parameters that don't have a default value
-        if (nullability.ReadState != NullabilityState.NotNull && !parameter.HasDefaultValue)
-        {
-            return valueExpression;
-        }
+        return GetValueOrParameterDefault(valueExpression, parameter);
+    }
 
+    private static Expression GetValueOrParameterDefault(Expression valueExpression, ParameterInfo parameter)
+    {
         // The following is produced if the parameter is optional. Note that we convert the
         // default value to the target ParameterType to address scenarios where the user is
         // is setting null as the default value in a context where nullability is disabled.
         //
         // param1_local = httpContext.RouteValue["param1"] ?? httpContext.Query["param1"];
-        // param1_local != null ? param1_local : Convert(null, Int32)
+        // param1_local != null ? param1_local : Convert(0, Int32)
+        Expression defaultValueExpression = parameter.HasDefaultValue ?
+            Expression.Constant(parameter.DefaultValue) :
+            Expression.Default(parameter.ParameterType);
+
         return Expression.Block(
-            Expression.Condition(Expression.NotEqual(valueExpression, Expression.Constant(null)),
-                valueExpression,
-                Expression.Convert(Expression.Constant(parameter.DefaultValue), parameter.ParameterType)));
+            Expression.Condition(Expression.NotEqual(valueExpression, Expression.Default(parameter.ParameterType)),
+                valueExpression, defaultValueExpression));
     }
 
     private static Expression BindParameterFromProperty(ParameterInfo parameter, MemberExpression property, PropertyInfo itemProperty, string key, FactoryContext factoryContext, string source) =>
@@ -1598,11 +1600,10 @@ public static partial class RequestDelegateFactory
 
     private static Expression BindParameterFromBindAsync(ParameterInfo parameter, FactoryContext factoryContext)
     {
-        var argumentExpression = Expression.Variable(parameter.ParameterType, $"{parameter.Name}_BindAsync_local");
-        factoryContext.BindAsyncArguments.Add(argumentExpression);
-        factoryContext.ExtraLocals.Add(argumentExpression);
+        var localVariableExpression = Expression.Variable(parameter.ParameterType, $"{parameter.Name}_BindAsync_local");
+        factoryContext.BindAsyncArguments.Add(localVariableExpression);
+        factoryContext.ExtraLocals.Add(localVariableExpression);
 
-        // We reference the boundValues array by parameter index here
         var isOptional = IsOptionalParameter(parameter, factoryContext);
 
         // Get the BindAsync method for the type.
@@ -1620,7 +1621,7 @@ public static partial class RequestDelegateFactory
             var message = bindAsyncMethod.ParamCount == 2 ? $"{typeName}.BindAsync(HttpContext, ParameterInfo)" : $"{typeName}.BindAsync(HttpContext)";
             var checkRequiredBodyBlock = Expression.Block(
                     Expression.IfThen(
-                    Expression.Equal(argumentExpression, Expression.Constant(null)),
+                    Expression.Equal(localVariableExpression, Expression.Default(localVariableExpression.Type)),
                         Expression.Block(
                             Expression.Assign(WasParamCheckFailureExpr, Expression.Constant(true)),
                             Expression.Call(LogRequiredParameterNotProvidedMethod,
@@ -1641,8 +1642,8 @@ public static partial class RequestDelegateFactory
             factoryContext.InitialExpressions.Add(checkRequiredBodyBlock);
         }
 
-        // (ParameterType)parameterName_BindAsync_local
-        return Expression.Convert(argumentExpression, parameter.ParameterType);
+        // parameterName_BindAsync_local
+        return GetValueOrParameterDefault(localVariableExpression, parameter);
     }
 
     private static Expression BindParameterFromFormFiles(
@@ -1658,7 +1659,7 @@ public static partial class RequestDelegateFactory
 
         factoryContext.TrackedParameters.Add(parameter.Name!, RequestDelegateFactoryConstants.FormFileParameter);
 
-        return BindParameterFromExpression(parameter, FormFilesExpr, factoryContext, "body");
+        return BindParameterFromReferenceExpression(parameter, FormFilesExpr, factoryContext, "body");
     }
 
     private static Expression BindParameterFromFormFile(
@@ -1676,7 +1677,7 @@ public static partial class RequestDelegateFactory
         factoryContext.TrackedParameters.Add(key, trackedParameterSource);
         var valueExpression = GetValueFromProperty(FormFilesExpr, FormFilesIndexerProperty, key, typeof(IFormFile));
 
-        return BindParameterFromExpression(parameter, valueExpression, factoryContext, "form file");
+        return BindParameterFromReferenceExpression(parameter, valueExpression, factoryContext, "form file");
     }
 
     private static Expression BindParameterFromJson(ParameterInfo parameter, bool allowEmpty, FactoryContext factoryContext)
@@ -1695,9 +1696,9 @@ public static partial class RequestDelegateFactory
             }
         }
 
-        var localVariable = Expression.Variable(parameter.ParameterType, $"{parameter.Name}_json_local");
-        factoryContext.JsonBodyLocal = localVariable;
-        factoryContext.ExtraLocals.Add(localVariable);
+        var localVariableExpression = Expression.Variable(parameter.ParameterType, $"{parameter.Name}_json_local");
+        factoryContext.JsonBodyLocal = localVariableExpression;
+        factoryContext.ExtraLocals.Add(localVariableExpression);
 
         factoryContext.JsonRequestBodyParameter = parameter;
         factoryContext.AllowEmptyRequestBody = allowEmpty || IsOptionalParameter(parameter, factoryContext);
@@ -1726,24 +1727,20 @@ public static partial class RequestDelegateFactory
             // }
             factoryContext.InitialExpressions.Add(Expression.Block(
                 Expression.IfThen(
-                    Expression.Equal(localVariable, Expression.Default(localVariable.Type)),
+                    Expression.Equal(localVariableExpression, Expression.Default(localVariableExpression.Type)),
                     Expression.Block(
                         Expression.Assign(WasParamCheckFailureExpr, Expression.Constant(true)),
                         logExpression
                     )
                 )
             ));
-        }
-        else if (parameter.HasDefaultValue)
-        {
-            // Convert(bodyValue ?? SomeDefault, Todo)
-            return Expression.Convert(
-                Expression.Coalesce(localVariable, Expression.Constant(parameter.DefaultValue)),
-                parameter.ParameterType);
+
+            // bodyValue
+            return localVariableExpression;
         }
 
         // bodyValue
-        return localVariable;
+        return GetValueOrParameterDefault(localVariableExpression, parameter);
     }
 
     private static bool IsOptionalParameter(ParameterInfo parameter, FactoryContext factoryContext)

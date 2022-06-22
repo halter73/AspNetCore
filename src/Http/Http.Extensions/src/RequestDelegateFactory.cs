@@ -1534,7 +1534,7 @@ public static partial class RequestDelegateFactory
         if (parameter.HasDefaultValue)
         {
             return Expression.Condition(Expression.NotEqual(valueExpression, Expression.Default(parameter.ParameterType)),
-                    valueExpression, Expression.Constant(parameter.DefaultValue));
+                    valueExpression, Expression.Convert(Expression.Constant(parameter.DefaultValue), parameter.ParameterType));
         }
 
         return valueExpression;
@@ -1651,19 +1651,12 @@ public static partial class RequestDelegateFactory
             factoryContext.FirstFormRequestBodyParameter = parameter;
             // Do not duplicate the metadata if there are multiple form parameters
             factoryContext.Metadata.Add(new AcceptsMetadata(parameter.ParameterType, factoryContext.AllowEmptyRequestBody, FormFileContentType));
+            AddFormParameterBinder(factoryContext);
         }
 
-        // If there are multiple parameters associated with the form, just use the name of
-        // the first one to report the failure to bind the parameter if reading the form fails.
-        var parameterTypeName = TypeNameHelper.GetTypeDisplayName(factoryContext.FirstFormRequestBodyParameter.ParameterType, fullName: false);
         var parameterName = factoryContext.FirstFormRequestBodyParameter.Name;
-        var throwOnBadRequest = factoryContext.ThrowOnBadRequest;
-
         Debug.Assert(parameterName is not null, "CreateArgument() should throw if parameter.Name is null.");
-
         factoryContext.TrackedParameters.Add(parameterName, RequestDelegateFactoryConstants.FormFileParameter);
-
-        AddFormParameterBinder(factoryContext);
 
         return BindParameterFromReferenceExpression(parameter, FormFilesExpr, factoryContext, "body");
     }
@@ -1678,13 +1671,12 @@ public static partial class RequestDelegateFactory
         {
             factoryContext.FirstFormRequestBodyParameter = parameter;
             factoryContext.Metadata.Add(new AcceptsMetadata(parameter.ParameterType, factoryContext.AllowEmptyRequestBody, FormFileContentType));
+            AddFormParameterBinder(factoryContext);
         }
 
         factoryContext.TrackedParameters.Add(key, trackedParameterSource);
-
-        AddFormParameterBinder(factoryContext);
-
         var valueExpression = GetValueFromProperty(FormFilesExpr, FormFilesIndexerProperty, key, typeof(IFormFile));
+
         return BindParameterFromReferenceExpression(parameter, valueExpression, factoryContext, "form file");
     }
 

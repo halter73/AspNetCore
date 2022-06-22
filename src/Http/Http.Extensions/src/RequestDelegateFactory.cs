@@ -570,36 +570,18 @@ public static partial class RequestDelegateFactory
             factoryContext.AsyncParameterBinders.Add(CreateFormParameterBinder(factoryContext));
         }
 
-        if (factoryContext.AsyncParameterBinders.Count is 1)
+        if (factoryContext.BindAsyncVariables.Count is 1)
         {
-            if (factoryContext.BindAsyncVariables.Count > 0)
-            {
-                // ParameterType name_BindAsync_local = (ParameterType)bodyValue;
-                factoryContext.InitialExpressions.Insert(0, Expression.Assign(factoryContext.BindAsyncVariables[0], Expression.Convert(BodyValueExpr, factoryContext.BindAsyncVariables[0].Type)));
-            }    
-            else if (factoryContext.JsonBodyVariable is not null)
-            {
-                // ParamterType name_json_local = (ParamterType)bodyValue;
-                factoryContext.InitialExpressions.Add(Expression.Assign(factoryContext.JsonBodyVariable, Expression.Convert(BodyValueExpr, factoryContext.JsonBodyVariable.Type)));
-            }
+            factoryContext.InitialExpressions.Insert(0, Expression.Assign(factoryContext.BindAsyncVariables[0], Expression.Convert(BodyValueExpr, factoryContext.BindAsyncVariables[0].Type)));
         }
-        else if (factoryContext.AsyncParameterBinders.Count > 1)
+        else if (factoryContext.BindAsyncVariables.Count > 1)
         {
-            int boundValuesIndex = 0;
-
-            foreach (var bindAsyncArgument in factoryContext.BindAsyncVariables)
+            for (int i = 0; i < factoryContext.BindAsyncVariables.Count; i++)
             {
                 // ParameterType name_BindAsync_local = (ParamterType)boundValue[i];
-                var getIndex = Expression.Convert(Expression.ArrayIndex(BoundValuesArrayExpr, Expression.Constant(boundValuesIndex)), bindAsyncArgument.Type);
+                var bindAsyncArgument = factoryContext.BindAsyncVariables[i];
+                var getIndex = Expression.Convert(Expression.ArrayIndex(BoundValuesArrayExpr, Expression.Constant(i)), bindAsyncArgument.Type);
                 factoryContext.InitialExpressions.Insert(0, Expression.Assign(bindAsyncArgument, getIndex));
-                boundValuesIndex++;
-            }
-
-            if (factoryContext.JsonBodyVariable is not null)
-            {
-                // ParameterType name_json_local = (ParamterType)boundValue[^1];
-                var getLastIndex = Expression.Convert(Expression.ArrayIndex(BoundValuesArrayExpr, Expression.Constant(boundValuesIndex)), factoryContext.JsonBodyVariable.Type);
-                factoryContext.InitialExpressions.Add(Expression.Assign(factoryContext.JsonBodyVariable, getLastIndex));
             }
         }
 
@@ -608,7 +590,6 @@ public static partial class RequestDelegateFactory
             var errorMessage = BuildErrorMessageForInferredBodyParameter(factoryContext);
             throw new InvalidOperationException(errorMessage);
         }
-
         if (factoryContext.JsonRequestBodyParameter is not null &&
             factoryContext.FirstFormRequestBodyParameter is not null)
         {
@@ -1717,7 +1698,7 @@ public static partial class RequestDelegateFactory
         }
 
         var localVariableExpression = Expression.Variable(parameter.ParameterType, $"{parameter.Name}_json_local");
-        factoryContext.JsonBodyVariable = localVariableExpression;
+        factoryContext.BindAsyncVariables.Add(localVariableExpression);
         factoryContext.ExtraLocals.Add(localVariableExpression);
 
         factoryContext.JsonRequestBodyParameter = parameter;
@@ -2010,7 +1991,6 @@ public static partial class RequestDelegateFactory
         public bool AllowEmptyRequestBody { get; set; }
 
         public ParameterInfo? JsonRequestBodyParameter { get; set; }
-        public ParameterExpression? JsonBodyVariable { get; set; }
         public ParameterInfo? FirstFormRequestBodyParameter { get; set; }
 
         public List<ParameterExpression> ExtraLocals { get; } = new();

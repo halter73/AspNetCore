@@ -559,7 +559,7 @@ public static partial class RequestDelegateFactory
         }
 
         // Always add default parameter binders last to preserve existing behavior. 
-        if (factoryContext.JsonBodyLocal is not null)
+        if (factoryContext.JsonRequestBodyParameter is not null)
         {
             factoryContext.AsyncParameterBinders.Add(CreateJsonParameterBinder(factoryContext));
         }
@@ -578,7 +578,7 @@ public static partial class RequestDelegateFactory
             else if (factoryContext.JsonBodyLocal is not null)
             {
                 // ParamterType name_json_local = (ParamterType)bodyValue;
-                factoryContext.InitialExpressions.Insert(0,Expression.Assign(factoryContext.JsonBodyLocal, Expression.Convert(BodyValueExpr, factoryContext.JsonBodyLocal.Type)));
+                factoryContext.InitialExpressions.Insert(0, Expression.Assign(factoryContext.JsonBodyLocal, Expression.Convert(BodyValueExpr, factoryContext.JsonBodyLocal.Type)));
             }
         }
         else if (factoryContext.AsyncParameterBinders.Count > 1)
@@ -1075,16 +1075,13 @@ public static partial class RequestDelegateFactory
         var bodyType = factoryContext.JsonRequestBodyParameter.ParameterType;
         var parameterTypeName = TypeNameHelper.GetTypeDisplayName(factoryContext.JsonRequestBodyParameter.ParameterType, fullName: false);
         var parameterName = factoryContext.JsonRequestBodyParameter.Name;
+        var allowEmptyRequestBody = factoryContext.AllowEmptyRequestBody;
+        var throwOnBadRequest = factoryContext.ThrowOnBadRequest;
 
         Debug.Assert(parameterName is not null, "CreateArgument() should throw if parameter.Name is null.");
         return httpContext => ReadJsonBodyAsync(
-                    httpContext,
-                    bodyType,
-                    parameterTypeName,
-                    parameterName,
-                    factoryContext.AllowEmptyRequestBody,
-                    factoryContext.ThrowOnBadRequest);
-
+            httpContext, bodyType, parameterTypeName, parameterName,
+            allowEmptyRequestBody, throwOnBadRequest);
     }
 
     static Func<HttpContext, ValueTask<object?>> CreateFormParameterBinder(FactoryContext factoryContext)
@@ -1095,13 +1092,11 @@ public static partial class RequestDelegateFactory
         // the first one to report the failure to bind the parameter if reading the form fails.
         var parameterTypeName = TypeNameHelper.GetTypeDisplayName(factoryContext.FirstFormRequestBodyParameter.ParameterType, fullName: false);
         var parameterName = factoryContext.FirstFormRequestBodyParameter.Name;
+        var throwOnBadRequest = factoryContext.ThrowOnBadRequest;
 
         Debug.Assert(parameterName is not null, "CreateArgument() should throw if parameter.Name is null.");
         return httpContext => ReadFormAsync(
-                    httpContext,
-                    parameterTypeName,
-                    parameterName,
-                    factoryContext.ThrowOnBadRequest);
+            httpContext, parameterTypeName, parameterName, throwOnBadRequest);
     }
 
     private static async ValueTask<object?> ReadJsonBodyAsync(
@@ -1638,6 +1633,11 @@ public static partial class RequestDelegateFactory
                     )
                 );
 
+            // if (bodyValue == null)
+            // {
+            //    wasParamCheckFailure = true;
+            //    Log.RequiredParameterNotProvided(httpContext, "Todo", "todo", "body", ThrowOnBadRequest);
+            // }
             factoryContext.InitialExpressions.Add(checkRequiredBodyBlock);
         }
 
@@ -1695,76 +1695,55 @@ public static partial class RequestDelegateFactory
             }
         }
 
-        var argumentExpression = Expression.Variable(parameter.ParameterType, $"{parameter.Name}_json_local");
-        factoryContext.JsonBodyLocal = argumentExpression;
-        factoryContext.ExtraLocals.Add(argumentExpression);
-
-        var isOptional = IsOptionalParameter(parameter, factoryContext);
+        var localVariable = Expression.Variable(parameter.ParameterType, $"{parameter.Name}_json_local");
+        factoryContext.JsonBodyLocal = localVariable;
+        factoryContext.ExtraLocals.Add(localVariable);
 
         factoryContext.JsonRequestBodyParameter = parameter;
-        factoryContext.AllowEmptyRequestBody = allowEmpty || isOptional;
+        factoryContext.AllowEmptyRequestBody = allowEmpty || IsOptionalParameter(parameter, factoryContext);
         factoryContext.Metadata.Add(new AcceptsMetadata(parameter.ParameterType, factoryContext.AllowEmptyRequestBody, DefaultAcceptsContentType));
 
         if (!factoryContext.AllowEmptyRequestBody)
         {
-            if (factoryContext.HasInferredBody)
-            {
-                // if (bodyValue == null)
-                // {
-                //    wasParamCheckFailure = true;
-                //    Log.ImplicitBodyNotProvided(httpContext, "todo", ThrowOnBadRequest);
-                // }
-                factoryContext.InitialExpressions.Add(Expression.Block(
-                    Expression.IfThen(
-                        Expression.Equal(argumentExpression, Expression.Default(argumentExpression.Type)),
-                        Expression.Block(
-                            Expression.Assign(WasParamCheckFailureExpr, Expression.Constant(true)),
-                            Expression.Call(LogImplicitBodyNotProvidedMethod,
-                                HttpContextExpr,
-                                Expression.Constant(parameter.Name),
-                                Expression.Constant(factoryContext.ThrowOnBadRequest)
-                            )
-                        )
+            var logExpression = factoryContext.HasInferredBody ?
+                // Log.ImplicitBodyNotProvided(httpContext, "todo", ThrowOnBadRequest);
+                Expression.Call(LogImplicitBodyNotProvidedMethod,
+                    HttpContextExpr,
+                    Expression.Constant(parameter.Name),
+                    Expression.Constant(factoryContext.ThrowOnBadRequest)) :
+                // Log.RequiredParameterNotProvided(httpContext, "Todo", "todo", "body", ThrowOnBadRequest);
+                Expression.Call(LogRequiredParameterNotProvidedMethod,
+                    HttpContextExpr,
+                    Expression.Constant(TypeNameHelper.GetTypeDisplayName(parameter.ParameterType, fullName: false)),
+                    Expression.Constant(parameter.Name),
+                    Expression.Constant("body"),
+                    Expression.Constant(factoryContext.ThrowOnBadRequest));
+
+            // if (bodyValue == null)
+            // {
+            //    wasParamCheckFailure = true;
+            //    {logExpression}
+            // }
+            factoryContext.InitialExpressions.Add(Expression.Block(
+                Expression.IfThen(
+                    Expression.Equal(localVariable, Expression.Default(localVariable.Type)),
+                    Expression.Block(
+                        Expression.Assign(WasParamCheckFailureExpr, Expression.Constant(true)),
+                        logExpression
                     )
-                ));
-            }
-            else
-            {
-                // If the parameter is required or the user has not explicitly
-                // set allowBody to be empty then validate that it is required.
-                //
-                // if (bodyValue == null)
-                // {
-                //      wasParamCheckFailure = true;
-                //      Log.RequiredParameterNotProvided(httpContext, "Todo", "todo", "body", ThrowOnBadRequest);
-                // }
-                var checkRequiredBodyBlock = Expression.Block(
-                    Expression.IfThen(
-                    Expression.Equal(argumentExpression, Expression.Constant(null)),
-                        Expression.Block(
-                            Expression.Assign(WasParamCheckFailureExpr, Expression.Constant(true)),
-                            Expression.Call(LogRequiredParameterNotProvidedMethod,
-                                HttpContextExpr,
-                                Expression.Constant(TypeNameHelper.GetTypeDisplayName(parameter.ParameterType, fullName: false)),
-                                Expression.Constant(parameter.Name),
-                                Expression.Constant("body"),
-                                Expression.Constant(factoryContext.ThrowOnBadRequest))
-                        )
-                    )
-                );
-                factoryContext.InitialExpressions.Add(checkRequiredBodyBlock);
-            }
+                )
+            ));
         }
         else if (parameter.HasDefaultValue)
         {
             // Convert(bodyValue ?? SomeDefault, Todo)
             return Expression.Convert(
-                Expression.Coalesce(argumentExpression, Expression.Constant(parameter.DefaultValue)),
+                Expression.Coalesce(localVariable, Expression.Constant(parameter.DefaultValue)),
                 parameter.ParameterType);
         }
 
-        // Convert(bodyValue, Todo)
-        return Expression.Convert(argumentExpression, parameter.ParameterType);
+        // bodyValue
+        return localVariable;
     }
 
     private static bool IsOptionalParameter(ParameterInfo parameter, FactoryContext factoryContext)

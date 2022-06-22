@@ -1662,7 +1662,8 @@ public static partial class RequestDelegateFactory
         Debug.Assert(parameterName is not null, "CreateArgument() should throw if parameter.Name is null.");
 
         factoryContext.TrackedParameters.Add(parameterName, RequestDelegateFactoryConstants.FormFileParameter);
-        factoryContext.AsyncParameterBinders.Add(CreateFormParameterBinder(factoryContext));
+
+        AddFormParameterBinder(factoryContext);
 
         return BindParameterFromReferenceExpression(parameter, FormFilesExpr, factoryContext, "body");
     }
@@ -1680,13 +1681,14 @@ public static partial class RequestDelegateFactory
         }
 
         factoryContext.TrackedParameters.Add(key, trackedParameterSource);
-        factoryContext.AsyncParameterBinders.Add(CreateFormParameterBinder(factoryContext));
+
+        AddFormParameterBinder(factoryContext);
 
         var valueExpression = GetValueFromProperty(FormFilesExpr, FormFilesIndexerProperty, key, typeof(IFormFile));
         return BindParameterFromReferenceExpression(parameter, valueExpression, factoryContext, "form file");
     }
 
-    static Func<HttpContext, ValueTask<object?>> CreateFormParameterBinder(FactoryContext factoryContext)
+    static void AddFormParameterBinder(FactoryContext factoryContext)
     {
         Debug.Assert(factoryContext.FirstFormRequestBodyParameter is not null, "factoryContext.FirstFormRequestBodyParameter is null for a form body.");
 
@@ -1695,10 +1697,14 @@ public static partial class RequestDelegateFactory
         var parameterTypeName = TypeNameHelper.GetTypeDisplayName(factoryContext.FirstFormRequestBodyParameter.ParameterType, fullName: false);
         var parameterName = factoryContext.FirstFormRequestBodyParameter.Name;
         var throwOnBadRequest = factoryContext.ThrowOnBadRequest;
+        var discardVariable = Expression.Variable(typeof(object), "_");
 
         Debug.Assert(parameterName is not null, "CreateArgument() should throw if parameter.Name is null.");
-        return httpContext => ReadFormAsync(
-            httpContext, parameterTypeName, parameterName, throwOnBadRequest);
+
+        factoryContext.AsyncParameterBinders.Add(httpContext => ReadFormAsync(
+            httpContext, parameterTypeName, parameterName, throwOnBadRequest));
+        factoryContext.ExtraLocals.Add(discardVariable);
+        factoryContext.BindAsyncVariables.Add(discardVariable);
     }
 
     private static bool IsOptionalParameter(ParameterInfo parameter, FactoryContext factoryContext)

@@ -560,16 +560,6 @@ public static partial class RequestDelegateFactory
             }
         }
 
-        // Always add default parameter binders last to preserve existing behavior. 
-        if (factoryContext.JsonRequestBodyParameter is not null)
-        {
-            factoryContext.AsyncParameterBinders.Add(CreateJsonParameterBinder(factoryContext));
-        }
-        else if (factoryContext.FirstFormRequestBodyParameter is not null)
-        {
-            factoryContext.AsyncParameterBinders.Add(CreateFormParameterBinder(factoryContext));
-        }
-
         if (factoryContext.BindAsyncVariables.Count is 1)
         {
             factoryContext.InitialExpressions.Insert(0, Expression.Assign(factoryContext.BindAsyncVariables[0], Expression.Convert(BodyValueExpr, factoryContext.BindAsyncVariables[0].Type)));
@@ -1049,38 +1039,6 @@ public static partial class RequestDelegateFactory
                 await continuation(target, httpContext, boundValues);
             };
         }
-    }
-
-    static Func<HttpContext, ValueTask<object?>> CreateJsonParameterBinder(FactoryContext factoryContext)
-    {
-        Debug.Assert(factoryContext.JsonRequestBodyParameter is not null, "factoryContext.JsonRequestBodyParameter is null for a JSON body.");
-
-        var bodyType = factoryContext.JsonRequestBodyParameter.ParameterType;
-        var parameterTypeName = TypeNameHelper.GetTypeDisplayName(bodyType, fullName: false);
-        var parameterName = factoryContext.JsonRequestBodyParameter.Name;
-        var allowEmptyRequestBody = factoryContext.AllowEmptyRequestBody;
-        var hasInferredBody = factoryContext.HasInferredBody;
-        var throwOnBadRequest = factoryContext.ThrowOnBadRequest;
-
-        Debug.Assert(parameterName is not null, "CreateArgument() should throw if parameter.Name is null.");
-        return httpContext => ReadJsonBodyAsync(
-            httpContext, bodyType, parameterTypeName, parameterName,
-            allowEmptyRequestBody, hasInferredBody, throwOnBadRequest);
-    }
-
-    static Func<HttpContext, ValueTask<object?>> CreateFormParameterBinder(FactoryContext factoryContext)
-    {
-        Debug.Assert(factoryContext.FirstFormRequestBodyParameter is not null, "factoryContext.FirstFormRequestBodyParameter is null for a form body.");
-
-        // If there are multiple parameters associated with the form, just use the name of
-        // the first one to report the failure to bind the parameter if reading the form fails.
-        var parameterTypeName = TypeNameHelper.GetTypeDisplayName(factoryContext.FirstFormRequestBodyParameter.ParameterType, fullName: false);
-        var parameterName = factoryContext.FirstFormRequestBodyParameter.Name;
-        var throwOnBadRequest = factoryContext.ThrowOnBadRequest;
-
-        Debug.Assert(parameterName is not null, "CreateArgument() should throw if parameter.Name is null.");
-        return httpContext => ReadFormAsync(
-            httpContext, parameterTypeName, parameterName, throwOnBadRequest);
     }
 
     private static async ValueTask<object?> ReadJsonBodyAsync(
@@ -1600,10 +1558,6 @@ public static partial class RequestDelegateFactory
     private static Expression BindParameterFromBindAsync(ParameterInfo parameter, FactoryContext factoryContext)
     {
         var localVariableExpression = Expression.Variable(parameter.ParameterType, $"{parameter.Name}_BindAsync_local");
-        factoryContext.BindAsyncVariables.Add(localVariableExpression);
-        factoryContext.ExtraLocals.Add(localVariableExpression);
-
-        var nullabilityInfo = factoryContext.NullabilityContext.Create(parameter);
         var isOptional = IsOptionalParameter(parameter, factoryContext);
 
         // Get the BindAsync method for the type.
@@ -1613,6 +1567,9 @@ public static partial class RequestDelegateFactory
 
         // Compile the delegate to the BindAsync method for this parameter index
         var bindAsyncDelegate = Expression.Lambda<Func<HttpContext, ValueTask<object?>>>(bindAsyncMethod.Expression, HttpContextExpr).Compile();
+        factoryContext.BindAsyncVariables.Add(localVariableExpression);
+        factoryContext.ExtraLocals.Add(localVariableExpression);
+
         factoryContext.AsyncParameterBinders.Add(bindAsyncDelegate);
 
         // If BindAsync returns a non-nullable struct, we have no way to check if a value was set even if it was optional
@@ -1647,6 +1604,44 @@ public static partial class RequestDelegateFactory
         return GetValueOrParameterDefault(localVariableExpression, parameter);
     }
 
+    private static Expression BindParameterFromJson(ParameterInfo parameter, bool allowEmpty, FactoryContext factoryContext)
+    {
+        var localVariableExpression = Expression.Variable(parameter.ParameterType, $"{parameter.Name}_json_local");
+        var bodyType = parameter.ParameterType;
+        var parameterName = parameter.Name;
+        var parameterTypeName = TypeNameHelper.GetTypeDisplayName(bodyType, fullName: false);
+        var allowEmptyRequestBody = allowEmpty || IsOptionalParameter(parameter, factoryContext);
+        var hasInferredBody = factoryContext.HasInferredBody;
+        var throwOnBadRequest = factoryContext.ThrowOnBadRequest;
+
+        Debug.Assert(parameterName is not null, "CreateArgument() should throw if parameter.Name is null.");
+
+        if (factoryContext.JsonRequestBodyParameter is not null)
+        {
+            factoryContext.HasMultipleBodyParameters = true;
+
+            if (factoryContext.TrackedParameters.ContainsKey(parameterName))
+            {
+                factoryContext.TrackedParameters.Remove(parameterName);
+                factoryContext.TrackedParameters.Add(parameterName, "UNKNOWN");
+            }
+        }
+
+        factoryContext.BindAsyncVariables.Add(localVariableExpression);
+        factoryContext.ExtraLocals.Add(localVariableExpression);
+
+        factoryContext.JsonRequestBodyParameter = parameter;
+        factoryContext.AllowEmptyRequestBody = allowEmptyRequestBody;
+        factoryContext.Metadata.Add(new AcceptsMetadata(parameter.ParameterType, factoryContext.AllowEmptyRequestBody, DefaultAcceptsContentType));
+
+        factoryContext.AsyncParameterBinders.Add(httpContext => ReadJsonBodyAsync(
+            httpContext, bodyType, parameterTypeName, parameterName,
+            allowEmptyRequestBody, hasInferredBody, throwOnBadRequest));
+
+        // bodyValue
+        return GetValueOrParameterDefault(localVariableExpression, parameter);
+    }
+
     private static Expression BindParameterFromFormFiles(
         ParameterInfo parameter,
         FactoryContext factoryContext)
@@ -1658,7 +1653,16 @@ public static partial class RequestDelegateFactory
             factoryContext.Metadata.Add(new AcceptsMetadata(parameter.ParameterType, factoryContext.AllowEmptyRequestBody, FormFileContentType));
         }
 
-        factoryContext.TrackedParameters.Add(parameter.Name!, RequestDelegateFactoryConstants.FormFileParameter);
+        // If there are multiple parameters associated with the form, just use the name of
+        // the first one to report the failure to bind the parameter if reading the form fails.
+        var parameterTypeName = TypeNameHelper.GetTypeDisplayName(factoryContext.FirstFormRequestBodyParameter.ParameterType, fullName: false);
+        var parameterName = factoryContext.FirstFormRequestBodyParameter.Name;
+        var throwOnBadRequest = factoryContext.ThrowOnBadRequest;
+
+        Debug.Assert(parameterName is not null, "CreateArgument() should throw if parameter.Name is null.");
+
+        factoryContext.TrackedParameters.Add(parameterName, RequestDelegateFactoryConstants.FormFileParameter);
+        factoryContext.AsyncParameterBinders.Add(CreateFormParameterBinder(factoryContext));
 
         return BindParameterFromReferenceExpression(parameter, FormFilesExpr, factoryContext, "body");
     }
@@ -1676,37 +1680,25 @@ public static partial class RequestDelegateFactory
         }
 
         factoryContext.TrackedParameters.Add(key, trackedParameterSource);
-        var valueExpression = GetValueFromProperty(FormFilesExpr, FormFilesIndexerProperty, key, typeof(IFormFile));
+        factoryContext.AsyncParameterBinders.Add(CreateFormParameterBinder(factoryContext));
 
+        var valueExpression = GetValueFromProperty(FormFilesExpr, FormFilesIndexerProperty, key, typeof(IFormFile));
         return BindParameterFromReferenceExpression(parameter, valueExpression, factoryContext, "form file");
     }
 
-    private static Expression BindParameterFromJson(ParameterInfo parameter, bool allowEmpty, FactoryContext factoryContext)
+    static Func<HttpContext, ValueTask<object?>> CreateFormParameterBinder(FactoryContext factoryContext)
     {
-        if (factoryContext.JsonRequestBodyParameter is not null)
-        {
-            factoryContext.HasMultipleBodyParameters = true;
-            var parameterName = parameter.Name;
+        Debug.Assert(factoryContext.FirstFormRequestBodyParameter is not null, "factoryContext.FirstFormRequestBodyParameter is null for a form body.");
 
-            Debug.Assert(parameterName is not null, "CreateArgument() should throw if parameter.Name is null.");
+        // If there are multiple parameters associated with the form, just use the name of
+        // the first one to report the failure to bind the parameter if reading the form fails.
+        var parameterTypeName = TypeNameHelper.GetTypeDisplayName(factoryContext.FirstFormRequestBodyParameter.ParameterType, fullName: false);
+        var parameterName = factoryContext.FirstFormRequestBodyParameter.Name;
+        var throwOnBadRequest = factoryContext.ThrowOnBadRequest;
 
-            if (factoryContext.TrackedParameters.ContainsKey(parameterName))
-            {
-                factoryContext.TrackedParameters.Remove(parameterName);
-                factoryContext.TrackedParameters.Add(parameterName, "UNKNOWN");
-            }
-        }
-
-        var localVariableExpression = Expression.Variable(parameter.ParameterType, $"{parameter.Name}_json_local");
-        factoryContext.BindAsyncVariables.Add(localVariableExpression);
-        factoryContext.ExtraLocals.Add(localVariableExpression);
-
-        factoryContext.JsonRequestBodyParameter = parameter;
-        factoryContext.AllowEmptyRequestBody = allowEmpty || IsOptionalParameter(parameter, factoryContext);
-        factoryContext.Metadata.Add(new AcceptsMetadata(parameter.ParameterType, factoryContext.AllowEmptyRequestBody, DefaultAcceptsContentType));
-
-        // bodyValue
-        return GetValueOrParameterDefault(localVariableExpression, parameter);
+        Debug.Assert(parameterName is not null, "CreateArgument() should throw if parameter.Name is null.");
+        return httpContext => ReadFormAsync(
+            httpContext, parameterTypeName, parameterName, throwOnBadRequest);
     }
 
     private static bool IsOptionalParameter(ParameterInfo parameter, FactoryContext factoryContext)

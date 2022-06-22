@@ -9,7 +9,6 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
@@ -573,22 +572,22 @@ public static partial class RequestDelegateFactory
 
         if (factoryContext.AsyncParameterBinders.Count is 1)
         {
-            if (factoryContext.BindAsyncArguments.Count > 0)
+            if (factoryContext.BindAsyncVariables.Count > 0)
             {
                 // ParameterType name_BindAsync_local = (ParameterType)bodyValue;
-                factoryContext.InitialExpressions.Insert(0, Expression.Assign(factoryContext.BindAsyncArguments[0], Expression.Convert(BodyValueExpr, factoryContext.BindAsyncArguments[0].Type)));
+                factoryContext.InitialExpressions.Insert(0, Expression.Assign(factoryContext.BindAsyncVariables[0], Expression.Convert(BodyValueExpr, factoryContext.BindAsyncVariables[0].Type)));
             }    
-            else if (factoryContext.JsonBodyLocal is not null)
+            else if (factoryContext.JsonBodyVariable is not null)
             {
                 // ParamterType name_json_local = (ParamterType)bodyValue;
-                factoryContext.InitialExpressions.Insert(0, Expression.Assign(factoryContext.JsonBodyLocal, Expression.Convert(BodyValueExpr, factoryContext.JsonBodyLocal.Type)));
+                factoryContext.InitialExpressions.Add(Expression.Assign(factoryContext.JsonBodyVariable, Expression.Convert(BodyValueExpr, factoryContext.JsonBodyVariable.Type)));
             }
         }
         else if (factoryContext.AsyncParameterBinders.Count > 1)
         {
             int boundValuesIndex = 0;
 
-            foreach (var bindAsyncArgument in factoryContext.BindAsyncArguments)
+            foreach (var bindAsyncArgument in factoryContext.BindAsyncVariables)
             {
                 // ParameterType name_BindAsync_local = (ParamterType)boundValue[i];
                 var getIndex = Expression.Convert(Expression.ArrayIndex(BoundValuesArrayExpr, Expression.Constant(boundValuesIndex)), bindAsyncArgument.Type);
@@ -596,11 +595,11 @@ public static partial class RequestDelegateFactory
                 boundValuesIndex++;
             }
 
-            if (factoryContext.JsonBodyLocal is not null)
+            if (factoryContext.JsonBodyVariable is not null)
             {
                 // ParameterType name_json_local = (ParamterType)boundValue[^1];
-                var getLastIndex = Expression.Convert(Expression.ArrayIndex(BoundValuesArrayExpr, Expression.Constant(boundValuesIndex)), factoryContext.JsonBodyLocal.Type);
-                factoryContext.InitialExpressions.Insert(0, Expression.Assign(factoryContext.JsonBodyLocal, getLastIndex));
+                var getLastIndex = Expression.Convert(Expression.ArrayIndex(BoundValuesArrayExpr, Expression.Constant(boundValuesIndex)), factoryContext.JsonBodyVariable.Type);
+                factoryContext.InitialExpressions.Add(Expression.Assign(factoryContext.JsonBodyVariable, getLastIndex));
             }
         }
 
@@ -696,7 +695,7 @@ public static partial class RequestDelegateFactory
                     $"Nested {nameof(AsParametersAttribute)} is not supported and should be used only for handler parameters.");
             }
 
-            return BindParameterFromProperties(parameter, factoryContext);
+            return BindPropertiesAsParameters(parameter, factoryContext);
         }
         else if (parameter.ParameterType == typeof(HttpContext))
         {
@@ -1076,15 +1075,16 @@ public static partial class RequestDelegateFactory
         Debug.Assert(factoryContext.JsonRequestBodyParameter is not null, "factoryContext.JsonRequestBodyParameter is null for a JSON body.");
 
         var bodyType = factoryContext.JsonRequestBodyParameter.ParameterType;
-        var parameterTypeName = TypeNameHelper.GetTypeDisplayName(factoryContext.JsonRequestBodyParameter.ParameterType, fullName: false);
+        var parameterTypeName = TypeNameHelper.GetTypeDisplayName(bodyType, fullName: false);
         var parameterName = factoryContext.JsonRequestBodyParameter.Name;
         var allowEmptyRequestBody = factoryContext.AllowEmptyRequestBody;
+        var hasInferredBody = factoryContext.HasInferredBody;
         var throwOnBadRequest = factoryContext.ThrowOnBadRequest;
 
         Debug.Assert(parameterName is not null, "CreateArgument() should throw if parameter.Name is null.");
         return httpContext => ReadJsonBodyAsync(
             httpContext, bodyType, parameterTypeName, parameterName,
-            allowEmptyRequestBody, throwOnBadRequest);
+            allowEmptyRequestBody, hasInferredBody, throwOnBadRequest);
     }
 
     static Func<HttpContext, ValueTask<object?>> CreateFormParameterBinder(FactoryContext factoryContext)
@@ -1108,17 +1108,16 @@ public static partial class RequestDelegateFactory
         string parameterTypeName,
         string parameterName,
         bool allowEmptyRequestBody,
+        bool hasInferredBody,
         bool throwOnBadRequest)
     {
-        object? defaultBodyValue = null;
+        object? bodyValue = null;
+        var feature = httpContext.Features.Get<IHttpRequestBodyDetectionFeature>();
 
         if (allowEmptyRequestBody && bodyType.IsValueType)
         {
-            defaultBodyValue = CreateValueType(bodyType);
+            bodyValue = CreateValueType(bodyType);
         }
-
-        var bodyValue = defaultBodyValue;
-        var feature = httpContext.Features.Get<IHttpRequestBodyDetectionFeature>();
 
         if (feature?.CanHaveBody == true)
         {
@@ -1142,6 +1141,28 @@ public static partial class RequestDelegateFactory
                 Log.InvalidJsonRequestBody(httpContext, parameterTypeName, parameterName, ex, throwOnBadRequest);
                 httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
                 return FailedBodyReadAlreadyHandledSentinel;
+            }
+        }
+
+        if (bodyValue is null)
+        {
+            if (!allowEmptyRequestBody)
+            {
+                if (hasInferredBody)
+                {
+                    Log.ImplicitBodyNotProvided(httpContext, parameterName, throwOnBadRequest);
+                }
+                else
+                {
+                    Log.RequiredParameterNotProvided(httpContext, parameterTypeName, parameterName, "body", throwOnBadRequest);
+                }
+                httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
+                return FailedBodyReadAlreadyHandledSentinel;
+            }
+
+            if (bodyType.IsValueType)
+            {
+                bodyValue = CreateValueType(bodyType);
             }
         }
 
@@ -1225,7 +1246,7 @@ public static partial class RequestDelegateFactory
         return Expression.Convert(indexExpression, returnType ?? typeof(string));
     }
 
-    private static Expression BindParameterFromProperties(ParameterInfo parameter, FactoryContext factoryContext)
+    private static Expression BindPropertiesAsParameters(ParameterInfo parameter, FactoryContext factoryContext)
     {
         // Let's do this instead for all async values. We'll assign the locals at the end!
         var argumentExpression = Expression.Variable(parameter.ParameterType, $"{parameter.Name}_properties_local");
@@ -1573,9 +1594,8 @@ public static partial class RequestDelegateFactory
     {
         if (parameter.HasDefaultValue)
         {
-            return Expression.Block(
-                Expression.Condition(Expression.NotEqual(valueExpression, Expression.Default(parameter.ParameterType)),
-                    valueExpression, Expression.Constant(parameter.DefaultValue)));
+            return Expression.Condition(Expression.NotEqual(valueExpression, Expression.Default(parameter.ParameterType)),
+                    valueExpression, Expression.Constant(parameter.DefaultValue));
         }
 
         return valueExpression;
@@ -1599,7 +1619,7 @@ public static partial class RequestDelegateFactory
     private static Expression BindParameterFromBindAsync(ParameterInfo parameter, FactoryContext factoryContext)
     {
         var localVariableExpression = Expression.Variable(parameter.ParameterType, $"{parameter.Name}_BindAsync_local");
-        factoryContext.BindAsyncArguments.Add(localVariableExpression);
+        factoryContext.BindAsyncVariables.Add(localVariableExpression);
         factoryContext.ExtraLocals.Add(localVariableExpression);
 
         var nullabilityInfo = factoryContext.NullabilityContext.Create(parameter);
@@ -1697,47 +1717,12 @@ public static partial class RequestDelegateFactory
         }
 
         var localVariableExpression = Expression.Variable(parameter.ParameterType, $"{parameter.Name}_json_local");
-        factoryContext.JsonBodyLocal = localVariableExpression;
+        factoryContext.JsonBodyVariable = localVariableExpression;
         factoryContext.ExtraLocals.Add(localVariableExpression);
 
         factoryContext.JsonRequestBodyParameter = parameter;
         factoryContext.AllowEmptyRequestBody = allowEmpty || IsOptionalParameter(parameter, factoryContext);
         factoryContext.Metadata.Add(new AcceptsMetadata(parameter.ParameterType, factoryContext.AllowEmptyRequestBody, DefaultAcceptsContentType));
-
-        if (!factoryContext.AllowEmptyRequestBody)
-        {
-            var logExpression = factoryContext.HasInferredBody ?
-                // Log.ImplicitBodyNotProvided(httpContext, "todo", ThrowOnBadRequest);
-                Expression.Call(LogImplicitBodyNotProvidedMethod,
-                    HttpContextExpr,
-                    Expression.Constant(parameter.Name),
-                    Expression.Constant(factoryContext.ThrowOnBadRequest)) :
-                // Log.RequiredParameterNotProvided(httpContext, "Todo", "todo", "body", ThrowOnBadRequest);
-                Expression.Call(LogRequiredParameterNotProvidedMethod,
-                    HttpContextExpr,
-                    Expression.Constant(TypeNameHelper.GetTypeDisplayName(parameter.ParameterType, fullName: false)),
-                    Expression.Constant(parameter.Name),
-                    Expression.Constant("body"),
-                    Expression.Constant(factoryContext.ThrowOnBadRequest));
-
-            // if (bodyValue == null)
-            // {
-            //    wasParamCheckFailure = true;
-            //    {logExpression}
-            // }
-            factoryContext.InitialExpressions.Add(Expression.Block(
-                Expression.IfThen(
-                    Expression.Equal(localVariableExpression, Expression.Default(localVariableExpression.Type)),
-                    Expression.Block(
-                        Expression.Assign(WasParamCheckFailureExpr, Expression.Constant(true)),
-                        logExpression
-                    )
-                )
-            ));
-
-            // bodyValue
-            return localVariableExpression;
-        }
 
         // bodyValue
         return GetValueOrParameterDefault(localVariableExpression, parameter);
@@ -2015,32 +2000,33 @@ public static partial class RequestDelegateFactory
         public List<string>? RouteParameters { get; init; }
         public bool ThrowOnBadRequest { get; init; }
         public bool DisableInferredFromBody { get; init; }
+        public List<Func<RouteHandlerContext, RouteHandlerFilterDelegate, RouteHandlerFilterDelegate>>? Filters { get; init; }
 
         // Temporary State
-        public ParameterInfo? JsonRequestBodyParameter { get; set; }
-        public ParameterExpression? JsonBodyLocal { get; set; }
+        public Dictionary<string, string> TrackedParameters { get; } = new();
+        public bool HasMultipleBodyParameters { get; set; }
+
+        public bool HasInferredBody { get; set; }
         public bool AllowEmptyRequestBody { get; set; }
+
+        public ParameterInfo? JsonRequestBodyParameter { get; set; }
+        public ParameterExpression? JsonBodyVariable { get; set; }
+        public ParameterInfo? FirstFormRequestBodyParameter { get; set; }
 
         public List<ParameterExpression> ExtraLocals { get; } = new();
         public List<Expression> InitialExpressions { get; } = new();
         public List<Func<HttpContext, ValueTask<object?>>> AsyncParameterBinders { get; } = new();
-        public List<ParameterExpression> BindAsyncArguments { get; set; } = new();
-
-        public Dictionary<string, string> TrackedParameters { get; } = new();
-        public bool HasMultipleBodyParameters { get; set; }
-        public bool HasInferredBody { get; set; }
+        public List<ParameterExpression> BindAsyncVariables { get; set; } = new();
 
         public List<object> Metadata { get; internal set; } = new();
 
         public NullabilityInfoContext NullabilityContext { get; } = new();
 
-        public ParameterInfo? FirstFormRequestBodyParameter { get; set; }
         // Properties for constructing and managing filters
         public List<Expression> ContextArgAccess { get; } = new();
         public Expression? MethodCall { get; set; }
         public Type[] ArgumentTypes { get; set; } = Array.Empty<Type>();
         public Expression[] ArgumentExpressions { get; set; } = Array.Empty<Expression>();
-        public List<Func<RouteHandlerContext, RouteHandlerFilterDelegate, RouteHandlerFilterDelegate>>? Filters { get; init; }
 
         public List<ParameterInfo> Parameters { get; set; } = new();
     }

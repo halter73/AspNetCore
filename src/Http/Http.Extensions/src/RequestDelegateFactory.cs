@@ -428,14 +428,14 @@ public static partial class RequestDelegateFactory
         // provided parameters is not found, we fall back to using the
         // non-generic implementation of RouteHandlerInvocationContext.
         Type[] methodArgumentTypes;
-        Expression paramArrayExpression;
         Expression[] contextArguments;
+        Expression paramArrayExpression;
 
-        if (methodParameters.Length is 0)
+        if (methodParameters.Length == 0)
         {
             methodArgumentTypes = Array.Empty<Type>();
-            paramArrayExpression = Expression.Call(ArrayEmptyOfObjectMethod);
             contextArguments = new[] { HttpContextExpr };
+            paramArrayExpression = Expression.Call(ArrayEmptyOfObjectMethod);
         }
         else
         {
@@ -1004,11 +1004,11 @@ public static partial class RequestDelegateFactory
 
     private static Func<object?, HttpContext, Task> HandleRequestBodyAndCompileRequestDelegate(Expression responseWritingMethodCall, FactoryContext factoryContext)
     {
-        if (factoryContext.AsyncParameters.Count is 0)
+        if (factoryContext.AsyncParameters.Count == 0)
         {
             return Expression.Lambda<Func<object?, HttpContext, Task>>(responseWritingMethodCall, TargetExpr, HttpContextExpr).Compile();
         }
-        else if (factoryContext.AsyncParameters.Count is 1)
+        else if (factoryContext.AsyncParameters.Count == 1)
         {
             // We need to generate the code for reading from the body before calling into the delegate
             var continuation = Expression.Lambda<Func<object?, HttpContext, object?, Task>>(

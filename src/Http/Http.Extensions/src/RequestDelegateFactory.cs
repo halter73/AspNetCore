@@ -1578,20 +1578,25 @@ public static partial class RequestDelegateFactory
     private static Expression BindParameterFromBindAsync(ParameterInfo parameter, FactoryContext factoryContext)
     {
         // Get the BindAsync method for the type.
-        var bindAsyncMethod = ParameterBindingMethodCache.FindBindAsyncMethod(parameter);
+        var (bindAsyncExpression, paramCount, awaitedType) = ParameterBindingMethodCache.FindBindAsyncMethod(parameter);
         // We know BindAsync exists because there's no way to opt-in without defining the method on the type.
-        Debug.Assert(bindAsyncMethod.Expression is not null);
+        Debug.Assert(bindAsyncExpression is not null);
 
         // Compile the delegate to the BindAsync method for this parameter index
-        var bindAsyncDelegate = Expression.Lambda<Func<HttpContext, ValueTask<object?>>>(bindAsyncMethod.Expression, HttpContextExpr).Compile();
-        var localVariableExpression = Expression.Variable(bindAsyncMethod.AwaitedType, $"{parameter.Name}_BindAsync_local");
+        var bindAsyncDelegate = Expression.Lambda<Func<HttpContext, ValueTask<object?>>>(bindAsyncExpression, HttpContextExpr).Compile();
+        var localVariableExpression = Expression.Variable(awaitedType, $"{parameter.Name}_BindAsync_local");
         factoryContext.AsyncParameters.Add((localVariableExpression, bindAsyncDelegate));
 
-        // If BindAsync returns a non-nullable struct, we have no way to check if a value was set even if it was optional
-        if (!IsOptionalParameter(parameter, factoryContext) && IsReferenceOrNullableType(bindAsyncMethod.AwaitedType))
+        static bool IsNullableStruct(Type type) => type.IsValueType && type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Nullable<>);
+        static bool CanBeNull(Type type) => !type.IsValueType || IsNullableStruct(type);
+
+        // If BindAsync returns a non-nullable struct, we have no way to check if a value was set even if it is optional.
+        // We have to assume these BindAsync methods always return a valid value if they do not throw.
+        // We have assume BindAsync methods that cannot return null always return a valid value if they do not throw.
+        if (!IsOptionalParameter(parameter, factoryContext) && CanBeNull(awaitedType))
         {
             var typeName = TypeNameHelper.GetTypeDisplayName(parameter.ParameterType, fullName: false);
-            var message = bindAsyncMethod.ParamCount == 2 ? $"{typeName}.BindAsync(HttpContext, ParameterInfo)" : $"{typeName}.BindAsync(HttpContext)";
+            var message = paramCount == 2 ? $"{typeName}.BindAsync(HttpContext, ParameterInfo)" : $"{typeName}.BindAsync(HttpContext)";
             var checkRequiredBodyBlock = Expression.Block(
                     Expression.IfThen(
                     Expression.Equal(localVariableExpression, Expression.Default(localVariableExpression.Type)),
@@ -1607,19 +1612,31 @@ public static partial class RequestDelegateFactory
                     )
                 );
 
-            // if (bodyValue == null)
+            // if (param1_BindAsync_local == null)
             // {
             //    wasParamCheckFailure = true;
             //    Log.RequiredParameterNotProvided(httpContext, "Todo", "todo", "body", ThrowOnBadRequest);
             // }
             factoryContext.InitialExpressions.Add(checkRequiredBodyBlock);
-            return localVariableExpression;
         }
 
-        return GetValueOrParameterDefault(localVariableExpression, parameter);
+        Expression parameterExpression = localVariableExpression;
 
-        static bool IsReferenceOrNullableType(Type type) =>
-            !type.IsValueType || !(type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Nullable<>));
+        // If the parameter is a struct and it's nullability doesn't match the return value of BindAsync,
+        // we have to explicitly convert to the nullability the parameter expects.
+        if (IsNullableStruct(awaitedType) != IsNullableStruct(parameter.ParameterType))
+        {
+            // (Todo)param1_BindAsync_local 
+            parameterExpression = Expression.Convert(localVariableExpression, parameter.ParameterType);
+        }
+
+        if (!CanBeNull(awaitedType))
+        {
+            return parameterExpression;
+        }
+
+        // param1_BindAsync_local ?? ParameterInfo.DefaultValue
+        return GetValueOrParameterDefault(parameterExpression, parameter);
     }
 
     private static Expression BindParameterFromJson(ParameterInfo parameter, bool allowEmpty, FactoryContext factoryContext)

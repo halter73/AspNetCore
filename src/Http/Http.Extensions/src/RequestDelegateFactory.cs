@@ -250,7 +250,7 @@ public static partial class RequestDelegateFactory
         AddTypeProvidedMetadata(methodInfo,
             factoryContext.Metadata,
             factoryContext.ServiceProvider,
-            factoryContext.Parameters);
+            factoryContext.ParametersAndPropertiesAsParameters);
 
         RouteHandlerFilterDelegate? filterPipeline = null;
 
@@ -554,7 +554,7 @@ public static partial class RequestDelegateFactory
         {
             var parameter = parameters[i];
 
-            factoryContext.Parameters.Add(parameter);
+            factoryContext.ParametersAndPropertiesAsParameters.Add(parameter);
             arguments[i] = CreateArgument(parameter, factoryContext);
 
             // Only populate the context args if there are filters for this handler
@@ -1222,7 +1222,7 @@ public static partial class RequestDelegateFactory
                 var parameterInfo =
                     new PropertyAsParameterInfo(parameters[i].PropertyInfo, parameters[i].ParameterInfo, factoryContext.NullabilityContext);
                 constructorArguments[i] = CreateArgument(parameterInfo, factoryContext);
-                factoryContext.Parameters.Add(parameterInfo);
+                factoryContext.ParametersAndPropertiesAsParameters.Add(parameterInfo);
             }
 
             factoryContext.InitialExpressions.Add(
@@ -1248,7 +1248,7 @@ public static partial class RequestDelegateFactory
                 {
                     var parameterInfo = new PropertyAsParameterInfo(properties[i], factoryContext.NullabilityContext);
                     bindings.Add(Expression.Bind(properties[i], CreateArgument(parameterInfo, factoryContext)));
-                    factoryContext.Parameters.Add(parameterInfo);
+                    factoryContext.ParametersAndPropertiesAsParameters.Add(parameterInfo);
                 }
             }
 
@@ -2019,13 +2019,13 @@ public static partial class RequestDelegateFactory
         // Temporary State
         public Dictionary<string, string> TrackedParameters { get; } = new();
         public bool HasMultipleBodyParameters { get; set; }
-        // Default JSON body, form file and BindAsync arguments
+        // Local variables and binders for all BindAsync, JSON and form parameters.
         public List<(ParameterExpression LocalArgument, Func<HttpContext, ValueTask<object?>> Binder)> AsyncParameters { get; } = new();
 
         public bool HasInferredBody { get; set; }
         public bool AllowEmptyRequestBody { get; set; }
 
-        public List<ParameterInfo> Parameters { get; set; } = new();
+        public List<ParameterInfo> ParametersAndPropertiesAsParameters { get; set; } = new();
         public ParameterInfo? JsonRequestBodyParameter { get; set; }
         public ParameterInfo? FirstFormRequestBodyParameter { get; set; }
 

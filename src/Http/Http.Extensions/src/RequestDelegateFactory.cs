@@ -5,7 +5,6 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO.Pipelines;
-using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -73,8 +72,8 @@ public static partial class RequestDelegateFactory
 
     private static readonly ParameterExpression TargetExpr = Expression.Parameter(typeof(object), "target");
     private static readonly ParameterExpression WasParamCheckFailureExpr = Expression.Variable(typeof(bool), "wasParamCheckFailure");
-    private static readonly ParameterExpression BodyValueExpr = Expression.Parameter(typeof(object), "bodyValue");
-    private static readonly ParameterExpression BoundValuesArrayExpr = Expression.Parameter(typeof(object[]), "boundValues");
+    private static readonly ParameterExpression AsyncValueExpr = Expression.Parameter(typeof(object), "asyncValue");
+    private static readonly ParameterExpression AsyncValuesArrayExpr = Expression.Parameter(typeof(object[]), "asyncValues");
 
     private static readonly ParameterExpression HttpContextExpr = ParameterBindingMethodCache.HttpContextExpr;
     private static readonly MemberExpression RequestServicesExpr = Expression.Property(HttpContextExpr, typeof(HttpContext).GetProperty(nameof(HttpContext.RequestServices))!);
@@ -423,9 +422,6 @@ public static partial class RequestDelegateFactory
 
     private static Expression CreateRouteHandlerInvocationContext(ParameterInfo[] methodParameters, Expression[] methodArguments)
     {
-        // In the event that a constructor matching the arity of the
-        // provided parameters is not found, we fall back to using the
-        // non-generic implementation of RouteHandlerInvocationContext.
         Type[] methodArgumentTypes;
         Expression[] contextArguments;
         Expression paramArrayExpression;
@@ -453,6 +449,9 @@ public static partial class RequestDelegateFactory
             paramArrayExpression = Expression.NewArrayInit(typeof(object), boxedArgs);
         }
 
+        // In the event that a constructor matching the arity of the
+        // provided parameters is not found, we fall back to using the
+        // non-generic implementation of RouteHandlerInvocationContext.
         var constructorType = methodParameters.Length switch
         {
             1 => typeof(RouteHandlerInvocationContext<>),
@@ -823,8 +822,8 @@ public static partial class RequestDelegateFactory
         {
             Expression asyncValue = numAsyncVariables switch
             {
-                1 => BodyValueExpr,
-                _ => Expression.ArrayIndex(BoundValuesArrayExpr, Expression.Constant(i)),
+                1 => AsyncValueExpr,
+                _ => Expression.ArrayIndex(AsyncValuesArrayExpr, Expression.Constant(i)),
             };
 
             var (asyncVariable, _) = factoryContext.AsyncParameters[i];
@@ -1011,7 +1010,7 @@ public static partial class RequestDelegateFactory
         {
             // We need to generate the code for reading from the body before calling into the delegate
             var continuation = Expression.Lambda<Func<object?, HttpContext, object?, Task>>(
-                responseWritingMethodCall, TargetExpr, HttpContextExpr, BodyValueExpr).Compile();
+                responseWritingMethodCall, TargetExpr, HttpContextExpr, AsyncValueExpr).Compile();
 
             var (_, binder) = factoryContext.AsyncParameters[0];
 
@@ -1032,7 +1031,7 @@ public static partial class RequestDelegateFactory
         {
             // We need to generate the code for reading from the custom binders calling into the delegate
             var continuation = Expression.Lambda<Func<object?, HttpContext, object?[], Task>>(
-                responseWritingMethodCall, TargetExpr, HttpContextExpr, BoundValuesArrayExpr).Compile();
+                responseWritingMethodCall, TargetExpr, HttpContextExpr, AsyncValuesArrayExpr).Compile();
 
             var binders = new Func<HttpContext, ValueTask<object?>>[factoryContext.AsyncParameters.Count];
             for (var i = 0; i < binders.Length; i++)
@@ -1670,7 +1669,7 @@ public static partial class RequestDelegateFactory
                 httpContext, bodyType, parameterTypeName, parameterName,
                 allowEmptyRequestBody, hasInferredBody, throwOnBadRequest)));
 
-        // bodyValue
+        // param1_json_local ?? ParameterInfo.DefaultValue
         return GetValueOrParameterDefault(localVariableExpression, parameter);
     }
 

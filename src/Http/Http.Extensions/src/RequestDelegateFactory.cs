@@ -1997,7 +1997,7 @@ public static partial class RequestDelegateFactory
         public List<string>? RouteParameters { get; init; }
         public bool ThrowOnBadRequest { get; init; }
         public bool DisableInferredFromBody { get; init; }
-        public List<Func<RouteHandlerContext, RouteHandlerFilterDelegate, RouteHandlerFilterDelegate>>? Filters { get; init; }
+        public List<Func<RouteHandlerContext, RouteHandlerFilterDelegate, RouteHandlerFilterDelegate>>? FilterFactories { get; init; }
 
         // Temporary State
         public Dictionary<string, string> TrackedParameters { get; } = new();
@@ -2022,8 +2022,6 @@ public static partial class RequestDelegateFactory
 
         // Properties for constructing and managing filters
         public List<Expression> ContextArgAccess { get; } = new();
-        public List<Func<RouteHandlerContext, RouteHandlerFilterDelegate, RouteHandlerFilterDelegate>>? FilterFactories { get; init; }
-        public bool FilterFactoriesHaveRunWithoutModifyingPerRequestBehavior { get; set; }
     }
 
     private static class RequestDelegateFactoryConstants

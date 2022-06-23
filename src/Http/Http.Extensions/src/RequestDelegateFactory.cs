@@ -285,7 +285,7 @@ public static partial class RequestDelegateFactory
             }
         }
 
-        var responseWritingMethodCall = factoryContext.InitialExpressions.Count > 0 || factoryContext.AsyncParameterBinders.Count > 0 ?
+        var responseWritingMethodCall = factoryContext.InitialExpressions.Count > 0 || factoryContext.AsyncParameters.Count > 0 ?
             CreateParamCheckingResponseWritingMethodCall(methodCall, returnType, factoryContext) :
             AddResponseWritingToMethodCall(methodCall, returnType);
 
@@ -813,7 +813,7 @@ public static partial class RequestDelegateFactory
         //         };
         // }
 
-        var numAsyncVariables = factoryContext.AsyncParameterBinders.Count;
+        var numAsyncVariables = factoryContext.AsyncParameters.Count;
         var localVariables = new ParameterExpression[factoryContext.ExtraLocals.Count + numAsyncVariables + 2];
         var checkParamAndCallMethod = new Expression[factoryContext.InitialExpressions.Count + numAsyncVariables + 1];
 
@@ -828,7 +828,7 @@ public static partial class RequestDelegateFactory
                 _ => Expression.ArrayIndex(BoundValuesArrayExpr, Expression.Constant(i)),
             };
 
-            var (asyncVariable, _) = factoryContext.AsyncParameterBinders[i];
+            var (asyncVariable, _) = factoryContext.AsyncParameters[i];
             localVariables[2 + i] = asyncVariable;
             checkParamAndCallMethod[i] = Expression.Assign(asyncVariable, Expression.Convert(asyncValue, asyncVariable.Type));
         }
@@ -1004,17 +1004,17 @@ public static partial class RequestDelegateFactory
 
     private static Func<object?, HttpContext, Task> HandleRequestBodyAndCompileRequestDelegate(Expression responseWritingMethodCall, FactoryContext factoryContext)
     {
-        if (factoryContext.AsyncParameterBinders.Count is 0)
+        if (factoryContext.AsyncParameters.Count is 0)
         {
             return Expression.Lambda<Func<object?, HttpContext, Task>>(responseWritingMethodCall, TargetExpr, HttpContextExpr).Compile();
         }
-        else if (factoryContext.AsyncParameterBinders.Count is 1)
+        else if (factoryContext.AsyncParameters.Count is 1)
         {
             // We need to generate the code for reading from the body before calling into the delegate
             var continuation = Expression.Lambda<Func<object?, HttpContext, object?, Task>>(
                 responseWritingMethodCall, TargetExpr, HttpContextExpr, BodyValueExpr).Compile();
 
-            var (_, binder) = factoryContext.AsyncParameterBinders[0];
+            var (_, binder) = factoryContext.AsyncParameters[0];
 
             return async (target, httpContext) =>
             {
@@ -1035,10 +1035,10 @@ public static partial class RequestDelegateFactory
             var continuation = Expression.Lambda<Func<object?, HttpContext, object?[], Task>>(
                 responseWritingMethodCall, TargetExpr, HttpContextExpr, BoundValuesArrayExpr).Compile();
 
-            var binders = new Func<HttpContext, ValueTask<object?>>[factoryContext.AsyncParameterBinders.Count];
+            var binders = new Func<HttpContext, ValueTask<object?>>[factoryContext.AsyncParameters.Count];
             for (var i = 0; i < binders.Length; i++)
             {
-                (_, binders[i]) = factoryContext.AsyncParameterBinders[i];
+                (_, binders[i]) = factoryContext.AsyncParameters[i];
             }
             var count = binders.Length;
 
@@ -1577,9 +1577,6 @@ public static partial class RequestDelegateFactory
 
     private static Expression BindParameterFromBindAsync(ParameterInfo parameter, FactoryContext factoryContext)
     {
-        var localVariableExpression = Expression.Variable(parameter.ParameterType, $"{parameter.Name}_BindAsync_local");
-        var isOptional = IsOptionalParameter(parameter, factoryContext);
-
         // Get the BindAsync method for the type.
         var bindAsyncMethod = ParameterBindingMethodCache.FindBindAsyncMethod(parameter);
         // We know BindAsync exists because there's no way to opt-in without defining the method on the type.
@@ -1587,10 +1584,11 @@ public static partial class RequestDelegateFactory
 
         // Compile the delegate to the BindAsync method for this parameter index
         var bindAsyncDelegate = Expression.Lambda<Func<HttpContext, ValueTask<object?>>>(bindAsyncMethod.Expression, HttpContextExpr).Compile();
-        factoryContext.AsyncParameterBinders.Add((localVariableExpression, bindAsyncDelegate));
+        var localVariableExpression = Expression.Variable(bindAsyncMethod.AwaitedType, $"{parameter.Name}_BindAsync_local");
+        factoryContext.AsyncParameters.Add((localVariableExpression, bindAsyncDelegate));
 
         // If BindAsync returns a non-nullable struct, we have no way to check if a value was set even if it was optional
-        if (!isOptional && (!parameter.ParameterType.IsValueType || (parameter.ParameterType.IsGenericType && parameter.ParameterType.GetGenericTypeDefinition() == typeof(Nullable<>))))
+        if (!IsOptionalParameter(parameter, factoryContext) && IsReferenceOrNullableType(bindAsyncMethod.AwaitedType))
         {
             var typeName = TypeNameHelper.GetTypeDisplayName(parameter.ParameterType, fullName: false);
             var message = bindAsyncMethod.ParamCount == 2 ? $"{typeName}.BindAsync(HttpContext, ParameterInfo)" : $"{typeName}.BindAsync(HttpContext)";
@@ -1619,6 +1617,9 @@ public static partial class RequestDelegateFactory
         }
 
         return GetValueOrParameterDefault(localVariableExpression, parameter);
+
+        static bool IsReferenceOrNullableType(Type type) =>
+            !type.IsValueType || !(type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Nullable<>));
     }
 
     private static Expression BindParameterFromJson(ParameterInfo parameter, bool allowEmpty, FactoryContext factoryContext)
@@ -1648,7 +1649,7 @@ public static partial class RequestDelegateFactory
         factoryContext.AllowEmptyRequestBody = allowEmptyRequestBody;
         InsertInferredAcceptsMetadata(factoryContext, parameter.ParameterType, DefaultAcceptsContentType);
 
-        factoryContext.AsyncParameterBinders.Add((localVariableExpression,
+        factoryContext.AsyncParameters.Add((localVariableExpression,
             httpContext => ReadJsonBodyAsync(
                 httpContext, bodyType, parameterTypeName, parameterName,
                 allowEmptyRequestBody, hasInferredBody, throwOnBadRequest)));
@@ -1715,7 +1716,7 @@ public static partial class RequestDelegateFactory
 
         Debug.Assert(parameterName is not null, "CreateArgument() should throw if parameter.Name is null.");
 
-        factoryContext.AsyncParameterBinders.Add((Expression.Variable(typeof(object), "_"),
+        factoryContext.AsyncParameters.Add((Expression.Variable(typeof(object), "_"),
             httpContext => ReadFormAsync(
                 httpContext, parameterTypeName, parameterName, throwOnBadRequest)));
     }
@@ -1995,11 +1996,14 @@ public static partial class RequestDelegateFactory
         public List<string>? RouteParameters { get; init; }
         public bool ThrowOnBadRequest { get; init; }
         public bool DisableInferredFromBody { get; init; }
+        public IList<object> Metadata { get; init; } = default!;
         public List<Func<RouteHandlerContext, RouteHandlerFilterDelegate, RouteHandlerFilterDelegate>>? FilterFactories { get; init; }
 
         // Temporary State
         public Dictionary<string, string> TrackedParameters { get; } = new();
         public bool HasMultipleBodyParameters { get; set; }
+        // Default JSON body, form file and BindAsync arguments
+        public List<(ParameterExpression LocalArgument, Func<HttpContext, ValueTask<object?>> Binder)> AsyncParameters { get; } = new();
 
         public bool HasInferredBody { get; set; }
         public bool AllowEmptyRequestBody { get; set; }
@@ -2010,10 +2014,6 @@ public static partial class RequestDelegateFactory
 
         public List<ParameterExpression> ExtraLocals { get; } = new();
         public List<Expression> InitialExpressions { get; } = new();
-
-        public List<(ParameterExpression LocalArgument, Func<HttpContext, ValueTask<object?>> Binder)> AsyncParameterBinders { get; } = new();
-
-        public IList<object> Metadata { get; init; } = default!;
 
         public NullabilityInfoContext NullabilityContext { get; } = new();
 

@@ -285,7 +285,7 @@ public static partial class RequestDelegateFactory
             }
         }
 
-        var responseWritingMethodCall = factoryContext.InitialExpressions.Count > 0 ?
+        var responseWritingMethodCall = factoryContext.InitialExpressions.Count > 0 || factoryContext.AsyncParameterBinders.Count > 0 ?
             CreateParamCheckingResponseWritingMethodCall(methodCall, returnType, factoryContext) :
             AddResponseWritingToMethodCall(methodCall, returnType);
 
@@ -579,21 +579,6 @@ public static partial class RequestDelegateFactory
             }
         }
 
-        if (factoryContext.BindAsyncVariables.Count is 1)
-        {
-            factoryContext.InitialExpressions.Insert(0, Expression.Assign(factoryContext.BindAsyncVariables[0], Expression.Convert(BodyValueExpr, factoryContext.BindAsyncVariables[0].Type)));
-        }
-        else if (factoryContext.BindAsyncVariables.Count > 1)
-        {
-            for (int i = 0; i < factoryContext.BindAsyncVariables.Count; i++)
-            {
-                // ParameterType name_BindAsync_local = (ParamterType)boundValue[i];
-                var bindAsyncArgument = factoryContext.BindAsyncVariables[i];
-                var getIndex = Expression.Convert(Expression.ArrayIndex(BoundValuesArrayExpr, Expression.Constant(i)), bindAsyncArgument.Type);
-                factoryContext.InitialExpressions.Insert(0, Expression.Assign(bindAsyncArgument, getIndex));
-            }
-        }
-
         if (factoryContext.HasInferredBody && factoryContext.DisableInferredFromBody)
         {
             var errorMessage = BuildErrorMessageForInferredBodyParameter(factoryContext);
@@ -800,7 +785,9 @@ public static partial class RequestDelegateFactory
         //     // Assume "int param1" is the first parameter, "[FromRoute] int? param2 = 42" is the second parameter ...
         //     int param1_local;
         //     int? param2_local;
+        //     MyBodyDTO param3_json_local;
         //     // ...
+        //     param3_json_local = (MyBodyDTO)bodyValue;
         //
         //     tempSourceString = httpContext.RouteValue["param1"] ?? httpContext.Query["param1"];
         //
@@ -826,20 +813,34 @@ public static partial class RequestDelegateFactory
         //         };
         // }
 
-        var localVariables = new ParameterExpression[factoryContext.ExtraLocals.Count + 2];
-        var checkParamAndCallMethod = new Expression[factoryContext.InitialExpressions.Count + 1];
+        var numAsyncVariables = factoryContext.AsyncParameterBinders.Count;
+        var localVariables = new ParameterExpression[factoryContext.ExtraLocals.Count + numAsyncVariables + 2];
+        var checkParamAndCallMethod = new Expression[factoryContext.InitialExpressions.Count + numAsyncVariables + 1];
 
         localVariables[0] = TempSourceStringExpr;
         localVariables[1] = WasParamCheckFailureExpr;
 
+        for (var i = 0; i < numAsyncVariables; i++)
+        {
+            Expression asyncValue = numAsyncVariables switch
+            {
+                1 => BodyValueExpr,
+                _ => Expression.ArrayIndex(BoundValuesArrayExpr, Expression.Constant(i)),
+            };
+
+            var (asyncVariable, _) = factoryContext.AsyncParameterBinders[i];
+            localVariables[2 + i] = asyncVariable;
+            checkParamAndCallMethod[i] = Expression.Assign(asyncVariable, Expression.Convert(asyncValue, asyncVariable.Type));
+        }
+
         for (var i = 0; i < factoryContext.ExtraLocals.Count; i++)
         {
-            localVariables[i + 2] = factoryContext.ExtraLocals[i];
+            localVariables[2 + numAsyncVariables + i] = factoryContext.ExtraLocals[i];
         }
 
         for (var i = 0; i < factoryContext.InitialExpressions.Count; i++)
         {
-            checkParamAndCallMethod[i] = factoryContext.InitialExpressions[i];
+            checkParamAndCallMethod[numAsyncVariables + i] = factoryContext.InitialExpressions[i];
         }
 
         // If filters have been registered, we set the `wasParamCheckFailure` property
@@ -858,7 +859,7 @@ public static partial class RequestDelegateFactory
                 AddResponseWritingToMethodCall(methodCall, returnType)
             );
 
-            checkParamAndCallMethod[factoryContext.InitialExpressions.Count] = checkWasParamCheckFailureWithFilters;
+            checkParamAndCallMethod[^1] = checkWasParamCheckFailureWithFilters;
         }
         else
         {
@@ -874,7 +875,7 @@ public static partial class RequestDelegateFactory
                     Expression.Assign(StatusCodeExpr, Expression.Constant(400)),
                     CompletedTaskExpr),
                 AddResponseWritingToMethodCall(methodCall, returnType));
-            checkParamAndCallMethod[factoryContext.InitialExpressions.Count] = checkWasParamCheckFailure;
+            checkParamAndCallMethod[^1] = checkWasParamCheckFailure;
         }
 
         return Expression.Block(localVariables, checkParamAndCallMethod);
@@ -1013,7 +1014,7 @@ public static partial class RequestDelegateFactory
             var continuation = Expression.Lambda<Func<object?, HttpContext, object?, Task>>(
                 responseWritingMethodCall, TargetExpr, HttpContextExpr, BodyValueExpr).Compile();
 
-            var binder = factoryContext.AsyncParameterBinders[0];
+            var (_, binder) = factoryContext.AsyncParameterBinders[0];
 
             return async (target, httpContext) =>
             {
@@ -1034,14 +1035,18 @@ public static partial class RequestDelegateFactory
             var continuation = Expression.Lambda<Func<object?, HttpContext, object?[], Task>>(
                 responseWritingMethodCall, TargetExpr, HttpContextExpr, BoundValuesArrayExpr).Compile();
 
-            // Looping over arrays is faster
-            var binders = factoryContext.AsyncParameterBinders.ToArray();
+            var binders = new Func<HttpContext, ValueTask<object?>>[factoryContext.AsyncParameterBinders.Count];
+            for (var i = 0; i < binders.Length; i++)
+            {
+                (_, binders[i]) = factoryContext.AsyncParameterBinders[i];
+            }
             var count = binders.Length;
 
             return async (target, httpContext) =>
             {
                 var boundValues = new object?[count];
 
+                // Looping over arrays is faster
                 for (var i = 0; i < count; i++)
                 {
                     var boundValue = await binders[i](httpContext);
@@ -1582,10 +1587,7 @@ public static partial class RequestDelegateFactory
 
         // Compile the delegate to the BindAsync method for this parameter index
         var bindAsyncDelegate = Expression.Lambda<Func<HttpContext, ValueTask<object?>>>(bindAsyncMethod.Expression, HttpContextExpr).Compile();
-        factoryContext.BindAsyncVariables.Add(localVariableExpression);
-        factoryContext.ExtraLocals.Add(localVariableExpression);
-
-        factoryContext.AsyncParameterBinders.Add(bindAsyncDelegate);
+        factoryContext.AsyncParameterBinders.Add((localVariableExpression, bindAsyncDelegate));
 
         // If BindAsync returns a non-nullable struct, we have no way to check if a value was set even if it was optional
         if (!isOptional && (!parameter.ParameterType.IsValueType || (parameter.ParameterType.IsGenericType && parameter.ParameterType.GetGenericTypeDefinition() == typeof(Nullable<>))))
@@ -1642,16 +1644,14 @@ public static partial class RequestDelegateFactory
             }
         }
 
-        factoryContext.BindAsyncVariables.Add(localVariableExpression);
-        factoryContext.ExtraLocals.Add(localVariableExpression);
-
         factoryContext.JsonRequestBodyParameter = parameter;
         factoryContext.AllowEmptyRequestBody = allowEmptyRequestBody;
         InsertInferredAcceptsMetadata(factoryContext, parameter.ParameterType, DefaultAcceptsContentType);
 
-        factoryContext.AsyncParameterBinders.Add(httpContext => ReadJsonBodyAsync(
-            httpContext, bodyType, parameterTypeName, parameterName,
-            allowEmptyRequestBody, hasInferredBody, throwOnBadRequest));
+        factoryContext.AsyncParameterBinders.Add((localVariableExpression,
+            httpContext => ReadJsonBodyAsync(
+                httpContext, bodyType, parameterTypeName, parameterName,
+                allowEmptyRequestBody, hasInferredBody, throwOnBadRequest)));
 
         // bodyValue
         return GetValueOrParameterDefault(localVariableExpression, parameter);
@@ -1712,14 +1712,12 @@ public static partial class RequestDelegateFactory
         var parameterTypeName = TypeNameHelper.GetTypeDisplayName(factoryContext.FirstFormRequestBodyParameter.ParameterType, fullName: false);
         var parameterName = factoryContext.FirstFormRequestBodyParameter.Name;
         var throwOnBadRequest = factoryContext.ThrowOnBadRequest;
-        var discardVariable = Expression.Variable(typeof(object), "_");
 
         Debug.Assert(parameterName is not null, "CreateArgument() should throw if parameter.Name is null.");
 
-        factoryContext.AsyncParameterBinders.Add(httpContext => ReadFormAsync(
-            httpContext, parameterTypeName, parameterName, throwOnBadRequest));
-        factoryContext.ExtraLocals.Add(discardVariable);
-        factoryContext.BindAsyncVariables.Add(discardVariable);
+        factoryContext.AsyncParameterBinders.Add((Expression.Variable(typeof(object), "_"),
+            httpContext => ReadFormAsync(
+                httpContext, parameterTypeName, parameterName, throwOnBadRequest)));
     }
 
     private static bool IsOptionalParameter(ParameterInfo parameter, FactoryContext factoryContext)
@@ -2013,8 +2011,7 @@ public static partial class RequestDelegateFactory
         public List<ParameterExpression> ExtraLocals { get; } = new();
         public List<Expression> InitialExpressions { get; } = new();
 
-        public List<Func<HttpContext, ValueTask<object?>>> AsyncParameterBinders { get; } = new();
-        public List<ParameterExpression> BindAsyncVariables { get; set; } = new();
+        public List<(ParameterExpression LocalArgument, Func<HttpContext, ValueTask<object?>> Binder)> AsyncParameterBinders { get; } = new();
 
         public IList<object> Metadata { get; init; } = default!;
 

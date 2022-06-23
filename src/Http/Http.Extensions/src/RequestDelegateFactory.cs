@@ -134,13 +134,20 @@ public static partial class RequestDelegateFactory
             null => null,
         };
 
-        var factoryContext = CreateFactoryContext(options);
+        var factoryContext = CreateFactoryContext(options, handler);
 
         Expression<Func<HttpContext, object?>> targetFactory = (httpContext) => handler.Target;
 
         var targetableRequestDelegate = CreateTargetableRequestDelegate(handler.Method, targetExpression, factoryContext, targetFactory);
 
-        return new RequestDelegateResult(httpContext => targetableRequestDelegate(handler.Target, httpContext), factoryContext.Metadata);
+        if (targetableRequestDelegate is null)
+        {
+            // handler is a RequestDelegate that has not been modified by a filter. Short-circuit and return the original RequestDelegate back.
+            // It's possible a filter factory has still modified the endpoint metadata though.
+            return new RequestDelegateResult((RequestDelegate)handler, AsReadOnlyList(factoryContext.Metadata));
+        }
+
+        return new RequestDelegateResult(httpContext => targetableRequestDelegate(handler.Target, httpContext), AsReadOnlyList(factoryContext.Metadata));
     }
 
     /// <summary>
@@ -172,7 +179,10 @@ public static partial class RequestDelegateFactory
             {
                 var untargetableRequestDelegate = CreateTargetableRequestDelegate(methodInfo, targetExpression: null, factoryContext);
 
-                return new RequestDelegateResult(httpContext => untargetableRequestDelegate(null, httpContext), factoryContext.Metadata);
+                // CreateTargetableRequestDelegate can only return null given a RequestDelegate passed into the other RDF.Create() overload.
+                Debug.Assert(untargetableRequestDelegate is not null);
+
+                return new RequestDelegateResult(httpContext => untargetableRequestDelegate(null, httpContext), AsReadOnlyList(factoryContext.Metadata));
             }
 
             targetFactory = context => Activator.CreateInstance(methodInfo.DeclaringType)!;
@@ -181,30 +191,38 @@ public static partial class RequestDelegateFactory
         var targetExpression = Expression.Convert(TargetExpr, methodInfo.DeclaringType);
         var targetableRequestDelegate = CreateTargetableRequestDelegate(methodInfo, targetExpression, factoryContext, context => targetFactory(context));
 
-        return new RequestDelegateResult(httpContext => targetableRequestDelegate(targetFactory(httpContext), httpContext), factoryContext.Metadata);
+        // CreateTargetableRequestDelegate can only return null given a RequestDelegate passed into the other RDF.Create() overload.
+        Debug.Assert(targetableRequestDelegate is not null);
+
+        return new RequestDelegateResult(httpContext => targetableRequestDelegate(targetFactory(httpContext), httpContext), AsReadOnlyList(factoryContext.Metadata));
     }
 
-    private static FactoryContext CreateFactoryContext(RequestDelegateFactoryOptions? options)
+    private static FactoryContext CreateFactoryContext(RequestDelegateFactoryOptions? options, Delegate? handler = null)
     {
-        var context = new FactoryContext
+        return new FactoryContext
         {
+            Handler = handler,
             ServiceProvider = options?.ServiceProvider,
             ServiceProviderIsService = options?.ServiceProvider?.GetService<IServiceProviderIsService>(),
             RouteParameters = options?.RouteParameterNames?.ToList(),
             ThrowOnBadRequest = options?.ThrowOnBadRequest ?? false,
             DisableInferredFromBody = options?.DisableInferBodyFromParameters ?? false,
-            Filters = options?.RouteHandlerFilterFactories?.ToList()
+            FilterFactories = options?.RouteHandlerFilterFactories?.ToList(),
+            Metadata = options?.EndpointMetadata ?? new List<object>(),
         };
-
-        if (options?.InitialEndpointMetadata is not null)
-        {
-            context.Metadata.AddRange(options.InitialEndpointMetadata);
-        }
-
-        return context;
     }
 
-    private static Func<object?, HttpContext, Task> CreateTargetableRequestDelegate(MethodInfo methodInfo, Expression? targetExpression, FactoryContext factoryContext, Expression<Func<HttpContext, object?>>? targetFactory = null)
+    private static IReadOnlyList<object> AsReadOnlyList(IList<object> metadata)
+    {
+        if (metadata is IReadOnlyList<object> readOnlyList)
+        {
+            return readOnlyList;
+        }
+
+        return new List<object>(metadata);
+    }
+
+    private static Func<object?, HttpContext, Task>? CreateTargetableRequestDelegate(MethodInfo methodInfo, Expression? targetExpression, FactoryContext factoryContext, Expression<Func<HttpContext, object?>>? targetFactory = null)
     {
         // Non void return type
 
@@ -222,9 +240,6 @@ public static partial class RequestDelegateFactory
         //     return default;
         // }
 
-        // Add MethodInfo as first metadata item
-        factoryContext.Metadata.Insert(0, methodInfo);
-
         // CreateArguments will add metadata inferred from parameter details
         var parameters = methodInfo.GetParameters();
         var returnType = methodInfo.ReturnType;
@@ -237,25 +252,37 @@ public static partial class RequestDelegateFactory
             factoryContext.ServiceProvider,
             factoryContext.Parameters);
 
-        // Add method attributes as metadata *after* any inferred metadata so that the attributes hava a higher specificity
-        AddMethodAttributesAsMetadata(methodInfo, factoryContext.Metadata);
+        RouteHandlerFilterDelegate? filterPipeline = null;
 
         // If there are filters registered on the route handler, then we update the method call and
         // return type associated with the request to allow for the filter invocation pipeline.
-        if (factoryContext.Filters is { Count: > 0 })
+        if (factoryContext.FilterFactories is { Count: > 0 })
         {
-            var filterPipeline = CreateFilterPipeline(methodInfo, targetExpression, factoryContext, targetFactory);
-            Expression<Func<RouteHandlerInvocationContext, ValueTask<object?>>> invokePipeline = (context) => filterPipeline(context);
-            returnType = typeof(ValueTask<object?>);
-            // var filterContext = new RouteHandlerInvocationContext<string, int>(httpContext, name_local, int_local);
-            // invokePipeline.Invoke(filterContext);
-            methodCall = Expression.Block(
-                new[] { FilterContextExpr },
-                Expression.Assign(
-                    FilterContextExpr,
-                    CreateRouteHandlerInvocationContext(parameters, arguments)),
-                    Expression.Invoke(invokePipeline, FilterContextExpr)
-                );
+            filterPipeline = CreateFilterPipeline(methodInfo, targetExpression, factoryContext, targetFactory);
+
+            if (filterPipeline is not null)
+            {
+                Expression<Func<RouteHandlerInvocationContext, ValueTask<object?>>> invokePipeline = (context) => filterPipeline(context);
+                returnType = typeof(ValueTask<object?>);
+                // var filterContext = new RouteHandlerInvocationContext<string, int>(httpContext, name_local, int_local);
+                // invokePipeline.Invoke(filterContext);
+                methodCall = Expression.Block(
+                    new[] { FilterContextExpr },
+                    Expression.Assign(
+                        FilterContextExpr,
+                        CreateRouteHandlerInvocationContext(parameters, arguments)),
+                    Expression.Invoke(invokePipeline, FilterContextExpr));
+            }
+        }
+
+        // return null for plain RequestDelegates that have not been modified by filters so we can just pass back the original RequestDelegate.
+        if (filterPipeline is null && factoryContext.Handler is RequestDelegate)
+        {
+            // Make sure we're still not handling a return value.
+            if (!returnType.IsGenericType || returnType.GetGenericTypeDefinition() != typeof(Task<>))
+            {
+                return null;
+            }
         }
 
         var responseWritingMethodCall = factoryContext.InitialExpressions.Count > 0 ?
@@ -265,9 +292,9 @@ public static partial class RequestDelegateFactory
         return HandleRequestBodyAndCompileRequestDelegate(responseWritingMethodCall, factoryContext);
     }
 
-    private static RouteHandlerFilterDelegate CreateFilterPipeline(MethodInfo methodInfo, Expression? targetExpression, FactoryContext factoryContext, Expression<Func<HttpContext, object?>>? targetFactory)
+    private static RouteHandlerFilterDelegate? CreateFilterPipeline(MethodInfo methodInfo, Expression? targetExpression, FactoryContext factoryContext, Expression<Func<HttpContext, object?>>? targetFactory)
     {
-        Debug.Assert(factoryContext.Filters is not null);
+        Debug.Assert(factoryContext.FilterFactories is not null);
         // httpContext.Response.StatusCode >= 400
         // ? Task.CompletedTask
         // : {
@@ -308,17 +335,24 @@ public static partial class RequestDelegateFactory
             FilterContextExpr).Compile();
         var routeHandlerContext = new RouteHandlerContext(
             methodInfo,
-            new EndpointMetadataCollection(factoryContext.Metadata),
+            factoryContext.Metadata,
             factoryContext.ServiceProvider ?? EmptyServiceProvider.Instance);
 
-        for (var i = factoryContext.Filters.Count - 1; i >= 0; i--)
-        {
-            var currentFilterFactory = factoryContext.Filters[i];
-            var nextFilter = filteredInvocation;
-            var currentFilter = currentFilterFactory(routeHandlerContext, nextFilter);
-            filteredInvocation = (RouteHandlerInvocationContext context) => currentFilter(context);
+        var initialFilteredInvocation = filteredInvocation;
 
+        for (var i = factoryContext.FilterFactories.Count - 1; i >= 0; i--)
+        {
+            var currentFilterFactory = factoryContext.FilterFactories[i];
+            filteredInvocation = currentFilterFactory(routeHandlerContext, filteredInvocation);
         }
+
+        // The filter factories have run without modifying per-request behavior, we can skip running the pipeline.
+        // If a plain old RequestDelegate was passed in (with no generic parameter), we can just return it back directly now.
+        if (ReferenceEquals(initialFilteredInvocation, filteredInvocation))
+        {
+            return null;
+        }
+
         return filteredInvocation;
     }
 
@@ -450,7 +484,7 @@ public static partial class RequestDelegateFactory
         return Expression.New(constructor, contextArguments);
     }
 
-    private static void AddTypeProvidedMetadata(MethodInfo methodInfo, List<object> metadata, IServiceProvider? services, List<ParameterInfo> parameters)
+    private static void AddTypeProvidedMetadata(MethodInfo methodInfo, IList<object> metadata, IServiceProvider? services, List<ParameterInfo> parameters)
     {
         object?[]? invokeArgs = null;
 
@@ -505,17 +539,6 @@ public static partial class RequestDelegateFactory
         T.PopulateMetadata(context);
     }
 
-    private static void AddMethodAttributesAsMetadata(MethodInfo methodInfo, List<object> metadata)
-    {
-        var attributes = methodInfo.GetCustomAttributes();
-
-        // This can be null if the delegate is a dynamic method or compiled from an expression tree
-        if (attributes is not null)
-        {
-            metadata.AddRange(attributes);
-        }
-    }
-
     private static Expression[] CreateArguments(ParameterInfo[]? parameters, FactoryContext factoryContext)
     {
         if (parameters is null || parameters.Length == 0)
@@ -525,7 +548,7 @@ public static partial class RequestDelegateFactory
 
         var arguments = new Expression[parameters.Length];
 
-        var hasFilters = factoryContext.Filters is { Count: > 0 };
+        var hasFilters = factoryContext.FilterFactories is { Count: > 0 };
 
         for (var i = 0; i < parameters.Length; i++)
         {
@@ -821,7 +844,7 @@ public static partial class RequestDelegateFactory
 
         // If filters have been registered, we set the `wasParamCheckFailure` property
         // but do not return from the invocation to allow the filters to run.
-        if (factoryContext.Filters is { Count: > 0 })
+        if (factoryContext.FilterFactories is { Count: > 0 })
         {
             // if (wasParamCheckFailure)
             // {
@@ -1624,7 +1647,7 @@ public static partial class RequestDelegateFactory
 
         factoryContext.JsonRequestBodyParameter = parameter;
         factoryContext.AllowEmptyRequestBody = allowEmptyRequestBody;
-        factoryContext.Metadata.Add(new AcceptsMetadata(parameter.ParameterType, factoryContext.AllowEmptyRequestBody, DefaultAcceptsContentType));
+        InsertInferredAcceptsMetadata(factoryContext, parameter.ParameterType, DefaultAcceptsContentType);
 
         factoryContext.AsyncParameterBinders.Add(httpContext => ReadJsonBodyAsync(
             httpContext, bodyType, parameterTypeName, parameterName,
@@ -1632,6 +1655,14 @@ public static partial class RequestDelegateFactory
 
         // bodyValue
         return GetValueOrParameterDefault(localVariableExpression, parameter);
+    }
+
+    private static void InsertInferredAcceptsMetadata(FactoryContext factoryContext, Type type, string[] contentTypes)
+    {
+        // Insert the automatically-inferred AcceptsMetadata at the beginning of the list to give it the lowest precedence.
+        // It really doesn't makes sense for this metadata to be overridden, but we're preserving the old behavior out of an abundance of caution.
+        // I suspect most filters and metadata providers will just add their metadata to the end of the list.
+        factoryContext.Metadata.Insert(0, new AcceptsMetadata(type, factoryContext.AllowEmptyRequestBody, contentTypes));
     }
 
     private static Expression BindParameterFromFormFiles(
@@ -1642,7 +1673,7 @@ public static partial class RequestDelegateFactory
         {
             factoryContext.FirstFormRequestBodyParameter = parameter;
             // Do not duplicate the metadata if there are multiple form parameters
-            factoryContext.Metadata.Add(new AcceptsMetadata(parameter.ParameterType, factoryContext.AllowEmptyRequestBody, FormFileContentType));
+            InsertInferredAcceptsMetadata(factoryContext, parameter.ParameterType,  FormFileContentType);
             AddFormParameterBinder(factoryContext);
         }
 
@@ -1662,7 +1693,7 @@ public static partial class RequestDelegateFactory
         if (factoryContext.FirstFormRequestBodyParameter is null)
         {
             factoryContext.FirstFormRequestBodyParameter = parameter;
-            factoryContext.Metadata.Add(new AcceptsMetadata(parameter.ParameterType, factoryContext.AllowEmptyRequestBody, FormFileContentType));
+            InsertInferredAcceptsMetadata(factoryContext, parameter.ParameterType, FormFileContentType);
             AddFormParameterBinder(factoryContext);
         }
 
@@ -1958,6 +1989,9 @@ public static partial class RequestDelegateFactory
     private sealed class FactoryContext
     {
         // Options
+        // Handler could be null if the MethodInfo overload of RDF.Create is used, but that doesn't matter because this is
+        // only referenced to optimize certain cases where a RequestDelegate is the handler and filters don't modify it.
+        public Delegate? Handler { get; init; }
         public IServiceProvider? ServiceProvider { get; init; }
         public IServiceProviderIsService? ServiceProviderIsService { get; init; }
         public List<string>? RouteParameters { get; init; }
@@ -1982,12 +2016,14 @@ public static partial class RequestDelegateFactory
         public List<Func<HttpContext, ValueTask<object?>>> AsyncParameterBinders { get; } = new();
         public List<ParameterExpression> BindAsyncVariables { get; set; } = new();
 
-        public List<object> Metadata { get; internal set; } = new();
+        public IList<object> Metadata { get; init; } = default!;
 
         public NullabilityInfoContext NullabilityContext { get; } = new();
 
         // Properties for constructing and managing filters
         public List<Expression> ContextArgAccess { get; } = new();
+        public List<Func<RouteHandlerContext, RouteHandlerFilterDelegate, RouteHandlerFilterDelegate>>? FilterFactories { get; init; }
+        public bool FilterFactoriesHaveRunWithoutModifyingPerRequestBehavior { get; set; }
     }
 
     private static class RequestDelegateFactoryConstants

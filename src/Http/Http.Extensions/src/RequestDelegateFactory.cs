@@ -71,8 +71,6 @@ public static partial class RequestDelegateFactory
         Log.ParameterBindingFailed(httpContext, parameterType, parameterName, sourceValue, shouldThrow));
     private static readonly MethodInfo LogRequiredParameterNotProvidedMethod = GetMethodInfo<Action<HttpContext, string, string, string, bool>>((httpContext, parameterType, parameterName, source, shouldThrow) =>
         Log.RequiredParameterNotProvided(httpContext, parameterType, parameterName, source, shouldThrow));
-    private static readonly MethodInfo LogImplicitBodyNotProvidedMethod = GetMethodInfo<Action<HttpContext, string, bool>>((httpContext, parameterName, shouldThrow) =>
-        Log.ImplicitBodyNotProvided(httpContext, parameterName, shouldThrow));
 
     private static readonly ParameterExpression TargetExpr = Expression.Parameter(typeof(object), "target");
     private static readonly ParameterExpression WasParamCheckFailureExpr = Expression.Variable(typeof(bool), "wasParamCheckFailure");
@@ -104,12 +102,11 @@ public static partial class RequestDelegateFactory
     private static readonly ConstructorInfo DefaultRouteHandlerInvocationContextConstructor = typeof(DefaultRouteHandlerInvocationContext).GetConstructor(new[] { typeof(HttpContext), typeof(object[]) })!;
     private static readonly MethodInfo RouteHandlerInvocationContextGetArgument = typeof(RouteHandlerInvocationContext).GetMethod(nameof(RouteHandlerInvocationContext.GetArgument))!;
     private static readonly PropertyInfo ListIndexer = typeof(IList<object>).GetProperty("Item")!;
-    private static readonly ParameterExpression FilterContextExpr = Expression.Parameter(typeof(RouteHandlerInvocationContext), "context");
+    private static readonly ParameterExpression FilterContextExpr = Expression.Parameter(typeof(RouteHandlerInvocationContext), "filterContext");
     private static readonly MemberExpression FilterContextHttpContextExpr = Expression.Property(FilterContextExpr, typeof(RouteHandlerInvocationContext).GetProperty(nameof(RouteHandlerInvocationContext.HttpContext))!);
     private static readonly MemberExpression FilterContextArgumentsExpr = Expression.Property(FilterContextExpr, typeof(RouteHandlerInvocationContext).GetProperty(nameof(RouteHandlerInvocationContext.Arguments))!);
     private static readonly MemberExpression FilterContextHttpContextResponseExpr = Expression.Property(FilterContextHttpContextExpr, typeof(HttpContext).GetProperty(nameof(HttpContext.Response))!);
     private static readonly MemberExpression FilterContextHttpContextStatusCodeExpr = Expression.Property(FilterContextHttpContextResponseExpr, typeof(HttpResponse).GetProperty(nameof(HttpResponse.StatusCode))!);
-    private static readonly ParameterExpression InvokedFilterContextExpr = Expression.Parameter(typeof(RouteHandlerInvocationContext), "filterContext");
 
     private static readonly string[] DefaultAcceptsContentType = new[] { "application/json" };
     private static readonly string[] FormFileContentType = new[] { "multipart/form-data" };
@@ -229,9 +226,10 @@ public static partial class RequestDelegateFactory
         factoryContext.Metadata.Insert(0, methodInfo);
 
         // CreateArguments will add metadata inferred from parameter details
-        var arguments = CreateArguments(methodInfo.GetParameters(), factoryContext);
+        var parameters = methodInfo.GetParameters();
         var returnType = methodInfo.ReturnType;
-        factoryContext.MethodCall = CreateMethodCall(methodInfo, targetExpression, arguments);
+        var arguments = CreateArguments(parameters, factoryContext);
+        var methodCall = CreateMethodCall(methodInfo, targetExpression, arguments);
 
         // Add metadata provided by the delegate return type and parameter types next, this will be more specific than inferred metadata from above
         AddTypeProvidedMetadata(methodInfo,
@@ -251,18 +249,18 @@ public static partial class RequestDelegateFactory
             returnType = typeof(ValueTask<object?>);
             // var filterContext = new RouteHandlerInvocationContext<string, int>(httpContext, name_local, int_local);
             // invokePipeline.Invoke(filterContext);
-            factoryContext.MethodCall = Expression.Block(
-                new[] { InvokedFilterContextExpr },
+            methodCall = Expression.Block(
+                new[] { FilterContextExpr },
                 Expression.Assign(
-                    InvokedFilterContextExpr,
-                    CreateRouteHandlerInvocationContextBase(factoryContext)),
-                    Expression.Invoke(invokePipeline, InvokedFilterContextExpr)
+                    FilterContextExpr,
+                    CreateRouteHandlerInvocationContext(parameters, arguments)),
+                    Expression.Invoke(invokePipeline, FilterContextExpr)
                 );
         }
 
         var responseWritingMethodCall = factoryContext.InitialExpressions.Count > 0 ?
-            CreateParamCheckingResponseWritingMethodCall(returnType, factoryContext) :
-            AddResponseWritingToMethodCall(factoryContext.MethodCall, returnType);
+            CreateParamCheckingResponseWritingMethodCall(methodCall, returnType, factoryContext) :
+            AddResponseWritingToMethodCall(methodCall, returnType);
 
         return HandleRequestBodyAndCompileRequestDelegate(responseWritingMethodCall, factoryContext);
     }
@@ -390,43 +388,39 @@ public static partial class RequestDelegateFactory
         return ExecuteAwaited(task);
     }
 
-    private static Expression CreateRouteHandlerInvocationContextBase(FactoryContext factoryContext)
+    private static Expression CreateRouteHandlerInvocationContext(ParameterInfo[] methodParameters, Expression[] methodArguments)
     {
         // In the event that a constructor matching the arity of the
         // provided parameters is not found, we fall back to using the
         // non-generic implementation of RouteHandlerInvocationContext.
-        Expression paramArray;
+        Type[] methodArgumentTypes;
+        Expression paramArrayExpression;
+        Expression[] contextArguments;
 
-        if (factoryContext.ArgumentExpressions.Length > 0)
+        if (methodParameters.Length is 0)
         {
-            var boxedArgs = new Expression[factoryContext.ArgumentExpressions.Length];
-            for (int i = 0; i < boxedArgs.Length; i++)
-            {
-                boxedArgs[i] = Expression.Convert(factoryContext.ArgumentExpressions[i], typeof(object));
-            }
-            paramArray = Expression.NewArrayInit(typeof(object), boxedArgs);
+            methodArgumentTypes = Array.Empty<Type>();
+            paramArrayExpression = Expression.Call(ArrayEmptyOfObjectMethod);
+            contextArguments = new[] { HttpContextExpr };
         }
         else
         {
-            paramArray = Expression.Call(ArrayEmptyOfObjectMethod);
+            methodArgumentTypes = new Type[methodArguments.Length];
+            var boxedArgs = new Expression[methodArguments.Length];
+            contextArguments = new Expression[methodArguments.Length + 1];
+            contextArguments[0] = HttpContextExpr;
+
+            for (int i = 0; i < methodParameters.Length; i++)
+            {
+                methodArgumentTypes[i] = methodParameters[i].ParameterType;
+                boxedArgs[i] = Expression.Convert(methodArguments[i], typeof(object));
+                contextArguments[i + 1] = methodArguments[i];
+            }
+
+            paramArrayExpression = Expression.NewArrayInit(typeof(object), boxedArgs);
         }
 
-        var fallbackConstruction = Expression.New(
-            DefaultRouteHandlerInvocationContextConstructor,
-            new Expression[] { HttpContextExpr, paramArray });
-
-        if (!RuntimeFeature.IsDynamicCodeCompiled)
-        {
-            // For AOT platforms it's not possible to support the closed generic arguments that are based on the
-            // parameter arguments dynamically (for value types). In that case, fallback to boxing the argument list.
-            return fallbackConstruction;
-        }
-
-        var arguments = new Expression[factoryContext.ArgumentExpressions.Length + 1];
-        arguments[0] = HttpContextExpr;
-        factoryContext.ArgumentExpressions.CopyTo(arguments, 1);
-
-        var constructorType = factoryContext.ArgumentTypes?.Length switch
+        var constructorType = methodParameters.Length switch
         {
             1 => typeof(RouteHandlerInvocationContext<>),
             2 => typeof(RouteHandlerInvocationContext<,>),
@@ -441,15 +435,19 @@ public static partial class RequestDelegateFactory
             _ => typeof(DefaultRouteHandlerInvocationContext)
         };
 
-        if (constructorType.IsGenericType)
+        if (!RuntimeFeature.IsDynamicCodeCompiled || !constructorType.IsGenericType)
         {
-            var constructor = constructorType.MakeGenericType(factoryContext.ArgumentTypes!).GetConstructors(BindingFlags.NonPublic | BindingFlags.Instance).Single();
-            // new RouteHandlerInvocationContext<string, int>(httpContext, name_local, int_local);
-            return Expression.New(constructor, arguments);
+            // For AOT platforms it's not possible to support the closed generic arguments that are based on the
+            // parameter arguments dynamically (for value types). In that case, fallback to boxing the argument list.
+            // new RouteHandlerInvocionContext(httpContext, (object)name_local, (object)int_local);
+            return Expression.New(
+                DefaultRouteHandlerInvocationContextConstructor,
+                new Expression[] { HttpContextExpr, paramArrayExpression });
         }
 
-        // new RouteHandlerInvocationContext(httpContext, (object)name_local, (object)int_local);
-        return fallbackConstruction;
+        var constructor = constructorType.MakeGenericType(methodArgumentTypes).GetConstructors(BindingFlags.NonPublic | BindingFlags.Instance).Single();
+        // new RouteHandlerInvocationContext<string, int>(httpContext, name_local, int_local);
+        return Expression.New(constructor, contextArguments);
     }
 
     private static void AddTypeProvidedMetadata(MethodInfo methodInfo, List<object> metadata, IServiceProvider? services, List<ParameterInfo> parameters)
@@ -525,8 +523,7 @@ public static partial class RequestDelegateFactory
             return Array.Empty<Expression>();
         }
 
-        factoryContext.ArgumentTypes = new Type[parameters.Length];
-        factoryContext.ArgumentExpressions = new Expression[parameters.Length];
+        var arguments = new Expression[parameters.Length];
 
         var hasFilters = factoryContext.Filters is { Count: > 0 };
 
@@ -535,8 +532,7 @@ public static partial class RequestDelegateFactory
             var parameter = parameters[i];
 
             factoryContext.Parameters.Add(parameter);
-            factoryContext.ArgumentTypes[i] = parameter.ParameterType;
-            factoryContext.ArgumentExpressions[i] = CreateArgument(parameter, factoryContext);
+            arguments[i] = CreateArgument(parameter, factoryContext);
 
             // Only populate the context args if there are filters for this handler
             if (hasFilters)
@@ -592,7 +588,7 @@ public static partial class RequestDelegateFactory
             throw new InvalidOperationException(errorMessage);
         }
 
-        return factoryContext.ArgumentExpressions;
+        return arguments;
     }
 
     // Return null for arguments that must be returned asynchronously like body and BindAsync args.
@@ -772,7 +768,7 @@ public static partial class RequestDelegateFactory
 
     // If we're calling TryParse or validating parameter optionality and
     // wasParamCheckFailure indicates it failed, set a 400 StatusCode instead of calling the method.
-    private static Expression CreateParamCheckingResponseWritingMethodCall(Type returnType, FactoryContext factoryContext)
+    private static Expression CreateParamCheckingResponseWritingMethodCall(Expression methodCall, Type returnType, FactoryContext factoryContext)
     {
         // {
         //     string tempSourceString;
@@ -836,7 +832,7 @@ public static partial class RequestDelegateFactory
                 Expression.IfThen(
                     WasParamCheckFailureExpr,
                     Expression.Assign(StatusCodeExpr, Expression.Constant(400))),
-                AddResponseWritingToMethodCall(factoryContext.MethodCall!, returnType)
+                AddResponseWritingToMethodCall(methodCall, returnType)
             );
 
             checkParamAndCallMethod[factoryContext.InitialExpressions.Count] = checkWasParamCheckFailureWithFilters;
@@ -854,7 +850,7 @@ public static partial class RequestDelegateFactory
                 Expression.Block(
                     Expression.Assign(StatusCodeExpr, Expression.Constant(400)),
                     CompletedTaskExpr),
-                AddResponseWritingToMethodCall(factoryContext.MethodCall!, returnType));
+                AddResponseWritingToMethodCall(methodCall, returnType));
             checkParamAndCallMethod[factoryContext.InitialExpressions.Count] = checkWasParamCheckFailure;
         }
 
@@ -1053,11 +1049,6 @@ public static partial class RequestDelegateFactory
         object? bodyValue = null;
         var feature = httpContext.Features.Get<IHttpRequestBodyDetectionFeature>();
 
-        if (allowEmptyRequestBody && bodyType.IsValueType)
-        {
-            bodyValue = CreateValueType(bodyType);
-        }
-
         if (feature?.CanHaveBody == true)
         {
             if (!httpContext.Request.HasJsonContentType())
@@ -1095,6 +1086,7 @@ public static partial class RequestDelegateFactory
                 {
                     Log.RequiredParameterNotProvided(httpContext, parameterTypeName, parameterName, "body", throwOnBadRequest);
                 }
+
                 httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
                 return FailedBodyReadAlreadyHandledSentinel;
             }
@@ -1980,11 +1972,13 @@ public static partial class RequestDelegateFactory
         public bool HasInferredBody { get; set; }
         public bool AllowEmptyRequestBody { get; set; }
 
+        public List<ParameterInfo> Parameters { get; set; } = new();
         public ParameterInfo? JsonRequestBodyParameter { get; set; }
         public ParameterInfo? FirstFormRequestBodyParameter { get; set; }
 
         public List<ParameterExpression> ExtraLocals { get; } = new();
         public List<Expression> InitialExpressions { get; } = new();
+
         public List<Func<HttpContext, ValueTask<object?>>> AsyncParameterBinders { get; } = new();
         public List<ParameterExpression> BindAsyncVariables { get; set; } = new();
 
@@ -1994,11 +1988,6 @@ public static partial class RequestDelegateFactory
 
         // Properties for constructing and managing filters
         public List<Expression> ContextArgAccess { get; } = new();
-        public Expression? MethodCall { get; set; }
-        public Type[] ArgumentTypes { get; set; } = Array.Empty<Type>();
-        public Expression[] ArgumentExpressions { get; set; } = Array.Empty<Expression>();
-
-        public List<ParameterInfo> Parameters { get; set; } = new();
     }
 
     private static class RequestDelegateFactoryConstants

@@ -1574,13 +1574,13 @@ public static partial class RequestDelegateFactory
     private static Expression BindParameterFromBindAsync(ParameterInfo parameter, FactoryContext factoryContext)
     {
         // Get the BindAsync method for the type.
-        var (bindAsyncExpression, paramCount, awaitedType) = ParameterBindingMethodCache.FindBindAsyncMethod(parameter);
+        var (bindAsyncExpression, paramCount) = ParameterBindingMethodCache.FindBindAsyncMethod(parameter);
         // We know BindAsync exists because there's no way to opt-in without defining the method on the type.
         Debug.Assert(bindAsyncExpression is not null);
 
         // Compile the delegate to the BindAsync method for this parameter index
         var bindAsyncDelegate = Expression.Lambda<Func<HttpContext, ValueTask<object?>>>(bindAsyncExpression, HttpContextExpr).Compile();
-        var localVariableExpression = Expression.Variable(awaitedType, $"{parameter.Name}_BindAsync_local");
+        var localVariableExpression = Expression.Variable(typeof(object), $"{parameter.Name}_BindAsync_local");
         factoryContext.AsyncParameters.Add((localVariableExpression, bindAsyncDelegate));
 
         // If BindAsync returns a non-nullable struct, we have no way to check if a value was set even if it is optional.
@@ -1592,7 +1592,7 @@ public static partial class RequestDelegateFactory
             var message = paramCount == 2 ? $"{typeName}.BindAsync(HttpContext, ParameterInfo)" : $"{typeName}.BindAsync(HttpContext)";
             var checkRequiredBodyBlock = Expression.Block(
                     Expression.IfThen(
-                    Expression.Equal(localVariableExpression, Expression.Default(localVariableExpression.Type)),
+                    Expression.Equal(localVariableExpression, Expression.Constant(null)),
                         Expression.Block(
                             Expression.Assign(WasParamCheckFailureExpr, Expression.Constant(true)),
                             Expression.Call(LogRequiredParameterNotProvidedMethod,
@@ -1613,23 +1613,8 @@ public static partial class RequestDelegateFactory
             factoryContext.InitialExpressions.Add(checkRequiredBodyBlock);
         }
 
-        Expression parameterExpression = localVariableExpression;
-
-        // If the parameter is a struct and it's nullability doesn't match the return value of BindAsync,
-        // we have to explicitly convert to the nullability the parameter expects.
-        if (IsNullableStruct(awaitedType) != IsNullableStruct(parameter.ParameterType))
-        {
-            // (Todo)param1_BindAsync_local 
-            parameterExpression = Expression.Convert(localVariableExpression, parameter.ParameterType);
-        }
-
-        if (!CanBeNull(awaitedType))
-        {
-            return parameterExpression;
-        }
-
         // param1_BindAsync_local ?? ParameterInfo.DefaultValue
-        return GetValueOrParameterDefault(parameterExpression, parameter);
+        return GetValueOrParameterDefault(Expression.Convert(localVariableExpression, parameter.ParameterType), parameter);
     }
 
     private static Expression BindParameterFromJson(ParameterInfo parameter, bool allowEmpty, FactoryContext factoryContext)

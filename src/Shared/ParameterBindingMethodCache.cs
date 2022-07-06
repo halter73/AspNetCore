@@ -35,7 +35,7 @@ internal sealed class ParameterBindingMethodCache
 
     // Since this is shared source, the cache won't be shared between RequestDelegateFactory and the ApiDescriptionProvider sadly :(
     private readonly ConcurrentDictionary<Type, Func<ParameterExpression, Expression, Expression>?> _stringMethodCallCache = new();
-    private readonly ConcurrentDictionary<Type, (Func<ParameterInfo, Expression>?, int, Type)> _bindAsyncMethodCallCache = new();
+    private readonly ConcurrentDictionary<Type, (Func<ParameterInfo, Expression>?, int)> _bindAsyncMethodCallCache = new();
     private readonly ConcurrentDictionary<Type, (ConstructorInfo?, ConstructorParameter[])> _constructorCache = new();
 
     // If IsDynamicCodeSupported is false, we can't use the static Enum.TryParse<T> since there's no easy way for
@@ -285,7 +285,7 @@ internal sealed class ParameterBindingMethodCache
         }
 
         var nonNullableParameterType = Nullable.GetUnderlyingType(parameter.ParameterType) ?? parameter.ParameterType;
-        var (method, paramCount, returnType) = _bindAsyncMethodCallCache.GetOrAdd(nonNullableParameterType, Finder);
+        var (method, paramCount) = _bindAsyncMethodCallCache.GetOrAdd(nonNullableParameterType, Finder);
         return (method?.Invoke(parameter), paramCount);
 
         static bool ValidateReturnType(MethodInfo methodInfo)

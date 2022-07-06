@@ -547,17 +547,13 @@ public static partial class RequestDelegateFactory
 
         var args = new Expression[parameters.Length];
 
-        var hasFilters = factoryContext.FilterFactories is { Count: > 0 };
-
         for (var i = 0; i < parameters.Length; i++)
         {
-            var parameter = parameters[i];
-
-            factoryContext.ParametersAndPropertiesAsParameters.Add(parameter);
-            args[i] = CreateArgument(parameter, factoryContext);
+            factoryContext.ParametersAndPropertiesAsParameters.Add(parameters[i]);
+            args[i] = CreateArgument(parameters[i], factoryContext);
 
             // Only populate the context args if there are filters for this handler
-            if (hasFilters)
+            if (factoryContext.FilterFactories is { Count: > 0 })
             {
                 if (RuntimeFeature.IsDynamicCodeSupported)
                 {
@@ -565,15 +561,15 @@ public static partial class RequestDelegateFactory
                     // of the route handler's arguments for use in RouteHandlerInvocationContext
                     // construction and route handler invocation.
                     // context.GetArgument<string>(0)
-                    // (string, name_local), (int, int_local)
-                    factoryContext.ContextArgAccess.Add(Expression.Call(FilterContextExpr, RouteHandlerInvocationContextGetArgument.MakeGenericMethod(parameter.ParameterType), Expression.Constant(i)));
+                    factoryContext.ContextArgAccess.Add(Expression.Call(FilterContextExpr,
+                        RouteHandlerInvocationContextGetArgument.MakeGenericMethod(parameters[i].ParameterType), Expression.Constant(i)));
                 }
                 else
                 {
                     // We box if dynamic code isn't supported
                     factoryContext.ContextArgAccess.Add(Expression.Convert(
                         Expression.Property(FilterContextArgumentsExpr, ListIndexer, Expression.Constant(i)),
-                    parameter.ParameterType));
+                    parameters[i].ParameterType));
                 }
             }
         }
@@ -666,7 +662,7 @@ public static partial class RequestDelegateFactory
                     $"Nested {nameof(AsParametersAttribute)} is not supported and should be used only for handler parameters.");
             }
 
-            return BindPropertiesAsParameters(parameter, factoryContext);
+            return BindPropertiesAsParameter(parameter, factoryContext);
         }
         else if (parameter.ParameterType == typeof(HttpContext))
         {
@@ -1201,7 +1197,7 @@ public static partial class RequestDelegateFactory
         return Expression.Convert(indexExpression, returnType ?? typeof(string));
     }
 
-    private static Expression BindPropertiesAsParameters(ParameterInfo parameter, FactoryContext factoryContext)
+    private static Expression BindPropertiesAsParameter(ParameterInfo parameter, FactoryContext factoryContext)
     {
         // Let's do this instead for all async values. We'll assign the locals at the end!
         var argumentExpression = Expression.Variable(parameter.ParameterType, $"{parameter.Name}_properties_local");
@@ -1691,9 +1687,9 @@ public static partial class RequestDelegateFactory
         }
 
         factoryContext.TrackedParameters.Add(key, trackedParameterSource);
-        var valueExpression = GetValueFromProperty(FormFilesExpr, FormFilesIndexerProperty, key, typeof(IFormFile));
+        var formFileExpression = GetValueFromProperty(FormFilesExpr, FormFilesIndexerProperty, key, typeof(IFormFile));
 
-        return BindParameterFromReferenceExpression(parameter, valueExpression, factoryContext, "form file");
+        return BindParameterFromReferenceExpression(parameter, formFileExpression, factoryContext, "form file");
     }
 
     static void AddFormParameterBinder(FactoryContext factoryContext)

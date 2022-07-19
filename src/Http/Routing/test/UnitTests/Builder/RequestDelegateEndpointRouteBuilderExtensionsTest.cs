@@ -227,9 +227,11 @@ public class RequestDelegateEndpointRouteBuilderExtensionsTest
         var dataSource = Assert.Single(builder.DataSources);
         var endpoint = Assert.Single(dataSource.Endpoints);
 
+        // As with the Delegate Map method overloads for route handlers, the attributes on the RequestDelegate
+        // can override the HttpMethodMetadata. Extension methods could already do this.
         Assert.Equal(3, endpoint.Metadata.Count);
-        Assert.Equal("ATTRIBUTE", GetMethod(endpoint.Metadata[0]));
-        Assert.Equal("METHOD", GetMethod(endpoint.Metadata[1]));
+        Assert.Equal("METHOD", GetMethod(endpoint.Metadata[0]));
+        Assert.Equal("ATTRIBUTE", GetMethod(endpoint.Metadata[1]));
         Assert.Equal("BUILDER", GetMethod(endpoint.Metadata[2]));
 
         Assert.Equal("BUILDER", endpoint.Metadata.GetMetadata<IHttpMethodMetadata>()?.HttpMethods.Single());

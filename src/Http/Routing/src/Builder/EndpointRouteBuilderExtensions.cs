@@ -422,13 +422,20 @@ public static class EndpointRouteBuilderExtensions
 
         if (routeEndpointDataSource is null)
         {
-            var routeHandlerOptions = endpoints.ServiceProvider.GetService<IOptions<RouteHandlerOptions>>();
+            // ServiceProvider isn't nullable, but it is being called by methods that historically did not access this property, so we null check anyway.
+            var routeHandlerOptions = endpoints.ServiceProvider?.GetService<IOptions<RouteHandlerOptions>>();
             var throwOnBadRequest = routeHandlerOptions?.Value.ThrowOnBadRequest ?? false;
 
-            routeEndpointDataSource = new RouteEndpointDataSource(endpoints.ServiceProvider, throwOnBadRequest);
+            routeEndpointDataSource = new RouteEndpointDataSource(endpoints.ServiceProvider ?? new EmptyServiceProvider(), throwOnBadRequest);
             endpoints.DataSources.Add(routeEndpointDataSource);
         }
 
         return routeEndpointDataSource;
+    }
+
+    private sealed class EmptyServiceProvider : IServiceProvider
+    {
+        public static EmptyServiceProvider Instance { get; } = new EmptyServiceProvider();
+        public object? GetService(Type serviceType) => null;
     }
 }

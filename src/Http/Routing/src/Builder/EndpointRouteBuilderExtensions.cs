@@ -2,7 +2,6 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
@@ -410,7 +409,16 @@ public static class EndpointRouteBuilderExtensions
 
     private static RouteEndpointDataSource GetOrAddRouteEndpointDataSource(this IEndpointRouteBuilder endpoints)
     {
-        var routeEndpointDataSource = endpoints.DataSources.OfType<RouteEndpointDataSource>().FirstOrDefault();
+        RouteEndpointDataSource? routeEndpointDataSource = null;
+
+        foreach (var dataSource in endpoints.DataSources)
+        {
+            if (dataSource is RouteEndpointDataSource foundDataSource)
+            {
+                routeEndpointDataSource = foundDataSource;
+                break;
+            }
+        }
 
         if (routeEndpointDataSource is null)
         {

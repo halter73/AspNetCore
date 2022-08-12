@@ -2412,4 +2412,12 @@ public static partial class RequestDelegateFactory
 
         public object? GetService(Type serviceType) => null;
     }
+
+    private sealed class RDFEndpointBuilder : EndpointBuilder
+    {
+        public override Endpoint Build()
+        {
+            throw new NotSupportedException();
+        }
+    }
 }

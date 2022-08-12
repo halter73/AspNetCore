@@ -5473,7 +5473,7 @@ public class RequestDelegateFactoryTests : LoggedTest
             {
                 (routeHandlerContext, next) =>
                 {
-                    var acceptsMetadata = routeHandlerContext.EndpointMetadata.OfType<IAcceptsMetadata>();
+                    var acceptsMetadata = routeHandlerContext.EndpointBuilder.Metadata.OfType<IAcceptsMetadata>();
                     var contentType = acceptsMetadata.SingleOrDefault()?.ContentTypes.SingleOrDefault();
 
                     return async (context) =>
@@ -6362,12 +6362,12 @@ public class RequestDelegateFactoryTests : LoggedTest
             {
                 (routeHandlerContext, next) =>
                 {
-                    routeHandlerContext.EndpointMetadata.Add(filter1Tag);
+                    routeHandlerContext.EndpointBuilder.Metadata.Add(filter1Tag);
                     return next;
                 },
                 (routeHandlerContext, next) =>
                 {
-                    routeHandlerContext.EndpointMetadata.Add(filter2Tag);
+                    routeHandlerContext.EndpointBuilder.Metadata.Add(filter2Tag);
                     return next;
                 },
             }),

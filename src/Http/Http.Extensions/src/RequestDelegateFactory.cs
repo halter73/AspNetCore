@@ -13,6 +13,7 @@ using System.Runtime.InteropServices;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Routing;
@@ -200,6 +201,11 @@ public static partial class RequestDelegateFactory
 
     private static FactoryContext CreateFactoryContext(RequestDelegateFactoryOptions? options, Delegate? handler = null)
     {
+        if (options?.EndpointBuilder?.RequestDelegate is not null)
+        {
+            throw new ArgumentException($"{nameof(RequestDelegateFactoryOptions)}.{nameof(RequestDelegateFactoryOptions.EndpointBuilder)} must be null.", nameof(options));
+        }
+
         return new FactoryContext
         {
             Handler = handler,
@@ -208,8 +214,9 @@ public static partial class RequestDelegateFactory
             RouteParameters = options?.RouteParameterNames?.ToList(),
             ThrowOnBadRequest = options?.ThrowOnBadRequest ?? false,
             DisableInferredFromBody = options?.DisableInferBodyFromParameters ?? false,
-            FilterFactories = options?.EndpointFilterFactories?.ToList(),
-            Metadata = options?.EndpointMetadata ?? new List<object>(),
+            FilterFactories = options?.EndpointBuilder?.FilterFactories.ToList(),
+            Metadata = options?.EndpointBuilder?.Metadata ?? new List<object>(),
+            EndpointBuilder = options?.EndpointBuilder,
         };
     }
 
@@ -2123,6 +2130,7 @@ public static partial class RequestDelegateFactory
         public bool HasInferredBody { get; set; }
 
         public IList<object> Metadata { get; init; } = default!;
+        public EndpointBuilder? EndpointBuilder { get; init; }
 
         public NullabilityInfoContext NullabilityContext { get; } = new();
 

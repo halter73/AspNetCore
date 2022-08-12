@@ -34,6 +34,8 @@ public sealed class RouteEndpointBuilder : EndpointBuilder
        RoutePattern routePattern,
        int order)
     {
+        ArgumentNullException.ThrowIfNull(routePattern);
+
         RequestDelegate = requestDelegate;
         RoutePattern = routePattern;
         Order = order;

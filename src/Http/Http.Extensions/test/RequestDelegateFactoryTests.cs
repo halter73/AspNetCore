@@ -6380,6 +6380,37 @@ public class RequestDelegateFactoryTests : LoggedTest
             m => Assert.Same(filter1Tag, m));
     }
 
+    [Fact]
+    public void Create_Rejects_EndpointBuilderWithNonNullRequestDelegate()
+    {
+        RequestDelegate requestDelegate = static context => Task.CompletedTask;
+
+        RequestDelegateFactoryOptions options = new()
+        {
+            EndpointBuilder = new RouteEndpointBuilder(requestDelegate, RoutePatternFactory.Parse("/"), order: 0),
+        };
+
+        var ex = Assert.Throws<ArgumentException>(() => RequestDelegateFactory.Create(requestDelegate, options));
+
+        Assert.Equal("options", ex.ParamName);
+    }
+
+    [Fact]
+    public void Create_Populates_EndpointBuilderWithRequestDelegateAndMetadata()
+    {
+        RequestDelegate requestDelegate = static context => Task.CompletedTask;
+
+        RequestDelegateFactoryOptions options = new()
+        {
+            EndpointBuilder = new RouteEndpointBuilder(null, RoutePatternFactory.Parse("/"), order: 0),
+        };
+
+        var result = RequestDelegateFactory.Create(requestDelegate, options);
+
+        Assert.Same(options.EndpointBuilder.RequestDelegate, result.RequestDelegate);
+        Assert.Same(options.EndpointBuilder.Metadata, result.EndpointMetadata);
+    }
+
     private DefaultHttpContext CreateHttpContext()
     {
         var responseFeature = new TestHttpResponseFeature();

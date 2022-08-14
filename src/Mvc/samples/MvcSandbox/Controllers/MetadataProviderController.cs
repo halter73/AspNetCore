@@ -8,49 +8,49 @@ namespace MvcSandbox.Controllers;
 
 public class MetadataProviderController
 {
-    public ActionResult ActionWithParameterMetadata(AddsCustomParameterMetadata param1) => null;
-    public ActionResult ActionWithRemovalFromParameterMetadata(RemovesAcceptsParameterMetadata param1) => null;
-    public ActionResult ActionWithRemovalFromParameterEndpointMetadata(RemovesAcceptsParameterEndpointMetadata param1) => null;
+    public AddsCustomEndpointMetadataActionResult ActionWithParameterMetadata(AddsCustomParameterMetadata param1) => new();
+    public AddsCustomEndpointMetadataActionResult ActionWithRemovalFromParameterMetadata(RemovesAcceptsParameterMetadata param1) => new();
+    public AddsCustomEndpointMetadataActionResult ActionWithRemovalFromParameterEndpointMetadata(RemovesAcceptsParameterEndpointMetadata param1) => new();
 
     [HttpGet("selector1")]
     [HttpGet("selector2")]
-    public ActionResult MultipleSelectorsActionWithParameterMetadata(AddsCustomParameterMetadata param1) => null;
+    public AddsCustomEndpointMetadataActionResult MultipleSelectorsActionWithParameterMetadata(AddsCustomParameterMetadata param1) => new();
 
-    public AddsCustomEndpointMetadataResult ActionWithMetadataInResult() => null;
+    public AddsCustomEndpointMetadataResult ActionWithMetadataInResult() => new();
 
     public ValueTask<AddsCustomEndpointMetadataResult> ActionWithMetadataInValueTaskOfResult()
-        => ValueTask.FromResult<AddsCustomEndpointMetadataResult>(null);
+        => ValueTask.FromResult<AddsCustomEndpointMetadataResult>(new());
 
     public Task<AddsCustomEndpointMetadataResult> ActionWithMetadataInTaskOfResult()
-        => Task.FromResult<AddsCustomEndpointMetadataResult>(null);
+        => Task.FromResult<AddsCustomEndpointMetadataResult>(new());
 
     [HttpGet("selector1")]
     [HttpGet("selector2")]
-    public AddsCustomEndpointMetadataActionResult MultipleSelectorsActionWithMetadataInActionResult() => null;
+    public AddsCustomEndpointMetadataActionResult MultipleSelectorsActionWithMetadataInActionResult() => new();
 
-    public AddsCustomEndpointMetadataActionResult ActionWithMetadataInActionResult() => null;
+    public AddsCustomEndpointMetadataActionResult ActionWithMetadataInActionResult() => new();
 
     public ValueTask<AddsCustomEndpointMetadataActionResult> ActionWithMetadataInValueTaskOfActionResult()
-        => ValueTask.FromResult<AddsCustomEndpointMetadataActionResult>(null);
+        => ValueTask.FromResult<AddsCustomEndpointMetadataActionResult>(new());
 
     public Task<AddsCustomEndpointMetadataActionResult> ActionWithMetadataInTaskOfActionResult()
-        => Task.FromResult<AddsCustomEndpointMetadataActionResult>(null);
+        => Task.FromResult<AddsCustomEndpointMetadataActionResult>(new());
 
-    public RemovesAcceptsMetadataResult ActionWithNoAcceptsMetadataInResult() => null;
+    public RemovesAcceptsMetadataResult ActionWithNoAcceptsMetadataInResult() => new();
 
     public ValueTask<RemovesAcceptsMetadataResult> ActionWithNoAcceptsMetadataInValueTaskOfResult()
-        => ValueTask.FromResult<RemovesAcceptsMetadataResult>(null);
+        => ValueTask.FromResult<RemovesAcceptsMetadataResult>(new());
 
     public Task<RemovesAcceptsMetadataResult> ActionWithNoAcceptsMetadataInTaskOfResult()
-        => Task.FromResult<RemovesAcceptsMetadataResult>(null);
+        => Task.FromResult<RemovesAcceptsMetadataResult>(new());
 
-    public RemovesAcceptsMetadataActionResult ActionWithNoAcceptsMetadataInActionResult() => null;
+    public RemovesAcceptsMetadataActionResult ActionWithNoAcceptsMetadataInActionResult() => new();
 
     public ValueTask<RemovesAcceptsMetadataActionResult> ActionWithNoAcceptsMetadataInValueTaskOfActionResult()
-        => ValueTask.FromResult<RemovesAcceptsMetadataActionResult>(null);
+        => ValueTask.FromResult<RemovesAcceptsMetadataActionResult>(new());
 
     public Task<RemovesAcceptsMetadataActionResult> ActionWithNoAcceptsMetadataInTaskOfActionResult()
-        => Task.FromResult<RemovesAcceptsMetadataActionResult>(null);
+        => Task.FromResult<RemovesAcceptsMetadataActionResult>(new());
 }
 public class CustomEndpointMetadata
 {
@@ -91,7 +91,7 @@ public class AddsCustomEndpointMetadataResult : IEndpointMetadataProvider, IResu
         context.EndpointMetadata?.Add(new CustomEndpointMetadata { Source = MetadataSource.ReturnType });
     }
 
-    public Task ExecuteAsync(HttpContext httpContext) => throw new NotImplementedException();
+    public Task ExecuteAsync(HttpContext httpContext) => Task.Completed.Task;
 }
 
 public class AddsCustomEndpointMetadataActionResult : IEndpointMetadataProvider, IActionResult
@@ -100,7 +100,7 @@ public class AddsCustomEndpointMetadataActionResult : IEndpointMetadataProvider,
     {
         context.EndpointMetadata?.Add(new CustomEndpointMetadata { Source = MetadataSource.ReturnType });
     }
-    public Task ExecuteResultAsync(ActionContext context) => throw new NotImplementedException();
+    public Task ExecuteResultAsync(ActionContext context) => Task.Completed.Task;
 }
 
 public class RemovesAcceptsMetadataResult : IEndpointMetadataProvider, IResult
@@ -120,7 +120,7 @@ public class RemovesAcceptsMetadataResult : IEndpointMetadataProvider, IResult
         }
     }
 
-    public Task ExecuteAsync(HttpContext httpContext) => throw new NotImplementedException();
+    public Task ExecuteAsync(HttpContext httpContext) => Task.Completed.Task;
 }
 
 public class RemovesAcceptsMetadataActionResult : IEndpointMetadataProvider, IActionResult
@@ -140,7 +140,7 @@ public class RemovesAcceptsMetadataActionResult : IEndpointMetadataProvider, IAc
         }
     }
 
-    public Task ExecuteResultAsync(ActionContext context) => throw new NotImplementedException();
+    public Task ExecuteResultAsync(ActionContext context) => Task.Completed.Task;
 }
 
 public class RemovesAcceptsParameterMetadata : IEndpointParameterMetadataProvider

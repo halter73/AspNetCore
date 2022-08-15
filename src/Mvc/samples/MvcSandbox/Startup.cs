@@ -34,7 +34,7 @@ public class Startup
 
         app.UseEndpoints(builder =>
         {
-            ConfigureEndpoints(builder);
+            //ConfigureEndpoints(builder);
             var group = builder.MapGroup("/group");
             ConfigureEndpoints(group);
         });

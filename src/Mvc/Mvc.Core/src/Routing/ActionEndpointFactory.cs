@@ -244,7 +244,7 @@ internal sealed class ActionEndpointFactory
         // See comments on the other usage of EndpointNameMetadata in this class.
         //
         // The set of cases for a conventional route are much simpler. We don't need to check
-        // for Endpoint Name already exising here because there's no way to add an attribute to
+        // for Endpoint Name already existing here because there's no way to add an attribute to
         // a conventional route.
         if (route.RouteName != null && routeNames.Add(route.RouteName))
         {

@@ -116,6 +116,15 @@ public static partial class RequestDelegateFactory
     private static readonly string[] DefaultAcceptsContentType = new[] { "application/json" };
     private static readonly string[] FormFileContentType = new[] { "multipart/form-data" };
 
+    public static void InferMetadata(MethodInfo methodInfo, RequestDelegateFactoryOptions? options = null)
+    {
+
+
+
+        var factoryContext = CreateFactoryContext(options, handler);
+
+    }
+
     /// <summary>
     /// Creates a <see cref="RequestDelegate"/> implementation for <paramref name="handler"/>.
     /// </summary>

@@ -469,7 +469,7 @@ internal sealed class ActionEndpointFactory
             var context = new EndpointFilterFactoryContext
             {
                 MethodInfo = cad.MethodInfo,
-                EndpointBuilder = builder,
+                ApplicationServices = builder.ApplicationServices,
             };
 
             var initialFilteredInvocation = del;

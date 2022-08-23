@@ -1018,8 +1018,6 @@ public class RouteHandlerEndpointRouteBuilderExtensionsTest : LoggedTest
         Assert.True(filterFactoryRan);
     }
 
-    }
-
     [Fact]
     public void FinallyOnGroup_CanExamineFinallyOnEndpoint()
     {
@@ -1074,6 +1072,8 @@ public class RouteHandlerEndpointRouteBuilderExtensionsTest : LoggedTest
             .SelectMany(ds => ds.Endpoints));
 
         Assert.Equal(new[] { "added-from-endpoint-1", "added-from-endpoint-2", "added-from-inner-group", "added-from-outer-group" }, endpoint.Metadata.GetOrderedMetadata<string>());
+    }
+
     class MyService { }
 
     class ServiceAccessingEndpointFilter : IEndpointFilter

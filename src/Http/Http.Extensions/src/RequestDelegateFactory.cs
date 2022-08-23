@@ -398,7 +398,7 @@ public static partial class RequestDelegateFactory
         var routeHandlerContext = new EndpointFilterFactoryContext
         {
             MethodInfo = methodInfo,
-            EndpointBuilder = factoryContext.EndpointBuilder,
+            ApplicationServices = factoryContext.EndpointBuilder.ApplicationServices,
         };
 
         var initialFilteredInvocation = filteredInvocation;

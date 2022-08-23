@@ -115,7 +115,6 @@ public class RequestDelegateEndpointRouteBuilderExtensionsTest
 
         var endpointBuilder = map(builder, "/", initialRequestDelegate).AddEndpointFilterFactory(filterFactory: (routeHandlerContext, next) =>
         {
-            routeHandlerContext.EndpointBuilder.Metadata.Add(filterTag);
             return async invocationContext =>
             {
                 Assert.IsAssignableFrom<HttpContext>(Assert.Single(invocationContext.Arguments));
@@ -129,7 +128,6 @@ public class RequestDelegateEndpointRouteBuilderExtensionsTest
         var endpoint = Assert.Single(dataSource.Endpoints);
 
         Assert.NotSame(initialRequestDelegate, endpoint.RequestDelegate);
-        Assert.Same(filterTag, endpoint.Metadata.GetMetadata<ITagsMetadata>());
 
         Assert.NotNull(endpoint.RequestDelegate);
         var requestDelegate = endpoint.RequestDelegate!;
@@ -147,11 +145,11 @@ public class RequestDelegateEndpointRouteBuilderExtensionsTest
         var builder = new DefaultEndpointRouteBuilder(new ApplicationBuilder(EmptyServiceProvider.Instance));
 
         RequestDelegate initialRequestDelegate = static (context) => Task.CompletedTask;
-        var filterTag = new TagsAttribute("filter");
+        var runCount = 0;
 
         var endpointBuilder = map(builder, "/", initialRequestDelegate).AddEndpointFilterFactory((routeHandlerContext, next) =>
         {
-            routeHandlerContext.EndpointBuilder.Metadata.Add(filterTag);
+            runCount++;
             return next;
         });
 
@@ -159,7 +157,7 @@ public class RequestDelegateEndpointRouteBuilderExtensionsTest
         var endpoint = Assert.Single(dataSource.Endpoints);
 
         Assert.Same(initialRequestDelegate, endpoint.RequestDelegate);
-        Assert.Same(filterTag, endpoint.Metadata.GetMetadata<ITagsMetadata>());
+        Assert.Equal(1, runCount);
     }
 
     [Fact]

@@ -5441,7 +5441,7 @@ public class RequestDelegateFactoryTests : LoggedTest
     }
 
     [Fact]
-    public async Task RequestDelegateFactory_CanInvokeEndpointFilter_ThatUsesEndpointMetadata()
+    public async Task RequestDelegateFactory_CanInvokeEndpointFilter_ThatReadsEndpointMetadata()
     {
         // Arrange
         string HelloName(IFormFileCollection formFiles)
@@ -5473,22 +5473,28 @@ public class RequestDelegateFactoryTests : LoggedTest
             {
                 (routeHandlerContext, next) =>
                 {
-                    var acceptsMetadata = routeHandlerContext.EndpointBuilder.Metadata.OfType<IAcceptsMetadata>();
-                    var contentType = acceptsMetadata.SingleOrDefault()?.ContentTypes.SingleOrDefault();
+                    string? contentType = null;
 
                     return async (context) =>
                     {
+                        contentType ??= context.HttpContext.GetEndpoint()?.Metadata.GetMetadata<IAcceptsMetadata>()?.ContentTypes.SingleOrDefault();
+
                         if (contentType == "multipart/form-data")
                         {
                             return "I see you expect a form.";
                         }
+
                         return await next(context);
                     };
                 },
             }),
         });
-        var requestDelegate = factoryResult.RequestDelegate;
-        await requestDelegate(httpContext);
+
+        var builder = new RouteEndpointBuilder(factoryResult.RequestDelegate, RoutePatternFactory.Parse("/"), order: 0);
+        ((List<object>)builder.Metadata).AddRange(factoryResult.EndpointMetadata);
+        httpContext.Features.Set<IEndpointFeature>(new EndpointFeature { Endpoint = builder.Build() });
+
+        await factoryResult.RequestDelegate(httpContext);
 
         // Assert
         var responseBody = Encoding.UTF8.GetString(responseBodyStream.ToArray());
@@ -6353,8 +6359,7 @@ public class RequestDelegateFactoryTests : LoggedTest
     public void Create_ReturnsSameRequestDelegatePassedIn_IfNotModifiedByFilters()
     {
         RequestDelegate initialRequestDelegate = static (context) => Task.CompletedTask;
-        var filter1Tag = new TagsAttribute("filter1");
-        var filter2Tag = new TagsAttribute("filter2");
+        var runCount = 0;
 
         RequestDelegateFactoryOptions options = new()
         {
@@ -6362,12 +6367,12 @@ public class RequestDelegateFactoryTests : LoggedTest
             {
                 (routeHandlerContext, next) =>
                 {
-                    routeHandlerContext.EndpointBuilder.Metadata.Add(filter1Tag);
+                    runCount++;
                     return next;
                 },
                 (routeHandlerContext, next) =>
                 {
-                    routeHandlerContext.EndpointBuilder.Metadata.Add(filter2Tag);
+                    runCount++;
                     return next;
                 },
             }),
@@ -6375,9 +6380,7 @@ public class RequestDelegateFactoryTests : LoggedTest
 
         var result = RequestDelegateFactory.Create(initialRequestDelegate, options);
         Assert.Same(initialRequestDelegate, result.RequestDelegate);
-        Assert.Collection(result.EndpointMetadata,
-            m => Assert.Same(filter2Tag, m),
-            m => Assert.Same(filter1Tag, m));
+        Assert.Equal(2, runCount);
     }
 
     [Fact]
@@ -6975,6 +6978,11 @@ public class RequestDelegateFactoryTests : LoggedTest
         {
             throw new NotImplementedException();
         }
+    }
+
+    private class EndpointFeature : IEndpointFeature
+    {
+        public Endpoint? Endpoint { get; set; }
     }
 }
 

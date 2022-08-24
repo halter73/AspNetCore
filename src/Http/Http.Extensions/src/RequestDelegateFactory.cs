@@ -9,7 +9,6 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
@@ -383,9 +382,8 @@ public static partial class RequestDelegateFactory
         {
             // Add metadata provided by the delegate return type and parameter types next, this will be more specific than inferred metadata from above
             AddTypeProvidedMetadata(methodInfo,
-                factoryContext.EndpointBuilder.Metadata,
-                factoryContext.ServiceProvider,
-                CollectionsMarshal.AsSpan(factoryContext.Parameters));
+                factoryContext.EndpointBuilder,
+                factoryContext.Parameters);
         }
 
         return args;
@@ -577,7 +575,7 @@ public static partial class RequestDelegateFactory
         return fallbackConstruction;
     }
 
-    private static void AddTypeProvidedMetadata(MethodInfo methodInfo, IList<object> metadata, IServiceProvider services, ReadOnlySpan<ParameterInfo> parameters)
+    private static void AddTypeProvidedMetadata(MethodInfo methodInfo, EndpointBuilder builder, IEnumerable<ParameterInfo> parameters)
     {
         object?[]? invokeArgs = null;
 
@@ -587,18 +585,18 @@ public static partial class RequestDelegateFactory
             if (typeof(IEndpointParameterMetadataProvider).IsAssignableFrom(parameter.ParameterType))
             {
                 // Parameter type implements IEndpointParameterMetadataProvider
-                var parameterContext = new EndpointParameterMetadataContext(parameter, metadata, services);
-                invokeArgs ??= new object[1];
-                invokeArgs[0] = parameterContext;
+                invokeArgs ??= new object[2];
+                invokeArgs[1] = builder;
+                invokeArgs[0] = parameter;
                 PopulateMetadataForParameterMethod.MakeGenericMethod(parameter.ParameterType).Invoke(null, invokeArgs);
             }
 
             if (typeof(IEndpointMetadataProvider).IsAssignableFrom(parameter.ParameterType))
             {
                 // Parameter type implements IEndpointMetadataProvider
-                var context = new EndpointMetadataContext(methodInfo, metadata, services);
-                invokeArgs ??= new object[1];
-                invokeArgs[0] = context;
+                invokeArgs ??= new object[2];
+                invokeArgs[0] = parameter;
+                invokeArgs[1] = builder;
                 PopulateMetadataForEndpointMethod.MakeGenericMethod(parameter.ParameterType).Invoke(null, invokeArgs);
             }
         }
@@ -613,23 +611,23 @@ public static partial class RequestDelegateFactory
         if (returnType is not null && typeof(IEndpointMetadataProvider).IsAssignableFrom(returnType))
         {
             // Return type implements IEndpointMetadataProvider
-            var context = new EndpointMetadataContext(methodInfo, metadata, services);
-            invokeArgs ??= new object[1];
-            invokeArgs[0] = context;
+            invokeArgs ??= new object[2];
+            invokeArgs[0] = methodInfo;
+            invokeArgs[1] = builder;
             PopulateMetadataForEndpointMethod.MakeGenericMethod(returnType).Invoke(null, invokeArgs);
         }
     }
 
-    private static void PopulateMetadataForParameter<T>(EndpointParameterMetadataContext parameterContext)
+    private static void PopulateMetadataForParameter<T>(ParameterInfo parameter, EndpointBuilder builder)
         where T : IEndpointParameterMetadataProvider
     {
-        T.PopulateMetadata(parameterContext);
+        T.PopulateMetadata(parameter, builder);
     }
 
-    private static void PopulateMetadataForEndpoint<T>(EndpointMetadataContext context)
+    private static void PopulateMetadataForEndpoint<T>(MethodInfo method, EndpointBuilder builder)
         where T : IEndpointMetadataProvider
     {
-        T.PopulateMetadata(context);
+        T.PopulateMetadata(method, builder);
     }
 
     private static Expression[] CreateArguments(ParameterInfo[]? parameters, RequestDelegateFactoryContext factoryContext)

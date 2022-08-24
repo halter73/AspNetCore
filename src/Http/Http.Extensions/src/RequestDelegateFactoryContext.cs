@@ -16,15 +16,20 @@ internal sealed class RequestDelegateFactoryContext
     public required List<string>? RouteParameters { get; init; }
     public required bool ThrowOnBadRequest { get; init; }
     public required bool DisableInferredFromBody { get; init; }
-
-    // The following used to ensure that a cached context on RequestDelegateFactoryOptions.FactoryContext is valid for reuse.
-    public required MethodInfo CachedMethodInfo { get; init; }
+    public required EndpointBuilder EndpointBuilder { get; init; }
 
     // Handler could be null if the MethodInfo overload of RDF.Create is used, but that doesn't matter because this is
     // only referenced to optimize certain cases where a RequestDelegate is the handler and filters don't modify it.
     public Delegate? Handler { get; set; }
 
     // Temporary State
+
+    // This indicates whether we're currently in RDF.Create() with a non-null RequestDelegateResult.
+    // This is settable, because if this context is cached we need to set it to true after it's created.
+    // But it's still possible this should be initialized to true initially, so we're making it required.
+    // In theory, someone could construct their own RequestDelegateResult without a cached context.
+    public required bool MetadataAlreadyInferred { get; set; }
+
     public ParameterInfo? JsonRequestBodyParameter { get; set; }
     public bool AllowEmptyRequestBody { get; set; }
 
@@ -36,8 +41,6 @@ internal sealed class RequestDelegateFactoryContext
     public Dictionary<string, string> TrackedParameters { get; } = new();
     public bool HasMultipleBodyParameters { get; set; }
     public bool HasInferredBody { get; set; }
-
-    public required EndpointBuilder EndpointBuilder { get; init; }
 
     public NullabilityInfoContext NullabilityContext { get; } = new();
 

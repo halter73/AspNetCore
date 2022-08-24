@@ -204,9 +204,6 @@ internal sealed class RouteEndpointDataSource : EndpointDataSource
         // If no convention has modified builder.RequestDelegate, we can use the RequestDelegate returned by the RequestDelegateFactory directly.
         var conventionOverriddenRequestDelegate = ReferenceEquals(builder.RequestDelegate, redirectRequestDelegate) ? null : builder.RequestDelegate;
 
-        // Now that we're done running conventions, we no longer need the redirect RequestDelegate. The RequestDelegateFactory prevents it being set ahead of time.
-        builder.RequestDelegate = null;
-
         if (isRouteHandler || builder.FilterFactories.Count > 0)
         {
             var routeParamNames = new List<string>(pattern.Parameters.Count);

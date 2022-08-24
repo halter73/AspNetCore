@@ -6384,21 +6384,6 @@ public class RequestDelegateFactoryTests : LoggedTest
     }
 
     [Fact]
-    public void Create_Rejects_EndpointBuilderWithNonNullRequestDelegate()
-    {
-        RequestDelegate requestDelegate = static context => Task.CompletedTask;
-
-        RequestDelegateFactoryOptions options = new()
-        {
-            EndpointBuilder = new RouteEndpointBuilder(requestDelegate, RoutePatternFactory.Parse("/"), order: 0),
-        };
-
-        var ex = Assert.Throws<ArgumentException>(() => RequestDelegateFactory.Create(requestDelegate, options));
-
-        Assert.Equal("options", ex.ParamName);
-    }
-
-    [Fact]
     public void Create_Populates_EndpointBuilderWithRequestDelegateAndMetadata()
     {
         RequestDelegate requestDelegate = static context => Task.CompletedTask;

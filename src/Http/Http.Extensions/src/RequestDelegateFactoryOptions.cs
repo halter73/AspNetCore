@@ -48,8 +48,4 @@ public sealed class RequestDelegateFactoryOptions
     /// insert their metadata at the start to give lower precedence, but this is unusual.
     /// </remarks>
     public EndpointBuilder? EndpointBuilder { get; init; }
-
-    // Save time if the options are used twice in a row with the same MethodInfo. The common case for this is when calling RDF.InferMetadata() then RDF.Create().
-    // If this is used, metadata inference will not be repeated, but any metadata that would have been inferred should already be stored in the EndpointBuilder.
-    internal RequestDelegateFactoryContext? CachedFactoryContext { get; set; }
 }

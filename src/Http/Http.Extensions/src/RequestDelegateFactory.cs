@@ -122,10 +122,11 @@ public static partial class RequestDelegateFactory
     /// </summary>
     /// <param name="methodInfo">The <see cref="MethodInfo"/> for the route handler to be passed to <see cref="Create(Delegate, RequestDelegateFactoryOptions?, RequestDelegateMetadataResult?)"/>.</param>
     /// <param name="options">The options that will be used when calling <see cref="Create(Delegate, RequestDelegateFactoryOptions?, RequestDelegateMetadataResult?)"/>.</param>
-    /// <returns></returns>
+    /// <returns>The <see cref="RequestDelegateMetadataResult"/> to be passed to <see cref="Create(Delegate, RequestDelegateFactoryOptions?, RequestDelegateMetadataResult?)"/>.</returns>
+    [RequiresUnreferencedCode("RequestDelegateFactory performs object creation, serialization and deserialization on the delegates and its parameters. This cannot be statically analyzed.")]
     public static RequestDelegateMetadataResult InferMetadata(MethodInfo methodInfo, RequestDelegateFactoryOptions? options = null)
     {
-        var factoryContext = CreateFactoryContext(methodInfo, options);
+        var factoryContext = CreateFactoryContext(options);
         factoryContext.ArgumentExpressions = CreateArgumentsAndInferMetadata(methodInfo, factoryContext);
 
         return new RequestDelegateMetadataResult
@@ -173,7 +174,7 @@ public static partial class RequestDelegateFactory
             null => null,
         };
 
-        var factoryContext = CreateFactoryContext(handler.Method, options, handler);
+        var factoryContext = CreateFactoryContext(options, metadataResult, handler);
 
         Expression<Func<HttpContext, object?>> targetFactory = (httpContext) => handler.Target;
         var targetableRequestDelegate = CreateTargetableRequestDelegate(handler.Method, targetExpression, factoryContext, targetFactory);
@@ -229,7 +230,7 @@ public static partial class RequestDelegateFactory
             throw new ArgumentException($"{nameof(methodInfo)} does not have a declaring type.");
         }
 
-        var factoryContext = CreateFactoryContext(methodInfo, options);
+        var factoryContext = CreateFactoryContext(options, metadataResult);
         RequestDelegate finalRequestDelegate;
 
         if (methodInfo.IsStatic)
@@ -257,18 +258,14 @@ public static partial class RequestDelegateFactory
         return CreateRequestDelegateResult(finalRequestDelegate, factoryContext.EndpointBuilder);
     }
 
-    private static RequestDelegateFactoryContext CreateFactoryContext(MethodInfo methodInfo, RequestDelegateFactoryOptions? options, Delegate? handler = null)
+    private static RequestDelegateFactoryContext CreateFactoryContext(RequestDelegateFactoryOptions? options, RequestDelegateMetadataResult? metadataResult = null, Delegate? handler = null)
     {
-        if (options?.EndpointBuilder?.RequestDelegate is not null)
+        if (metadataResult?.CachedFactoryContext is not null)
         {
-            throw new ArgumentException($"{nameof(RequestDelegateFactoryOptions)}.{nameof(RequestDelegateFactoryOptions.EndpointBuilder)}.{nameof(EndpointBuilder.RequestDelegate)} must be null.", nameof(options));
-        }
-
-        if (options is not null && ReferenceEquals(methodInfo, options?.CachedFactoryContext?.CachedMethodInfo))
-        {
+            metadataResult.CachedFactoryContext.MetadataAlreadyInferred = true;
             // The handler was not passed in to the InferMetadata call that originally created this context.
-            options.CachedFactoryContext.Handler = handler;
-            return options.CachedFactoryContext;
+            metadataResult.CachedFactoryContext.Handler = handler;
+            return metadataResult.CachedFactoryContext;
         }
 
         var endpointBuilder = options?.EndpointBuilder ?? new RDFEndpointBuilder();
@@ -283,13 +280,8 @@ public static partial class RequestDelegateFactory
             ThrowOnBadRequest = options?.ThrowOnBadRequest ?? false,
             DisableInferredFromBody = options?.DisableInferBodyFromParameters ?? false,
             EndpointBuilder = endpointBuilder,
-            CachedMethodInfo = methodInfo,
+            MetadataAlreadyInferred = metadataResult is not null,
         };
-
-        if (options is not null)
-        {
-            options.CachedFactoryContext = factoryContext;
-        }
 
         return factoryContext;
     }
@@ -332,6 +324,9 @@ public static partial class RequestDelegateFactory
         //     return default;
         // }
 
+        // If ArgumentExpressions is not null here, it's guaranteed we have already inferred metadata and we can reuse a lot of work.
+        // The converse is not true. Metadata may have already been inferred even if ArgumentExpressions is null, but metadata
+        // inference is skipped internally if necessary.
         factoryContext.ArgumentExpressions ??= CreateArgumentsAndInferMetadata(methodInfo, factoryContext);
 
         factoryContext.MethodCall = CreateMethodCall(methodInfo, targetExpression, factoryContext.ArgumentExpressions);
@@ -384,11 +379,14 @@ public static partial class RequestDelegateFactory
         // For later reuse in Create().
         var args = CreateArguments(methodInfo.GetParameters(), factoryContext);
 
-        // Add metadata provided by the delegate return type and parameter types next, this will be more specific than inferred metadata from above
-        AddTypeProvidedMetadata(methodInfo,
-            factoryContext.EndpointBuilder.Metadata,
-            factoryContext.ServiceProvider,
-            CollectionsMarshal.AsSpan(factoryContext.Parameters));
+        if (!factoryContext.MetadataAlreadyInferred)
+        {
+            // Add metadata provided by the delegate return type and parameter types next, this will be more specific than inferred metadata from above
+            AddTypeProvidedMetadata(methodInfo,
+                factoryContext.EndpointBuilder.Metadata,
+                factoryContext.ServiceProvider,
+                CollectionsMarshal.AsSpan(factoryContext.Parameters));
+        }
 
         return args;
     }
@@ -1811,12 +1809,14 @@ public static partial class RequestDelegateFactory
         return Expression.Convert(boundValueExpr, parameter.ParameterType);
     }
 
-    private static void InsertInferredAcceptsMetadata(RequestDelegateFactoryContext factoryContext, Type type, string[] contentTypes)
+    private static void AddInferredAcceptsMetadata(RequestDelegateFactoryContext factoryContext, Type type, string[] contentTypes)
     {
-        // Insert the automatically-inferred AcceptsMetadata at the beginning of the list to give it the lowest precedence.
-        // It really doesn't makes sense for this metadata to be overridden, but we're preserving the old behavior out of an abundance of caution.
-        // I suspect most filters and metadata providers will just add their metadata to the end of the list.
-        factoryContext.EndpointBuilder.Metadata.Insert(0, new AcceptsMetadata(type, factoryContext.AllowEmptyRequestBody, contentTypes));
+        if (factoryContext.MetadataAlreadyInferred)
+        {
+            return;
+        }
+
+        factoryContext.EndpointBuilder.Metadata.Add(new AcceptsMetadata(type, factoryContext.AllowEmptyRequestBody, contentTypes));
     }
 
     private static Expression BindParameterFromFormFiles(
@@ -1833,7 +1833,7 @@ public static partial class RequestDelegateFactory
         // Do not duplicate the metadata if there are multiple form parameters
         if (!factoryContext.ReadForm)
         {
-            InsertInferredAcceptsMetadata(factoryContext, parameter.ParameterType, FormFileContentType);
+            AddInferredAcceptsMetadata(factoryContext, parameter.ParameterType, FormFileContentType);
         }
 
         factoryContext.ReadForm = true;
@@ -1857,7 +1857,7 @@ public static partial class RequestDelegateFactory
         // Do not duplicate the metadata if there are multiple form parameters
         if (!factoryContext.ReadForm)
         {
-            InsertInferredAcceptsMetadata(factoryContext, parameter.ParameterType, FormFileContentType);
+            AddInferredAcceptsMetadata(factoryContext, parameter.ParameterType, FormFileContentType);
         }
 
         factoryContext.ReadForm = true;
@@ -1887,7 +1887,7 @@ public static partial class RequestDelegateFactory
 
         factoryContext.JsonRequestBodyParameter = parameter;
         factoryContext.AllowEmptyRequestBody = allowEmpty || isOptional;
-        InsertInferredAcceptsMetadata(factoryContext, parameter.ParameterType, DefaultAcceptsContentType);
+        AddInferredAcceptsMetadata(factoryContext, parameter.ParameterType, DefaultAcceptsContentType);
 
         if (!factoryContext.AllowEmptyRequestBody)
         {

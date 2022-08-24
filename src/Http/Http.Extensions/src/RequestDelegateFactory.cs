@@ -586,8 +586,8 @@ public static partial class RequestDelegateFactory
             {
                 // Parameter type implements IEndpointParameterMetadataProvider
                 invokeArgs ??= new object[2];
-                invokeArgs[1] = builder;
                 invokeArgs[0] = parameter;
+                invokeArgs[1] = builder;
                 PopulateMetadataForParameterMethod.MakeGenericMethod(parameter.ParameterType).Invoke(null, invokeArgs);
             }
 
@@ -595,7 +595,7 @@ public static partial class RequestDelegateFactory
             {
                 // Parameter type implements IEndpointMetadataProvider
                 invokeArgs ??= new object[2];
-                invokeArgs[0] = parameter;
+                invokeArgs[0] = methodInfo;
                 invokeArgs[1] = builder;
                 PopulateMetadataForEndpointMethod.MakeGenericMethod(parameter.ParameterType).Invoke(null, invokeArgs);
             }

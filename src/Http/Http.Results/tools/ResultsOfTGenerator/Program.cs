@@ -60,6 +60,8 @@ public class Program
         writer.WriteLine();
 
         // Usings
+        writer.WriteLine("using System.Reflection;");
+        writer.WriteLine("using Microsoft.AspNetCore.Builder;");
         writer.WriteLine("using Microsoft.AspNetCore.Http.Metadata;");
         writer.WriteLine();
 
@@ -177,13 +179,14 @@ public class Program
 
             // IEndpointMetadataProvider.PopulateMetadata
             writer.WriteIndentedLine("/// <inheritdoc/>");
-            writer.WriteIndentedLine("static void IEndpointMetadataProvider.PopulateMetadata(EndpointMetadataContext context)");
+            writer.WriteIndentedLine("static void IEndpointMetadataProvider.PopulateMetadata(MethodInfo method, EndpointBuilder builder)");
             writer.WriteIndentedLine("{");
-            writer.WriteIndentedLine(2, "ArgumentNullException.ThrowIfNull(context);");
+            writer.WriteIndentedLine(2, "ArgumentNullException.ThrowIfNull(method);");
+            writer.WriteIndentedLine(2, "ArgumentNullException.ThrowIfNull(builder);");
             writer.WriteLine();
             for (int j = 1; j <= i; j++)
             {
-                writer.WriteIndentedLine(2, $"ResultsOfTHelper.PopulateMetadataIfTargetIsIEndpointMetadataProvider<TResult{j}>(context);");
+                writer.WriteIndentedLine(2, $"ResultsOfTHelper.PopulateMetadataIfTargetIsIEndpointMetadataProvider<TResult{j}>(method, builder);");
             }
             writer.WriteIndentedLine("}");
 

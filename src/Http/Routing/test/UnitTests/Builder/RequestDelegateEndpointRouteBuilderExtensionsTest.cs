@@ -304,9 +304,6 @@ public class RequestDelegateEndpointRouteBuilderExtensionsTest
 
         Assert.Collection(metadata,
             m => Assert.IsAssignableFrom<MethodInfo>(m),
-            m => Assert.Equal("System.Runtime.CompilerServices.NullableContextAttribute", m.ToString()),
-            m => Assert.IsAssignableFrom<Attribute1>(m),
-            m => Assert.IsAssignableFrom<Attribute2>(m),
             m => Assert.IsAssignableFrom<ParameterNameMetadata>(m),
             m =>
             {
@@ -317,7 +314,10 @@ public class RequestDelegateEndpointRouteBuilderExtensionsTest
             {
                 Assert.IsAssignableFrom<CustomEndpointMetadata>(m);
                 Assert.Equal(MetadataSource.ReturnType, ((CustomEndpointMetadata)m).Source);
-            });
+            },
+            m => Assert.Equal("System.Runtime.CompilerServices.NullableContextAttribute", m.ToString()),
+            m => Assert.IsAssignableFrom<Attribute1>(m),
+            m => Assert.IsAssignableFrom<Attribute2>(m));
     }
 
     [Attribute1]

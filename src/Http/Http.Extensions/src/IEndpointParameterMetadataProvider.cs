@@ -1,6 +1,9 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Reflection;
+using Microsoft.AspNetCore.Builder;
+
 namespace Microsoft.AspNetCore.Http.Metadata;
 
 /// <summary>
@@ -10,14 +13,14 @@ namespace Microsoft.AspNetCore.Http.Metadata;
 public interface IEndpointParameterMetadataProvider
 {
     /// <summary>
-    /// Populates metadata for the related <see cref="Endpoint"/>.
+    /// Populates metadata for the related <see cref="Endpoint"/> and <see cref="ParameterInfo"/>.
     /// </summary>
     /// <remarks>
-    /// This method is called by <see cref="RequestDelegateFactory"/> when creating a <see cref="RequestDelegate"/>.
-    /// The <see cref="EndpointParameterMetadataContext.EndpointMetadata"/> property of <paramref name="parameterContext"/> will contain
-    /// the initial metadata for the endpoint.<br />
-    /// Add or remove objects on <see cref="EndpointParameterMetadataContext.EndpointMetadata"/> to affect the metadata of the endpoint.
+    /// This method is called by <see cref="RequestDelegateFactory"/> when creating a <see cref="RequestDelegate"/> and by MVC when creating endpoints for controller actions.
+    /// This is called for each parameter of the route handler or action with a declared type implementing this interface.
+    /// Add or remove objects on the <see cref="EndpointBuilder.Metadata"/> property of the <paramref name="builder"/> to modify the <see cref="Endpoint.Metadata"/> being built.
     /// </remarks>
-    /// <param name="parameterContext">The <see cref="EndpointParameterMetadataContext"/>.</param>
-    static abstract void PopulateMetadata(EndpointParameterMetadataContext parameterContext);
+    /// <param name="parameter">The <see cref="ParameterInfo"/> of the route handler delegate or MVC Action of the endpoint being created.</param>
+    /// <param name="builder">The <see cref="EndpointBuilder"/> used to construct the endpoint for the given <paramref name="parameter"/>.</param>
+    static abstract void PopulateMetadata(ParameterInfo parameter, EndpointBuilder builder);
 }

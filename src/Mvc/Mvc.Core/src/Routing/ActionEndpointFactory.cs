@@ -363,7 +363,8 @@ internal sealed class ActionEndpointFactory
         var controllerActionDescriptor = action as ControllerActionDescriptor;
 
         // Add metadata inferred from the parameter and/or return type before action-specific metadata.
-        if (controllerActionDescriptor is not null)
+        // MethodInfo *should* never be null given a ControllerActionDescriptor, but this is unenforced.
+        if (controllerActionDescriptor?.MethodInfo is not null)
         {
             EndpointMetadataPopulator.PopulateMetadata(controllerActionDescriptor.MethodInfo, builder);
         }
@@ -391,7 +392,7 @@ internal sealed class ActionEndpointFactory
         // However, Endpoint Routing requires Endpoint Names to be unique.
         //
         // We can use the route name as the endpoint name if it's not set. Note that there's no
-        // attribute for this today so it's unlikley. Using endpoint name on a
+        // attribute for this today so it's unlikely.
         if (routeName != null &&
             !suppressLinkGeneration &&
             routeNames.Add(routeName) &&

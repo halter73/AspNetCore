@@ -234,12 +234,11 @@ public class Program
 
         // Using statements
         writer.WriteLine("using System.Reflection;");
-        writer.WriteLine("using System.Threading.Tasks;");
-        writer.WriteLine("using Microsoft.AspNetCore.Http.Metadata;");
+        writer.WriteLine("using Microsoft.AspNetCore.Builder;");
         writer.WriteLine("using Microsoft.AspNetCore.Http.HttpResults;");
-        writer.WriteLine("using Microsoft.Extensions.DependencyInjection;");
-        writer.WriteLine("using Microsoft.Extensions.Logging;");
-        writer.WriteLine("using Microsoft.Extensions.Logging.Abstractions;");
+        writer.WriteLine("using Microsoft.AspNetCore.Http.Metadata;");
+        writer.WriteLine("using Microsoft.AspNetCore.Routing;");
+        writer.WriteLine("using Microsoft.AspNetCore.Routing.Patterns;");
         writer.WriteLine();
 
         // Namespace
@@ -265,7 +264,7 @@ public class Program
             GenerateTest_AcceptsIResult_AsAnyTypeArg(writer, i);
             GenerateTest_AcceptsNestedResultsOfT_AsAnyTypeArg(writer, i);
             GenerateTest_PopulateMetadata_PopulatesMetadataFromTypeArgsThatImplementIEndpointMetadataProvider(writer, i);
-            GenerateTest_PopulateMetadata_Throws_ArgumentNullException_WhenContextIsNull(writer, i);
+            GenerateTest_PopulateMetadata_Throws_ArgumentNullException_WhenMethodOrBuilderIsNull(writer, i);
         }
 
         Generate_ChecksumResultClass(writer);
@@ -816,15 +815,14 @@ public class Program
         //{
         //    // Arrange
         //    Results<ProvidesMetadataResult1, ProvidesMetadataResult2> MyApi() { throw new NotImplementedException(); }
-        //    var metadata = new List<object>();
-        //    var context = new EndpointMetadataContext(((Delegate)MyApi).GetMethodInfo(), metadata, EmptyServiceProvider.Instance);
+        //    var builder = new RouteEndpointBuilder(requestDelegate: null, RoutePatternFactory.Parse(""/""), order: 0);
 
         //    // Act
-        //    PopulateMetadata<Results<ProvidesMetadataResult1, ProvidesMetadataResult2>>(context);
+        //    PopulateMetadata<Results<ProvidesMetadataResult1, ProvidesMetadataResult2>>(((Delegate)MyApi).GetMethodInfo(), builder);
 
         //    // Assert
-        //    Assert.Contains(context.EndpointMetadata, m => m is ResultTypeProvidedMetadata { SourceTypeName: nameof(ProvidesMetadataResult1) });
-        //    Assert.Contains(context.EndpointMetadata, m => m is ResultTypeProvidedMetadata { SourceTypeName: nameof(ProvidesMetadataResult2) });
+        //    Assert.Contains(builder.Metadata, m => m is ResultTypeProvidedMetadata { SourceTypeName: nameof(ProvidesMetadataResult1) });
+        //    Assert.Contains(builder.Metadata, m => m is ResultTypeProvidedMetadata { SourceTypeName: nameof(ProvidesMetadataResult2) });
         //}
 
         // Attributes
@@ -852,8 +850,7 @@ public class Program
             }
         }
         writer.WriteLine("> MyApi() { throw new NotImplementedException(); }");
-        writer.WriteIndentedLine(2, "var metadata = new List<object>();");
-        writer.WriteIndentedLine(2, "var context = new EndpointMetadataContext(((Delegate)MyApi).GetMethodInfo(), metadata, EmptyServiceProvider.Instance);");
+        writer.WriteIndentedLine(2, @"var builder = new RouteEndpointBuilder(requestDelegate: null, RoutePatternFactory.Parse(""/""), order: 0);");
         writer.WriteLine();
 
         // Act
@@ -868,14 +865,14 @@ public class Program
                 writer.Write(", ");
             }
         }
-        writer.WriteLine(">>(context);");
+        writer.WriteLine(">>(((Delegate)MyApi).GetMethodInfo(), builder);");
         writer.WriteLine();
 
         // Assert
         writer.WriteIndentedLine(2, "// Assert");
         for (int j = 1; j <= typeArgNumber; j++)
         {
-            writer.WriteIndentedLine(2, $"Assert.Contains(context.EndpointMetadata, m => m is ResultTypeProvidedMetadata {{ SourceTypeName: nameof(ProvidesMetadataResult{j}) }});");
+            writer.WriteIndentedLine(2, $"Assert.Contains(builder.Metadata, m => m is ResultTypeProvidedMetadata {{ SourceTypeName: nameof(ProvidesMetadataResult{j}) }});");
         }
 
         // Close method
@@ -883,13 +880,14 @@ public class Program
         writer.WriteLine();
     }
 
-    static void GenerateTest_PopulateMetadata_Throws_ArgumentNullException_WhenContextIsNull(StreamWriter writer, int typeArgNumber)
+    static void GenerateTest_PopulateMetadata_Throws_ArgumentNullException_WhenMethodOrBuilderIsNull(StreamWriter writer, int typeArgNumber)
     {
         //[Fact]
         //public void ResultsOfTResult1TResult2_PopulateMetadata_Throws_ArgumentNullException_WhenContextIsNull()
         //{
         //    // Act & Assert
-        //    Assert.Throws<ArgumentNullException>("context", () => PopulateMetadata<Results<ProvidesMetadataResult1, ProvidesMetadataResult2>>(null));
+        //    Assert.Throws<ArgumentNullException>("method", () => PopulateMetadata<Results<ProvidesMetadataResult1, ProvidesMetadataResult2>>(null, new RouteEndpointBuilder(requestDelegate: null, RoutePatternFactory.Parse("/"), order: 0)));
+        //    Assert.Throws<ArgumentNullException>("builder", () => PopulateMetadata<Results<ProvidesMetadataResult1, ProvidesMetadataResult2>>(((Delegate)MyApi).GetMethodInfo(), null));
         //}
 
         // Attributes
@@ -906,7 +904,7 @@ public class Program
 
         // Act & Assert
         writer.WriteIndentedLine(2, "// Act & Assert");
-        writer.WriteIndent(2, "Assert.Throws<ArgumentNullException>(\"context\", () => PopulateMetadata<Results<");
+        writer.WriteIndent(2, "Assert.Throws<ArgumentNullException>(\"method\", () => PopulateMetadata<Results<");
         for (int j = 1; j <= typeArgNumber; j++)
         {
             writer.Write($"ProvidesMetadataResult{j}");
@@ -916,7 +914,19 @@ public class Program
                 writer.Write(", ");
             }
         }
-        writer.WriteLine(">>(null));");
+        writer.WriteLine(@">>(null, new RouteEndpointBuilder(requestDelegate: null, RoutePatternFactory.Parse(""/""), order: 0)));");
+
+        writer.WriteIndent(2, "Assert.Throws<ArgumentNullException>(\"builder\", () => PopulateMetadata<Results<");
+        for (int j = 1; j <= typeArgNumber; j++)
+        {
+            writer.Write($"ProvidesMetadataResult{j}");
+
+            if (j != typeArgNumber)
+            {
+                writer.Write(", ");
+            }
+        }
+        writer.WriteLine(">>(((Delegate)GeneratedCodeIsUpToDate).GetMethodInfo(), null));");
 
         // Close method
         writer.WriteIndentedLine(1, "}");
@@ -963,18 +973,18 @@ public class Program
         //{
         //    public Task ExecuteAsync(HttpContext httpContext) => Task.CompletedTask;
 
-        //    public static void PopulateMetadata(EndpointMetadataContext context)
+        //    public static void PopulateMetadata(MethodInfo method, EndpointBuilder builder)
         //    {
-        //        context.EndpointMetadata.Add(new ResultTypeProvidedMetadata { SourceTypeName = nameof(ProvidesMetadataResult1) });
+        //        builder.Metadata.Add(new ResultTypeProvidedMetadata { SourceTypeName = nameof(ProvidesMetadataResult1) });
         //    }
         //}
         writer.WriteIndentedLine(1, $"class ProvidesMetadataResult{typeArgNumber} : IResult, IEndpointMetadataProvider");
         writer.WriteIndentedLine(1, "{");
         writer.WriteIndentedLine(2, "public Task ExecuteAsync(HttpContext httpContext) => Task.CompletedTask;");
         writer.WriteLine();
-        writer.WriteIndentedLine(2, "public static void PopulateMetadata(EndpointMetadataContext context)");
+        writer.WriteIndentedLine(2, "public static void PopulateMetadata(MethodInfo method, EndpointBuilder builder)");
         writer.WriteIndentedLine(2, "{");
-        writer.WriteIndentedLine(3, $"context.EndpointMetadata.Add(new ResultTypeProvidedMetadata {{ SourceTypeName = nameof(ProvidesMetadataResult{typeArgNumber}) }});");
+        writer.WriteIndentedLine(3, $"builder.Metadata.Add(new ResultTypeProvidedMetadata {{ SourceTypeName = nameof(ProvidesMetadataResult{typeArgNumber}) }});");
         writer.WriteIndentedLine(2, "}");
         writer.WriteIndentedLine(1, "}");
     }

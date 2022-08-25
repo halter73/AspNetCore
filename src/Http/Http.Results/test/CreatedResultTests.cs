@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Reflection;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -102,8 +103,8 @@ public class CreatedResultTests
         Assert.Equal(StatusCodes.Status201Created, result.StatusCode);
     }
 
-    private static void PopulateMetadata<TResult>(EndpointMetadataContext context)
-        where TResult : IEndpointMetadataProvider => TResult.PopulateMetadata(context);
+    private static void PopulateMetadata<TResult>(MethodInfo method, EndpointBuilder builder)
+        where TResult : IEndpointMetadataProvider => TResult.PopulateMetadata(method, builder);
 
     private static HttpContext GetHttpContext()
     {

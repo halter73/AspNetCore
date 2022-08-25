@@ -3,6 +3,7 @@
 
 using System.Reflection;
 using System.Text;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -81,8 +82,8 @@ public class OkResultTests
         Assert.Equal(StatusCodes.Status200OK, result.StatusCode);
     }
 
-    private static void PopulateMetadata<TResult>(EndpointMetadataContext context)
-        where TResult : IEndpointMetadataProvider => TResult.PopulateMetadata(context);
+    private static void PopulateMetadata<TResult>(MethodInfo method, EndpointBuilder builder)
+        where TResult : IEndpointMetadataProvider => TResult.PopulateMetadata(method, builder);
 
     private static IServiceProvider CreateServices()
     {

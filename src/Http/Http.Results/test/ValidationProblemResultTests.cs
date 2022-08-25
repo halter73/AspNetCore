@@ -3,6 +3,7 @@
 
 using System.Reflection;
 using System.Text.Json;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Mvc;
@@ -136,8 +137,8 @@ public class ValidationProblemResultTests
         Assert.Equal(contentType, result.ContentType);
     }
 
-    private static void PopulateMetadata<TResult>(EndpointMetadataContext context)
-        where TResult : IEndpointMetadataProvider => TResult.PopulateMetadata(context);
+    private static void PopulateMetadata<TResult>(MethodInfo method, EndpointBuilder builder)
+        where TResult : IEndpointMetadataProvider => TResult.PopulateMetadata(method, builder);
 
     private static IServiceProvider CreateServices()
     {

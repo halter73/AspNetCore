@@ -5,6 +5,7 @@ namespace Microsoft.AspNetCore.Http.HttpResults;
 
 using System.Reflection;
 using System.Text;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
@@ -82,8 +83,8 @@ public class ConflictResultTests
         Assert.Equal(StatusCodes.Status409Conflict, result.StatusCode);
     }
 
-    private static void PopulateMetadata<TResult>(EndpointMetadataContext context)
-        where TResult : IEndpointMetadataProvider => TResult.PopulateMetadata(context);
+    private static void PopulateMetadata<TResult>(MethodInfo method, EndpointBuilder builder)
+        where TResult : IEndpointMetadataProvider => TResult.PopulateMetadata(method, builder);
 
     private static IServiceProvider CreateServices()
     {

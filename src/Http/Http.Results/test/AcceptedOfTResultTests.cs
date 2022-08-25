@@ -3,6 +3,7 @@
 
 using System.Reflection;
 using System.Text;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
@@ -125,8 +126,8 @@ public class AcceptedOfTResultTests
         Assert.Equal(value, result.Value);
     }
 
-    private static void PopulateMetadata<TResult>(EndpointMetadataContext context)
-        where TResult : IEndpointMetadataProvider => TResult.PopulateMetadata(context);
+    private static void PopulateMetadata<TResult>(MethodInfo method, EndpointBuilder builder)
+        where TResult : IEndpointMetadataProvider => TResult.PopulateMetadata(method, builder);
 
     private record Todo(int Id, string Title);
 

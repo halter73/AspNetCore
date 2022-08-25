@@ -4,6 +4,7 @@
 namespace Microsoft.AspNetCore.Http.HttpResults;
 
 using System.Reflection;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -78,8 +79,8 @@ public class NoContentResultTests
         Assert.Equal(StatusCodes.Status204NoContent, result.StatusCode);
     }
 
-    private static void PopulateMetadata<TResult>(EndpointMetadataContext context)
-        where TResult : IEndpointMetadataProvider => TResult.PopulateMetadata(context);
+    private static void PopulateMetadata<TResult>(MethodInfo method, EndpointBuilder builder)
+        where TResult : IEndpointMetadataProvider => TResult.PopulateMetadata(method, builder);
 
     private static IServiceCollection CreateServices()
     {

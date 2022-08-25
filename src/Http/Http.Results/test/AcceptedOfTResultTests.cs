@@ -6,6 +6,7 @@ using System.Text;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Microsoft.AspNetCore.Http.HttpResults;
@@ -64,13 +65,13 @@ public class AcceptedOfTResultTests
         // Arrange
         Accepted<Todo> MyApi() { throw new NotImplementedException(); }
         var metadata = new List<object>();
-        var context = new EndpointMetadataContext(((Delegate)MyApi).GetMethodInfo(), metadata, EmptyServiceProvider.Instance);
+        var builder = new RouteEndpointBuilder(requestDelegate: null, RoutePatternFactory.Parse("/"), order: 0);
 
         // Act
-        PopulateMetadata<Accepted<Todo>>(context);
+        PopulateMetadata<Accepted<Todo>>(((Delegate)MyApi).GetMethodInfo(), builder);
 
         // Assert
-        var producesResponseTypeMetadata = context.EndpointMetadata.OfType<ProducesResponseTypeMetadata>().Last();
+        var producesResponseTypeMetadata = builder.Metadata.OfType<ProducesResponseTypeMetadata>().Last();
         Assert.Equal(StatusCodes.Status202Accepted, producesResponseTypeMetadata.StatusCode);
         Assert.Equal(typeof(Todo), producesResponseTypeMetadata.Type);
         Assert.Single(producesResponseTypeMetadata.ContentTypes, "application/json");
@@ -88,10 +89,11 @@ public class AcceptedOfTResultTests
     }
 
     [Fact]
-    public void PopulateMetadata_ThrowsArgumentNullException_WhenContextIsNull()
+    public void PopulateMetadata_ThrowsArgumentNullException_WhenMethodOrBuilderAreNull()
     {
         // Act & Assert
-        Assert.Throws<ArgumentNullException>("context", () => PopulateMetadata<Accepted<object>>(null));
+        Assert.Throws<ArgumentNullException>("method", () => PopulateMetadata<Accepted<object>>(null, new RouteEndpointBuilder(requestDelegate: null, RoutePatternFactory.Parse("/"), order: 0)));
+        Assert.Throws<ArgumentNullException>("builder", () => PopulateMetadata<Accepted<object>>(((Delegate)PopulateMetadata_ThrowsArgumentNullException_WhenMethodOrBuilderAreNull).GetMethodInfo(), null));
     }
 
     [Fact]

@@ -5,6 +5,7 @@ using System.Reflection;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.AspNetCore.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -72,13 +73,13 @@ public partial class CreatedAtRouteResultTests
         // Arrange
         CreatedAtRoute MyApi() { throw new NotImplementedException(); }
         var metadata = new List<object>();
-        var context = new EndpointMetadataContext(((Delegate)MyApi).GetMethodInfo(), metadata, EmptyServiceProvider.Instance);
+        var builder = new RouteEndpointBuilder(requestDelegate: null, RoutePatternFactory.Parse("/"), order: 0);
 
         // Act
-        PopulateMetadata<CreatedAtRoute>(context);
+        PopulateMetadata<CreatedAtRoute>(((Delegate)MyApi).GetMethodInfo(), builder);
 
         // Assert
-        var producesResponseTypeMetadata = context.EndpointMetadata.OfType<ProducesResponseTypeMetadata>().Last();
+        var producesResponseTypeMetadata = builder.Metadata.OfType<ProducesResponseTypeMetadata>().Last();
         Assert.Equal(StatusCodes.Status201Created, producesResponseTypeMetadata.StatusCode);
     }
 
@@ -94,10 +95,11 @@ public partial class CreatedAtRouteResultTests
     }
 
     [Fact]
-    public void PopulateMetadata_ThrowsArgumentNullException_WhenContextIsNull()
+    public void PopulateMetadata_ThrowsArgumentNullException_WhenMethodOrBuilderAreNull()
     {
         // Act & Assert
-        Assert.Throws<ArgumentNullException>("context", () => PopulateMetadata<CreatedAtRoute>(null));
+        Assert.Throws<ArgumentNullException>("method", () => PopulateMetadata<CreatedAtRoute>(null, new RouteEndpointBuilder(requestDelegate: null, RoutePatternFactory.Parse("/"), order: 0)));
+        Assert.Throws<ArgumentNullException>("builder", () => PopulateMetadata<CreatedAtRoute>(((Delegate)PopulateMetadata_ThrowsArgumentNullException_WhenMethodOrBuilderAreNull).GetMethodInfo(), null));
     }
 
     [Fact]

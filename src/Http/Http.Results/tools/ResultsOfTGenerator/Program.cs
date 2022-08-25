@@ -883,7 +883,7 @@ public class Program
     static void GenerateTest_PopulateMetadata_Throws_ArgumentNullException_WhenMethodOrBuilderIsNull(StreamWriter writer, int typeArgNumber)
     {
         //[Fact]
-        //public void ResultsOfTResult1TResult2_PopulateMetadata_Throws_ArgumentNullException_WhenContextIsNull()
+        //public void ResultsOfTResult1TResult2_PopulateMetadata_Throws_ArgumentNullException_WhenMethodOrBuilderAreNull()
         //{
         //    // Act & Assert
         //    Assert.Throws<ArgumentNullException>("method", () => PopulateMetadata<Results<ProvidesMetadataResult1, ProvidesMetadataResult2>>(null, new RouteEndpointBuilder(requestDelegate: null, RoutePatternFactory.Parse("/"), order: 0)));
@@ -899,7 +899,7 @@ public class Program
         {
             writer.Write($"TResult{j}");
         }
-        writer.WriteLine("_PopulateMetadata_Throws_ArgumentNullException_WhenContextIsNull()");
+        writer.WriteLine("_PopulateMetadata_Throws_ArgumentNullException_WhenMethodOrBuilderAreNull()");
         writer.WriteIndentedLine("{");
 
         // Act & Assert

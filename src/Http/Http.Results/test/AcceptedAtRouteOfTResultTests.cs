@@ -147,11 +147,11 @@ public class AcceptedAtRouteOfTResultTests
     }
 
     [Fact]
-    public void PopulateMetadata_ThrowsArgumentNullException_WhenContextIsNull()
+    public void PopulateMetadata_ThrowsArgumentNullException_WhenMethodOrBuilderAreNull()
     {
         // Act & Assert
         Assert.Throws<ArgumentNullException>("method", () => PopulateMetadata<AcceptedAtRoute<object>>(null, new RouteEndpointBuilder(requestDelegate: null, RoutePatternFactory.Parse("/"), order: 0)));
-        Assert.Throws<ArgumentNullException>("builder", () => PopulateMetadata<AcceptedAtRoute<object>>(((Delegate)PopulateMetadata_ThrowsArgumentNullException_WhenContextIsNull).GetMethodInfo(), null));
+        Assert.Throws<ArgumentNullException>("builder", () => PopulateMetadata<AcceptedAtRoute<object>>(((Delegate)PopulateMetadata_ThrowsArgumentNullException_WhenMethodOrBuilderAreNull).GetMethodInfo(), null));
     }
 
     [Fact]

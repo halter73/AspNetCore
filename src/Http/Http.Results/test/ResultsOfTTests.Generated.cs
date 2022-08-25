@@ -217,7 +217,7 @@ public partial class ResultsOfTTests
     }
 
     [Fact]
-    public void ResultsOfTResult1TResult2_PopulateMetadata_Throws_ArgumentNullException_WhenContextIsNull()
+    public void ResultsOfTResult1TResult2_PopulateMetadata_Throws_ArgumentNullException_WhenMethodOrBuilderAreNull()
     {
         // Act & Assert
         Assert.Throws<ArgumentNullException>("method", () => PopulateMetadata<Results<ProvidesMetadataResult1, ProvidesMetadataResult2>>(null, new RouteEndpointBuilder(requestDelegate: null, RoutePatternFactory.Parse("/"), order: 0)));
@@ -497,7 +497,7 @@ public partial class ResultsOfTTests
     }
 
     [Fact]
-    public void ResultsOfTResult1TResult2TResult3_PopulateMetadata_Throws_ArgumentNullException_WhenContextIsNull()
+    public void ResultsOfTResult1TResult2TResult3_PopulateMetadata_Throws_ArgumentNullException_WhenMethodOrBuilderAreNull()
     {
         // Act & Assert
         Assert.Throws<ArgumentNullException>("method", () => PopulateMetadata<Results<ProvidesMetadataResult1, ProvidesMetadataResult2, ProvidesMetadataResult3>>(null, new RouteEndpointBuilder(requestDelegate: null, RoutePatternFactory.Parse("/"), order: 0)));
@@ -854,7 +854,7 @@ public partial class ResultsOfTTests
     }
 
     [Fact]
-    public void ResultsOfTResult1TResult2TResult3TResult4_PopulateMetadata_Throws_ArgumentNullException_WhenContextIsNull()
+    public void ResultsOfTResult1TResult2TResult3TResult4_PopulateMetadata_Throws_ArgumentNullException_WhenMethodOrBuilderAreNull()
     {
         // Act & Assert
         Assert.Throws<ArgumentNullException>("method", () => PopulateMetadata<Results<ProvidesMetadataResult1, ProvidesMetadataResult2, ProvidesMetadataResult3, ProvidesMetadataResult4>>(null, new RouteEndpointBuilder(requestDelegate: null, RoutePatternFactory.Parse("/"), order: 0)));
@@ -1296,7 +1296,7 @@ public partial class ResultsOfTTests
     }
 
     [Fact]
-    public void ResultsOfTResult1TResult2TResult3TResult4TResult5_PopulateMetadata_Throws_ArgumentNullException_WhenContextIsNull()
+    public void ResultsOfTResult1TResult2TResult3TResult4TResult5_PopulateMetadata_Throws_ArgumentNullException_WhenMethodOrBuilderAreNull()
     {
         // Act & Assert
         Assert.Throws<ArgumentNullException>("method", () => PopulateMetadata<Results<ProvidesMetadataResult1, ProvidesMetadataResult2, ProvidesMetadataResult3, ProvidesMetadataResult4, ProvidesMetadataResult5>>(null, new RouteEndpointBuilder(requestDelegate: null, RoutePatternFactory.Parse("/"), order: 0)));
@@ -1831,7 +1831,7 @@ public partial class ResultsOfTTests
     }
 
     [Fact]
-    public void ResultsOfTResult1TResult2TResult3TResult4TResult5TResult6_PopulateMetadata_Throws_ArgumentNullException_WhenContextIsNull()
+    public void ResultsOfTResult1TResult2TResult3TResult4TResult5TResult6_PopulateMetadata_Throws_ArgumentNullException_WhenMethodOrBuilderAreNull()
     {
         // Act & Assert
         Assert.Throws<ArgumentNullException>("method", () => PopulateMetadata<Results<ProvidesMetadataResult1, ProvidesMetadataResult2, ProvidesMetadataResult3, ProvidesMetadataResult4, ProvidesMetadataResult5, ProvidesMetadataResult6>>(null, new RouteEndpointBuilder(requestDelegate: null, RoutePatternFactory.Parse("/"), order: 0)));

@@ -360,7 +360,15 @@ internal sealed class ActionEndpointFactory
             groupConventions[i](builder);
         }
 
-        // Add action metadata first so it has a low precedence
+        var controllerActionDescriptor = action as ControllerActionDescriptor;
+
+        // Add metadata inferred from the parameter and/or return type after action-specific metadata.
+        if (controllerActionDescriptor is not null)
+        {
+            EndpointMetadataPopulator.PopulateMetadata(controllerActionDescriptor.MethodInfo, builder);
+        }
+
+        // Add action-specific metadata early so it has a low precedence
         if (action.EndpointMetadata != null)
         {
             foreach (var d in action.EndpointMetadata)
@@ -455,7 +463,7 @@ internal sealed class ActionEndpointFactory
             perRouteConventions[i](builder);
         }
 
-        if (builder.FilterFactories.Count > 0 && action is ControllerActionDescriptor cad)
+        if (builder.FilterFactories.Count > 0 && controllerActionDescriptor is not null)
         {
             var routeHandlerFilters = builder.FilterFactories;
 
@@ -468,7 +476,7 @@ internal sealed class ActionEndpointFactory
 
             var context = new EndpointFilterFactoryContext
             {
-                MethodInfo = cad.MethodInfo,
+                MethodInfo = controllerActionDescriptor.MethodInfo,
                 ApplicationServices = builder.ApplicationServices,
             };
 
@@ -480,7 +488,7 @@ internal sealed class ActionEndpointFactory
                 del = filterFactory(context, del);
             }
 
-            cad.FilterDelegate = ReferenceEquals(del, initialFilteredInvocation) ? null : del;
+            controllerActionDescriptor.FilterDelegate = ReferenceEquals(del, initialFilteredInvocation) ? null : del;
         }
 
         foreach (var perRouteFinallyConvention in perRouteFinallyConventions)

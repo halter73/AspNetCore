@@ -1,8 +1,6 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.ActionConstraints;
 
 namespace Microsoft.AspNetCore.Mvc.ApplicationModels;
@@ -18,6 +16,7 @@ public class SelectorModel
     public SelectorModel()
     {
         ActionConstraints = new List<IActionConstraintMetadata>();
+        EndpointMetadata = new List<object>();
     }
 
     /// <summary>
@@ -32,15 +31,11 @@ public class SelectorModel
         }
 
         ActionConstraints = new List<IActionConstraintMetadata>(other.ActionConstraints);
+        EndpointMetadata = new List<object>(other.EndpointMetadata);
 
         if (other.AttributeRouteModel != null)
         {
             AttributeRouteModel = new AttributeRouteModel(other.AttributeRouteModel);
-        }
-
-        foreach (var metadataItem in other.EndpointMetadata)
-        {
-            EndpointMetadata.Add(metadataItem);
         }
     }
 
@@ -57,21 +52,5 @@ public class SelectorModel
     /// <summary>
     /// Gets the <see cref="EndpointMetadata"/> associated with the <see cref="SelectorModel"/>.
     /// </summary>
-    public IList<object> EndpointMetadata => EndpointBuilder.Metadata;
-
-    // EndpointBuilder.Metadata is not virtual, so we use that as our source of truth so we don't copy
-    // back-and-forth when exposing this via EndpointMetadataConvention's calls to PopulateMetadata.
-    internal EndpointBuilder EndpointBuilder { get; } = new SelectorModelEndpointBuilder();
-
-    // We could call PopulateMetadata later in ActionEndpointFactory which is during the call to
-    // RouteEndpointDataSource.Endpoints or GetGroupedEndpoints(). If we did, we could pass in the
-    // real RouteEndpointBuilder instead of this synthesized EndpointBuilder, but then this inferred metadata
-    // wouldn't be visible via the native MVC application model.
-    private sealed class SelectorModelEndpointBuilder : EndpointBuilder
-    {
-        public override Endpoint Build()
-        {
-            throw new NotSupportedException();
-        }
-    }
+    public IList<object> EndpointMetadata { get; }
 }

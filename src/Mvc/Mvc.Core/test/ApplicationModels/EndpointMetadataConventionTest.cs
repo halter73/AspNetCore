@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Reflection;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
@@ -278,22 +279,22 @@ public class EndpointMetadataConventionTest
 
     private class AddsCustomParameterMetadata : IEndpointParameterMetadataProvider, IEndpointMetadataProvider
     {
-        public static void PopulateMetadata(EndpointParameterMetadataContext parameterContext)
+        public static void PopulateMetadata(ParameterInfo parameter, EndpointBuilder builder)
         {
-            parameterContext.EndpointMetadata?.Add(new ParameterNameMetadata { Name = parameterContext.Parameter?.Name });
+            builder.Metadata.Add(new ParameterNameMetadata { Name = parameter.Name });
         }
 
-        public static void PopulateMetadata(EndpointMetadataContext context)
+        public static void PopulateMetadata(MethodInfo method, EndpointBuilder builder)
         {
-            context.EndpointMetadata?.Add(new CustomEndpointMetadata { Source = MetadataSource.Parameter });
+            builder.Metadata.Add(new CustomEndpointMetadata { Source = MetadataSource.Parameter });
         }
     }
 
     private class AddsCustomEndpointMetadataResult : IEndpointMetadataProvider, IResult
     {
-        public static void PopulateMetadata(EndpointMetadataContext context)
+        public static void PopulateMetadata(MethodInfo method, EndpointBuilder builder)
         {
-            context.EndpointMetadata?.Add(new CustomEndpointMetadata { Source = MetadataSource.ReturnType });
+            builder.Metadata.Add(new CustomEndpointMetadata { Source = MetadataSource.ReturnType });
         }
 
         public Task ExecuteAsync(HttpContext httpContext) => throw new NotImplementedException();
@@ -301,26 +302,23 @@ public class EndpointMetadataConventionTest
 
     private class AddsCustomEndpointMetadataActionResult : IEndpointMetadataProvider, IActionResult
     {
-        public static void PopulateMetadata(EndpointMetadataContext context)
+        public static void PopulateMetadata(MethodInfo method, EndpointBuilder builder)
         {
-            context.EndpointMetadata?.Add(new CustomEndpointMetadata { Source = MetadataSource.ReturnType });
+            builder.Metadata.Add(new CustomEndpointMetadata { Source = MetadataSource.ReturnType });
         }
         public Task ExecuteResultAsync(ActionContext context) => throw new NotImplementedException();
     }
 
     private class RemovesAcceptsMetadataResult : IEndpointMetadataProvider, IResult
     {
-        public static void PopulateMetadata(EndpointMetadataContext context)
+        public static void PopulateMetadata(MethodInfo method, EndpointBuilder builder)
         {
-            if (context.EndpointMetadata is not null)
+            for (int i = builder.Metadata.Count - 1; i >= 0; i--)
             {
-                for (int i = context.EndpointMetadata.Count - 1; i >= 0; i--)
+                var metadata = builder.Metadata[i];
+                if (metadata is IAcceptsMetadata)
                 {
-                    var metadata = context.EndpointMetadata[i];
-                    if (metadata is IAcceptsMetadata)
-                    {
-                        context.EndpointMetadata.RemoveAt(i);
-                    }
+                    builder.Metadata.RemoveAt(i);
                 }
             }
         }
@@ -330,16 +328,16 @@ public class EndpointMetadataConventionTest
 
     private class RemovesAcceptsMetadataActionResult : IEndpointMetadataProvider, IActionResult
     {
-        public static void PopulateMetadata(EndpointMetadataContext context)
+        public static void PopulateMetadata(MethodInfo method, EndpointBuilder builder)
         {
-            if (context.EndpointMetadata is not null)
+            if (builder.Metadata is not null)
             {
-                for (int i = context.EndpointMetadata.Count - 1; i >= 0; i--)
+                for (int i = builder.Metadata.Count - 1; i >= 0; i--)
                 {
-                    var metadata = context.EndpointMetadata[i];
+                    var metadata = builder.Metadata[i];
                     if (metadata is IAcceptsMetadata)
                     {
-                        context.EndpointMetadata.RemoveAt(i);
+                        builder.Metadata.RemoveAt(i);
                     }
                 }
             }
@@ -350,16 +348,16 @@ public class EndpointMetadataConventionTest
 
     private class RemovesAcceptsParameterMetadata : IEndpointParameterMetadataProvider
     {
-        public static void PopulateMetadata(EndpointParameterMetadataContext parameterContext)
+        public static void PopulateMetadata(ParameterInfo parameter, EndpointBuilder builder)
         {
-            if (parameterContext.EndpointMetadata is not null)
+            if (builder.Metadata is not null)
             {
-                for (int i = parameterContext.EndpointMetadata.Count - 1; i >= 0; i--)
+                for (int i = builder.Metadata.Count - 1; i >= 0; i--)
                 {
-                    var metadata = parameterContext.EndpointMetadata[i];
+                    var metadata = builder.Metadata[i];
                     if (metadata is IAcceptsMetadata)
                     {
-                        parameterContext.EndpointMetadata.RemoveAt(i);
+                        builder.Metadata.RemoveAt(i);
                     }
                 }
             }
@@ -368,16 +366,16 @@ public class EndpointMetadataConventionTest
 
     private class RemovesAcceptsParameterEndpointMetadata : IEndpointMetadataProvider
     {
-        public static void PopulateMetadata(EndpointMetadataContext context)
+        public static void PopulateMetadata(MethodInfo method, EndpointBuilder builder)
         {
-            if (context.EndpointMetadata is not null)
+            if (builder.Metadata is not null)
             {
-                for (int i = context.EndpointMetadata.Count - 1; i >= 0; i--)
+                for (int i = builder.Metadata.Count - 1; i >= 0; i--)
                 {
-                    var metadata = context.EndpointMetadata[i];
+                    var metadata = builder.Metadata[i];
                     if (metadata is IAcceptsMetadata)
                     {
-                        context.EndpointMetadata.RemoveAt(i);
+                        builder.Metadata.RemoveAt(i);
                     }
                 }
             }

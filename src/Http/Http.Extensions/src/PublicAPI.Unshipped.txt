@@ -7,10 +7,6 @@ Microsoft.AspNetCore.Http.HttpValidationProblemDetails (forwarded, contained in 
 Microsoft.AspNetCore.Http.HttpValidationProblemDetails.Errors.get -> System.Collections.Generic.IDictionary<string!, string![]!>! (forwarded, contained in Microsoft.AspNetCore.Http.Abstractions)
 Microsoft.AspNetCore.Http.HttpValidationProblemDetails.HttpValidationProblemDetails() -> void (forwarded, contained in Microsoft.AspNetCore.Http.Abstractions)
 Microsoft.AspNetCore.Http.HttpValidationProblemDetails.HttpValidationProblemDetails(System.Collections.Generic.IDictionary<string!, string![]!>! errors) -> void (forwarded, contained in Microsoft.AspNetCore.Http.Abstractions)
-Microsoft.AspNetCore.Http.Metadata.IEndpointMetadataProvider
-Microsoft.AspNetCore.Http.Metadata.IEndpointMetadataProvider.PopulateMetadata(System.Reflection.MethodInfo! method, Microsoft.AspNetCore.Builder.EndpointBuilder! builder) -> void
-Microsoft.AspNetCore.Http.Metadata.IEndpointParameterMetadataProvider
-Microsoft.AspNetCore.Http.Metadata.IEndpointParameterMetadataProvider.PopulateMetadata(System.Reflection.ParameterInfo! parameter, Microsoft.AspNetCore.Builder.EndpointBuilder! builder) -> void
 Microsoft.AspNetCore.Http.ProblemDetailsOptions
 Microsoft.AspNetCore.Http.ProblemDetailsOptions.CustomizeProblemDetails.get -> System.Action<Microsoft.AspNetCore.Http.ProblemDetailsContext!>?
 Microsoft.AspNetCore.Http.ProblemDetailsOptions.CustomizeProblemDetails.set -> void

@@ -16,7 +16,7 @@ public interface IEndpointParameterMetadataProvider
     /// Populates metadata for the related <see cref="Endpoint"/> and <see cref="ParameterInfo"/>.
     /// </summary>
     /// <remarks>
-    /// This method is called by <see cref="RequestDelegateFactory"/> when creating a <see cref="RequestDelegate"/> and by MVC when creating endpoints for controller actions.
+    /// This method is called by RequestDelegateFactory when creating a <see cref="RequestDelegate"/> and by MVC when creating endpoints for controller actions.
     /// This is called for each parameter of the route handler or action with a declared type implementing this interface.
     /// Add or remove objects on the <see cref="EndpointBuilder.Metadata"/> property of the <paramref name="builder"/> to modify the <see cref="Endpoint.Metadata"/> being built.
     /// </remarks>

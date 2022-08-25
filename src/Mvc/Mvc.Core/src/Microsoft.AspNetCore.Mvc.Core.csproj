@@ -21,7 +21,6 @@ Microsoft.AspNetCore.Mvc.RouteAttribute</Description>
   <ItemGroup>
     <Compile Include="$(SharedSourceRoot)ChunkingCookieManager\**\*.cs" />
     <Compile Include="$(SharedSourceRoot)CopyOnWriteDictionary\**\*.cs" />
-    <Compile Include="$(SharedSourceRoot)ObjectMethodExecutor\**\*.cs" />
     <Compile Include="$(SharedSourceRoot)PropertyActivator\**\*.cs" />
     <Compile Include="$(SharedSourceRoot)PropertyHelper\**\*.cs" />
     <Compile Include="$(SharedSourceRoot)RangeHelper\**\*.cs" />

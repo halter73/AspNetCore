@@ -27,8 +27,8 @@ public sealed class CompositeEndpointDataSource : EndpointDataSource, IDisposabl
 
     internal CompositeEndpointDataSource(ObservableCollection<EndpointDataSource> dataSources)
     {
-        dataSources.CollectionChanged += OnDataSourcesChanged;
         _dataSources = dataSources;
+        dataSources.CollectionChanged += OnDataSourcesChanged;
     }
 
     /// <summary>
@@ -38,12 +38,7 @@ public sealed class CompositeEndpointDataSource : EndpointDataSource, IDisposabl
     /// <returns>A <see cref="CompositeEndpointDataSource"/>.</returns>
     public CompositeEndpointDataSource(IEnumerable<EndpointDataSource> endpointDataSources)
     {
-        _dataSources = new List<EndpointDataSource>();
-
-        foreach (var dataSource in endpointDataSources)
-        {
-            _dataSources.Add(dataSource);
-        }
+        _dataSources = new List<EndpointDataSource>(endpointDataSources);
     }
 
     private void OnDataSourcesChanged(object? sender, NotifyCollectionChangedEventArgs e) => HandleChange(collectionChanged: true);

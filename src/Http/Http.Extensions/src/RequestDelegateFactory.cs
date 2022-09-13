@@ -927,26 +927,26 @@ public static partial class RequestDelegateFactory
         return Expression.Block(localVariables, checkParamAndCallMethod);
     }
 
-    private static Expression AddResponseWritingToMethodCall(Expression methodCall, Type returnType)
+    private static Func<Expression, Expression> CreateResponseWritingToMethodCall(RequestDelegateFactoryContext context, Type returnType)
     {
         // Exact request delegate match
         if (returnType == typeof(void))
         {
-            return Expression.Block(methodCall, CompletedTaskExpr);
+            return methodCall => Expression.Block(methodCall, CompletedTaskExpr);
         }
         else if (returnType == typeof(object))
         {
-            return Expression.Call(ExecuteAwaitedReturnMethod, methodCall, HttpContextExpr);
+            return methodCall => Expression.Call(ExecuteAwaitedReturnMethod, methodCall, HttpContextExpr);
         }
         else if (returnType == typeof(ValueTask<object>))
         {
-            return Expression.Call(ExecuteValueTaskOfObjectMethod,
+            return methodCall => Expression.Call(ExecuteValueTaskOfObjectMethod,
                 methodCall,
                 HttpContextExpr);
         }
         else if (returnType == typeof(Task<object>))
         {
-            return Expression.Call(ExecuteTaskOfObjectMethod,
+            return methodCall => Expression.Call(ExecuteTaskOfObjectMethod,
                 methodCall,
                 HttpContextExpr);
         }
@@ -954,11 +954,11 @@ public static partial class RequestDelegateFactory
         {
             if (returnType == typeof(Task))
             {
-                return methodCall;
+                return methodCall => methodCall;
             }
             else if (returnType == typeof(ValueTask))
             {
-                return Expression.Call(
+                return methodCall => Expression.Call(
                     ExecuteValueTaskMethod,
                     methodCall);
             }
@@ -969,7 +969,7 @@ public static partial class RequestDelegateFactory
 
                 if (typeof(IResult).IsAssignableFrom(typeArg))
                 {
-                    return Expression.Call(
+                    return methodCall => Expression.Call(
                         ExecuteTaskResultOfTMethod.MakeGenericMethod(typeArg),
                         methodCall,
                         HttpContextExpr);
@@ -977,14 +977,14 @@ public static partial class RequestDelegateFactory
                 // ExecuteTask<T>(handler(..), httpContext);
                 else if (typeArg == typeof(string))
                 {
-                    return Expression.Call(
+                    return methodCall => Expression.Call(
                         ExecuteTaskOfStringMethod,
                         methodCall,
                         HttpContextExpr);
                 }
                 else
                 {
-                    return Expression.Call(
+                    return methodCall => Expression.Call(
                         ExecuteTaskOfTMethod.MakeGenericMethod(typeArg),
                         methodCall,
                         HttpContextExpr);
@@ -997,7 +997,7 @@ public static partial class RequestDelegateFactory
 
                 if (typeof(IResult).IsAssignableFrom(typeArg))
                 {
-                    return Expression.Call(
+                    return methodCall => Expression.Call(
                         ExecuteValueResultTaskOfTMethod.MakeGenericMethod(typeArg),
                         methodCall,
                         HttpContextExpr);
@@ -1005,14 +1005,14 @@ public static partial class RequestDelegateFactory
                 // ExecuteTask<T>(handler(..), httpContext);
                 else if (typeArg == typeof(string))
                 {
-                    return Expression.Call(
+                    return methodCall => Expression.Call(
                         ExecuteValueTaskOfStringMethod,
                         methodCall,
                         HttpContextExpr);
                 }
                 else
                 {
-                    return Expression.Call(
+                    return methodCall => Expression.Call(
                         ExecuteValueTaskOfTMethod.MakeGenericMethod(typeArg),
                         methodCall,
                         HttpContextExpr);
@@ -1028,14 +1028,18 @@ public static partial class RequestDelegateFactory
         {
             if (returnType.IsValueType)
             {
-                var box = Expression.TypeAs(methodCall, typeof(IResult));
-                return Expression.Call(ResultWriteResponseAsyncMethod, box, HttpContextExpr);
+                return methodCall =>
+                {
+                    var box = Expression.TypeAs(methodCall, typeof(IResult));
+                    return Expression.Call(ResultWriteResponseAsyncMethod, box, HttpContextExpr);
+                };
             }
-            return Expression.Call(ResultWriteResponseAsyncMethod, methodCall, HttpContextExpr);
+
+            return methodCall => Expression.Call(ResultWriteResponseAsyncMethod, methodCall, HttpContextExpr);
         }
         else if (returnType == typeof(string))
         {
-            return Expression.Call(StringResultWriteResponseAsyncMethod, HttpContextExpr, methodCall);
+            return methodCall => Expression.Call(StringResultWriteResponseAsyncMethod, HttpContextExpr, methodCall);
         }
         else if (returnType.IsByRefLike)
         {
@@ -1044,12 +1048,15 @@ public static partial class RequestDelegateFactory
         }
         else if (returnType.IsValueType)
         {
-            var box = Expression.TypeAs(methodCall, typeof(object));
-            return Expression.Call(JsonResultWriteResponseAsyncMethod, HttpResponseExpr, box, Expression.Constant(CancellationToken.None));
+            return methodCall =>
+            {
+                var box = Expression.TypeAs(methodCall, typeof(object));
+                return Expression.Call(JsonResultWriteResponseAsyncMethod, HttpResponseExpr, box, Expression.Constant(CancellationToken.None));
+            };
         }
         else
         {
-            return Expression.Call(JsonResultWriteResponseAsyncMethod, HttpResponseExpr, methodCall, Expression.Constant(CancellationToken.None));
+            return methodCall => Expression.Call(JsonResultWriteResponseAsyncMethod, HttpResponseExpr, methodCall, Expression.Constant(CancellationToken.None));
         }
     }
 

@@ -110,8 +110,9 @@ public static partial class RequestDelegateFactory
     private static readonly MemberExpression FilterContextHttpContextStatusCodeExpr = Expression.Property(FilterContextHttpContextResponseExpr, typeof(HttpResponse).GetProperty(nameof(HttpResponse.StatusCode))!);
     private static readonly ParameterExpression InvokedFilterContextExpr = Expression.Parameter(typeof(EndpointFilterInvocationContext), "filterContext");
 
-    private static readonly string[] DefaultAcceptsContentType = new[] { "application/json" };
+    private static readonly string[] DefaultAcceptsAndProducesContentType = new[] { JsonConstants.JsonContentType };
     private static readonly string[] FormFileContentType = new[] { "multipart/form-data" };
+    private static readonly string[] PlaintextContentType = new[] { "text/plain" };
 
     /// <summary>
     /// Returns metadata inferred automatically for the <see cref="RequestDelegate"/> created by <see cref="Create(Delegate, RequestDelegateFactoryOptions?, RequestDelegateMetadataResult?)"/>.
@@ -321,10 +322,7 @@ public static partial class RequestDelegateFactory
         //     return default;
         // }
 
-        // If ArgumentExpressions is not null here, it's guaranteed we have already inferred metadata and we can reuse a lot of work.
-        // The converse is not true. Metadata may have already been inferred even if ArgumentExpressions is null, but metadata
-        // inference is skipped internally if necessary.
-        factoryContext.ArgumentExpressions ??= CreateArgumentsAndInferMetadata(methodInfo, factoryContext);
+        CreateArgumentsAndInferMetadata(methodInfo, factoryContext);
 
         factoryContext.MethodCall = CreateMethodCall(methodInfo, targetExpression, factoryContext.ArgumentExpressions);
         EndpointFilterDelegate? filterPipeline = null;
@@ -360,7 +358,7 @@ public static partial class RequestDelegateFactory
 
         var responseWritingMethodCall = factoryContext.ParamCheckExpressions.Count > 0 ?
             CreateParamCheckingResponseWritingMethodCall(returnType, factoryContext) :
-            AddResponseWritingToMethodCall(factoryContext.MethodCall, returnType);
+            AddResponseWritingToMethodCall(factoryContext, returnType);
 
         if (factoryContext.UsingTempSourceString)
         {
@@ -370,11 +368,19 @@ public static partial class RequestDelegateFactory
         return HandleRequestBodyAndCompileRequestDelegate(responseWritingMethodCall, factoryContext);
     }
 
-    private static Expression[] CreateArgumentsAndInferMetadata(MethodInfo methodInfo, RequestDelegateFactoryContext factoryContext)
+    private static void CreateArgumentsAndInferMetadata(MethodInfo methodInfo, RequestDelegateFactoryContext factoryContext)
     {
+        // If ArgumentExpressions is not null here, it's guaranteed we have already inferred metadata and we can reuse a lot of work.
+        // The converse is not true. Metadata may have already been inferred even if ArgumentExpressions is null, but metadata
+        // inference is skipped internally if necessary.
+        if (factoryContext.ArgumentExpressions is not null)
+        {
+            return;
+        }
+
         // Add any default accepts metadata. This does a lot of reflection and expression tree building, so the results are cached in RequestDelegateFactoryOptions.FactoryContext
         // For later reuse in Create().
-        var args = CreateArguments(methodInfo.GetParameters(), factoryContext);
+        factoryContext.ArgumentExpressions = CreateArguments(methodInfo.GetParameters(), factoryContext);
 
         if (!factoryContext.MetadataAlreadyInferred)
         {
@@ -384,7 +390,6 @@ public static partial class RequestDelegateFactory
                 factoryContext.Parameters);
         }
 
-        return args;
     }
 
     private static EndpointFilterDelegate? CreateFilterPipeline(MethodInfo methodInfo, Expression? targetExpression, RequestDelegateFactoryContext factoryContext, Expression<Func<HttpContext, object?>>? targetFactory)
@@ -1778,6 +1783,17 @@ public static partial class RequestDelegateFactory
         return Expression.Convert(boundValueExpr, parameter.ParameterType);
     }
 
+    private static void AddInferredProducesResponseTypeMetadata(RequestDelegateFactoryContext factoryContext, Type type, string[] contentTypes)
+    {
+        if (factoryContext.MetadataAlreadyInferred)
+        {
+            return;
+        }
+
+        // Type cannot be null, and contentTypes is either [ "application/json" ] or [ "text/plain" ] both of which are valid.
+        factoryContext.EndpointBuilder.Metadata.Add(ProducesResponseTypeMetadata.CreateUnvalidated(type, statusCode: 200, contentTypes));
+    }
+
     private static void AddInferredAcceptsMetadata(RequestDelegateFactoryContext factoryContext, Type type, string[] contentTypes)
     {
         if (factoryContext.MetadataAlreadyInferred)
@@ -1856,7 +1872,7 @@ public static partial class RequestDelegateFactory
 
         factoryContext.JsonRequestBodyParameter = parameter;
         factoryContext.AllowEmptyRequestBody = allowEmpty || isOptional;
-        AddInferredAcceptsMetadata(factoryContext, parameter.ParameterType, DefaultAcceptsContentType);
+        AddInferredAcceptsMetadata(factoryContext, parameter.ParameterType, DefaultAcceptsAndProducesContentType);
 
         if (!factoryContext.AllowEmptyRequestBody)
         {

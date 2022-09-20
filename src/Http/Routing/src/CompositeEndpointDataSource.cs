@@ -16,6 +16,11 @@ namespace Microsoft.AspNetCore.Routing;
 [DebuggerDisplay("{DebuggerDisplayString,nq}")]
 public sealed class CompositeEndpointDataSource : EndpointDataSource, IDisposable
 {
+    // Prevent stack diving in change handler without locking while triggering change notifications
+    // or risking missing parallel notifications from another thread.
+    [ThreadStatic]
+    private static bool _isUpdatingCacheOnThisThread;
+
     private readonly object _lock = new();
     private readonly ICollection<EndpointDataSource> _dataSources;
 
@@ -59,7 +64,17 @@ public sealed class CompositeEndpointDataSource : EndpointDataSource, IDisposabl
     /// <returns>The <see cref="IChangeToken"/>.</returns>
     public override IChangeToken GetChangeToken()
     {
-        EnsureChangeTokenInitialized();
+        _isUpdatingCacheOnThisThread = true;
+
+        try
+        {
+            EnsureChangeTokenInitialized();
+        }
+        finally
+        {
+            _isUpdatingCacheOnThisThread = false;
+        }
+
         return _consumerChangeToken;
     }
 
@@ -70,7 +85,17 @@ public sealed class CompositeEndpointDataSource : EndpointDataSource, IDisposabl
     {
         get
         {
-            EnsureEndpointsInitialized();
+            _isUpdatingCacheOnThisThread = true;
+
+            try
+            {
+                EnsureEndpointsInitialized();
+            }
+            finally
+            {
+                _isUpdatingCacheOnThisThread = false;
+            }
+
             return _endpoints;
         }
     }
@@ -189,54 +214,68 @@ public sealed class CompositeEndpointDataSource : EndpointDataSource, IDisposabl
 
     private void HandleChange(bool collectionChanged)
     {
+        // Prevent consumers from re-registering callback to in-flight events as that can
+        // cause a stack overflow.
+        // Example:
+        // 1. B registers A.
+        // 2. A fires event causing B's callback to get called.
+        // 3. B executes some code in its callback, but needs to re-register callback
+        //    in the same callback.
+        if (_isUpdatingCacheOnThisThread)
+        {
+            return;
+        }
+
         CancellationTokenSource? oldTokenSource = null;
         List<IDisposable>? oldChangeTokenRegistrations = null;
 
-        lock (_lock)
+        _isUpdatingCacheOnThisThread = true;
+
+        try
         {
-            if (_disposed)
+            lock (_lock)
             {
-                return;
+                if (_disposed)
+                {
+                    return;
+                }
+
+                oldTokenSource = _cts;
+                oldChangeTokenRegistrations = _changeTokenRegistrations;
+
+                // Don't create a new change token if no one is listening.
+                if (oldTokenSource is not null)
+                {
+                    // We have to hook to any OnChange callbacks before caching endpoints,
+                    // otherwise we might miss changes that occurred to one of the _dataSources after caching.
+                    CreateChangeTokenUnsynchronized(collectionChanged);
+                }
+
+                // Don't update endpoints if no one has read them yet.
+                if (_endpoints is not null)
+                {
+                    // Refresh the endpoints from data source so that callbacks can get the latest endpoints.
+                    CreateEndpointsUnsynchronized();
+                }
             }
 
-            // Prevent consumers from re-registering callback to in-flight events as that can
-            // cause a stack overflow.
-            // Example:
-            // 1. B registers A.
-            // 2. A fires event causing B's callback to get called.
-            // 3. B executes some code in its callback, but needs to re-register callback
-            //    in the same callback.
-            oldTokenSource = _cts;
-            oldChangeTokenRegistrations = _changeTokenRegistrations;
-
-            // Don't create a new change token if no one is listening.
-            if (oldTokenSource is not null)
+            // Disposing registrations can block on user defined code on running on other threads that could try to acquire the _lock.
+            if (collectionChanged && oldChangeTokenRegistrations is not null)
             {
-                // We have to hook to any OnChange callbacks before caching endpoints,
-                // otherwise we might miss changes that occurred to one of the _dataSources after caching.
-                CreateChangeTokenUnsynchronized(collectionChanged);
+                foreach (var registration in oldChangeTokenRegistrations)
+                {
+                    registration.Dispose();
+                }
             }
 
-            // Don't update endpoints if no one has read them yet.
-            if (_endpoints is not null)
-            {
-                // Refresh the endpoints from data source so that callbacks can get the latest endpoints.
-                CreateEndpointsUnsynchronized();
-            }
+            // Raise consumer callbacks. Any new callback registration would happen on the new token created in earlier step.
+            // Avoid raising callbacks inside a lock.
+            oldTokenSource?.Cancel();
         }
-
-        // Disposing registrations can block on user defined code on running on other threads that could try to acquire the _lock.
-        if (collectionChanged && oldChangeTokenRegistrations is not null)
+        finally
         {
-            foreach (var registration in oldChangeTokenRegistrations)
-            {
-                registration.Dispose();
-            }
+            _isUpdatingCacheOnThisThread = false;
         }
-
-        // Raise consumer callbacks. Any new callback registration would happen on the new token created in earlier step.
-        // Avoid raising callbacks inside a lock.
-        oldTokenSource?.Cancel();
     }
 
     [MemberNotNull(nameof(_consumerChangeToken))]

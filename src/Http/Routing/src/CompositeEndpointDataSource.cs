@@ -16,11 +16,6 @@ namespace Microsoft.AspNetCore.Routing;
 [DebuggerDisplay("{DebuggerDisplayString,nq}")]
 public sealed class CompositeEndpointDataSource : EndpointDataSource, IDisposable
 {
-    // Prevent stack diving in change handler without locking while triggering change notifications
-    // or risking missing parallel notifications from another thread.
-    [ThreadStatic]
-    private static bool _isUpdatingCacheOnThisThread;
-
     private readonly object _lock = new();
     private readonly ICollection<EndpointDataSource> _dataSources;
 
@@ -29,6 +24,10 @@ public sealed class CompositeEndpointDataSource : EndpointDataSource, IDisposabl
     private CancellationTokenSource? _cts;
     private List<IDisposable>? _changeTokenRegistrations;
     private bool _disposed;
+
+    // Prevent stack diving in change handler without locking while triggering change notifications
+    // or risking missing parallel notifications from another thread.
+    private ThreadLocal<bool> _isUpdatingCacheOnThisThread = new();
 
     internal CompositeEndpointDataSource(ObservableCollection<EndpointDataSource> dataSources)
     {
@@ -64,7 +63,7 @@ public sealed class CompositeEndpointDataSource : EndpointDataSource, IDisposabl
     /// <returns>The <see cref="IChangeToken"/>.</returns>
     public override IChangeToken GetChangeToken()
     {
-        _isUpdatingCacheOnThisThread = true;
+        _isUpdatingCacheOnThisThread.Value = true;
 
         try
         {
@@ -72,7 +71,7 @@ public sealed class CompositeEndpointDataSource : EndpointDataSource, IDisposabl
         }
         finally
         {
-            _isUpdatingCacheOnThisThread = false;
+            _isUpdatingCacheOnThisThread.Value = false;
         }
 
         return _consumerChangeToken;
@@ -85,7 +84,7 @@ public sealed class CompositeEndpointDataSource : EndpointDataSource, IDisposabl
     {
         get
         {
-            _isUpdatingCacheOnThisThread = true;
+            _isUpdatingCacheOnThisThread.Value = true;
 
             try
             {
@@ -93,7 +92,7 @@ public sealed class CompositeEndpointDataSource : EndpointDataSource, IDisposabl
             }
             finally
             {
-                _isUpdatingCacheOnThisThread = false;
+                _isUpdatingCacheOnThisThread.Value = false;
             }
 
             return _endpoints;
@@ -164,6 +163,8 @@ public sealed class CompositeEndpointDataSource : EndpointDataSource, IDisposabl
                 disposable.Dispose();
             }
         }
+
+        _isUpdatingCacheOnThisThread.Dispose();
     }
 
     // Defer initialization to avoid doing lots of reflection on startup.
@@ -221,7 +222,7 @@ public sealed class CompositeEndpointDataSource : EndpointDataSource, IDisposabl
         // 2. A fires event causing B's callback to get called.
         // 3. B executes some code in its callback, but needs to re-register callback
         //    in the same callback.
-        if (_isUpdatingCacheOnThisThread)
+        if (_isUpdatingCacheOnThisThread.Value)
         {
             return;
         }
@@ -229,7 +230,7 @@ public sealed class CompositeEndpointDataSource : EndpointDataSource, IDisposabl
         CancellationTokenSource? oldTokenSource = null;
         List<IDisposable>? oldChangeTokenRegistrations = null;
 
-        _isUpdatingCacheOnThisThread = true;
+        _isUpdatingCacheOnThisThread.Value = true;
 
         try
         {
@@ -274,7 +275,7 @@ public sealed class CompositeEndpointDataSource : EndpointDataSource, IDisposabl
         }
         finally
         {
-            _isUpdatingCacheOnThisThread = false;
+            _isUpdatingCacheOnThisThread.Value = false;
         }
     }
 

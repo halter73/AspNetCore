@@ -16,11 +16,6 @@ namespace Microsoft.AspNetCore.Routing;
 [DebuggerDisplay("{DebuggerDisplayString,nq}")]
 public sealed class CompositeEndpointDataSource : EndpointDataSource, IDisposable
 {
-    // Prevent stack diving in change handler without locking while triggering change notifications
-    // or risking missing parallel notifications from another thread.
-    [ThreadStatic]
-    private static bool _isUpdatingCacheOnThisThread;
-
     private readonly object _lock = new();
     private readonly ICollection<EndpointDataSource> _dataSources;
 
@@ -29,6 +24,11 @@ public sealed class CompositeEndpointDataSource : EndpointDataSource, IDisposabl
     private CancellationTokenSource? _cts;
     private List<IDisposable>? _changeTokenRegistrations;
     private bool _disposed;
+
+    // Prevent stack diving in change handler without locking while triggering change notifications
+    // or risking missing parallel notifications from another thread. We cannot use a ThreadLocal<bool>
+    // because ChangeCallbackRegistrar drops the execution context.
+    private int? _currentChangeHandlingThreadId;
 
     internal CompositeEndpointDataSource(ObservableCollection<EndpointDataSource> dataSources)
     {
@@ -51,7 +51,7 @@ public sealed class CompositeEndpointDataSource : EndpointDataSource, IDisposabl
         }
     }
 
-    private void OnDataSourcesChanged(object? sender, NotifyCollectionChangedEventArgs e) => HandleChange(collectionChanged: true);
+    private void OnDataSourcesChanged(object? sender, NotifyCollectionChangedEventArgs e) => HandleChange();
 
     /// <summary>
     /// Returns the collection of <see cref="EndpointDataSource"/> instances associated with the object.
@@ -64,17 +64,7 @@ public sealed class CompositeEndpointDataSource : EndpointDataSource, IDisposabl
     /// <returns>The <see cref="IChangeToken"/>.</returns>
     public override IChangeToken GetChangeToken()
     {
-        _isUpdatingCacheOnThisThread = true;
-
-        try
-        {
-            EnsureChangeTokenInitialized();
-        }
-        finally
-        {
-            _isUpdatingCacheOnThisThread = false;
-        }
-
+        EnsureChangeTokenInitialized();
         return _consumerChangeToken;
     }
 
@@ -85,17 +75,7 @@ public sealed class CompositeEndpointDataSource : EndpointDataSource, IDisposabl
     {
         get
         {
-            _isUpdatingCacheOnThisThread = true;
-
-            try
-            {
-                EnsureEndpointsInitialized();
-            }
-            finally
-            {
-                _isUpdatingCacheOnThisThread = false;
-            }
-
+            EnsureEndpointsInitialized();
             return _endpoints;
         }
     }
@@ -208,11 +188,11 @@ public sealed class CompositeEndpointDataSource : EndpointDataSource, IDisposabl
             }
 
             // This is our first time initializing the change token, so the collection has "changed" from nothing.
-            CreateChangeTokenUnsynchronized(collectionChanged: true);
+            CreateChangeTokenUnsynchronized();
         }
     }
 
-    private void HandleChange(bool collectionChanged)
+    private void HandleChange()
     {
         // Prevent consumers from re-registering callback to in-flight events as that can
         // cause a stack overflow.
@@ -221,15 +201,13 @@ public sealed class CompositeEndpointDataSource : EndpointDataSource, IDisposabl
         // 2. A fires event causing B's callback to get called.
         // 3. B executes some code in its callback, but needs to re-register callback
         //    in the same callback.
-        if (_isUpdatingCacheOnThisThread)
+        if (_currentChangeHandlingThreadId == Environment.CurrentManagedThreadId)
         {
             return;
         }
 
         CancellationTokenSource? oldTokenSource = null;
         List<IDisposable>? oldChangeTokenRegistrations = null;
-
-        _isUpdatingCacheOnThisThread = true;
 
         try
         {
@@ -240,6 +218,10 @@ public sealed class CompositeEndpointDataSource : EndpointDataSource, IDisposabl
                     return;
                 }
 
+                // We prevent reentrancy before taking the lock. If we've acquired the lock, there is no _currentlyCachingThreadId
+                Debug.Assert(_currentChangeHandlingThreadId is null);
+                _currentChangeHandlingThreadId = Environment.CurrentManagedThreadId;
+
                 oldTokenSource = _cts;
                 oldChangeTokenRegistrations = _changeTokenRegistrations;
 
@@ -248,19 +230,19 @@ public sealed class CompositeEndpointDataSource : EndpointDataSource, IDisposabl
                 {
                     // We have to hook to any OnChange callbacks before caching endpoints,
                     // otherwise we might miss changes that occurred to one of the _dataSources after caching.
-                    CreateChangeTokenUnsynchronized(collectionChanged);
+                    CreateChangeTokenUnsynchronized(skipReentrancyCheck: true);
                 }
 
                 // Don't update endpoints if no one has read them yet.
                 if (_endpoints is not null)
                 {
                     // Refresh the endpoints from data source so that callbacks can get the latest endpoints.
-                    CreateEndpointsUnsynchronized();
+                    CreateEndpointsUnsynchronized(skipReentrancyCheck: true);
                 }
             }
 
             // Disposing registrations can block on user defined code on running on other threads that could try to acquire the _lock.
-            if (collectionChanged && oldChangeTokenRegistrations is not null)
+            if (oldChangeTokenRegistrations is not null)
             {
                 foreach (var registration in oldChangeTokenRegistrations)
                 {
@@ -274,24 +256,27 @@ public sealed class CompositeEndpointDataSource : EndpointDataSource, IDisposabl
         }
         finally
         {
-            _isUpdatingCacheOnThisThread = false;
+            _currentChangeHandlingThreadId = null;
         }
     }
 
     [MemberNotNull(nameof(_consumerChangeToken))]
-    private void CreateChangeTokenUnsynchronized(bool collectionChanged)
+    private void CreateChangeTokenUnsynchronized(bool skipReentrancyCheck = false)
     {
+        if (!skipReentrancyCheck && Environment.CurrentManagedThreadId == _currentChangeHandlingThreadId)
+        {
+            // The change handler just created the token and is firing change events upstack.
+            Debug.Assert(_consumerChangeToken is not null);
+            return;
+        }
+
         var cts = new CancellationTokenSource();
 
-        if (collectionChanged)
+        _changeTokenRegistrations = new();
+        foreach (var dataSource in _dataSources)
         {
-            _changeTokenRegistrations = new();
-            foreach (var dataSource in _dataSources)
-            {
-                _changeTokenRegistrations.Add(ChangeToken.OnChange(
-                    dataSource.GetChangeToken,
-                    () => HandleChange(collectionChanged: false)));
-            }
+            _changeTokenRegistrations.Add(dataSource.GetChangeToken()
+                .RegisterChangeCallback(state => ((CompositeEndpointDataSource)state!).HandleChange(), this));
         }
 
         _cts = cts;
@@ -299,8 +284,15 @@ public sealed class CompositeEndpointDataSource : EndpointDataSource, IDisposabl
     }
 
     [MemberNotNull(nameof(_endpoints))]
-    private void CreateEndpointsUnsynchronized()
+    private void CreateEndpointsUnsynchronized(bool skipReentrancyCheck = false)
     {
+        if (!skipReentrancyCheck && Environment.CurrentManagedThreadId == _currentChangeHandlingThreadId)
+        {
+            // The change handler just created the token and is firing change events upstack.
+            Debug.Assert(_endpoints is not null);
+            return;
+        }
+
         var endpoints = new List<Endpoint>();
 
         foreach (var dataSource in _dataSources)

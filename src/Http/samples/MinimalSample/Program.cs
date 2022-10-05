@@ -133,13 +133,13 @@ public class DynamicEndpointDataSource : EndpointDataSource, IDisposable
     {
         while (await _timer.WaitForNextTickAsync())
         {
-            Console.WriteLine("Ticking");
+            var oldLength = _endpoints.Length;
 
-            var newEndpoints = new Endpoint[_endpoints.Length + 1];
-            Array.Copy(_endpoints, 0, newEndpoints, 0, _endpoints.Length);
+            var newEndpoints = new Endpoint[oldLength + 1];
+            Array.Copy(_endpoints, 0, newEndpoints, 0, oldLength);
 
-            newEndpoints[_endpoints.Length] = new RouteEndpoint(context => context.Response.WriteAsync($"Dynamic endpoint #{_endpoints.Length}"),
-                RoutePatternFactory.Parse($"/dynamic/{_endpoints.Length}"), 0, null, null);
+            newEndpoints[oldLength] = new RouteEndpoint(context => context.Response.WriteAsync($"Dynamic endpoint #{oldLength}"),
+                RoutePatternFactory.Parse($"/dynamic/{oldLength}"), 0, null, null);
 
             _endpoints = newEndpoints;
             _cts.Cancel();

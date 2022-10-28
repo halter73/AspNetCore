@@ -176,16 +176,6 @@ internal sealed class KestrelServerImpl : IServer
                     }
                 }
 
-                // Quic isn't registered if it's not supported, throw if we can't fall back to 1 or 2
-                if (hasHttp3 && _multiplexedTransportFactory is null && !(hasHttp1 || hasHttp2))
-                {
-                    throw new InvalidOperationException("This platform doesn't support QUIC or HTTP/3.");
-                }
-
-                // Disable adding alt-svc header if endpoint has configured not to or there is no
-                // multiplexed transport factory, which happens if QUIC isn't supported.
-                var addAltSvcHeader = !options.DisableAltSvcHeader && _multiplexedTransportFactory != null;
-
                 var configuredEndpoint = options.EndPoint;
 
                 // Add the HTTP middleware as the terminal connection middleware
@@ -198,7 +188,7 @@ internal sealed class KestrelServerImpl : IServer
                         throw new InvalidOperationException($"Cannot start HTTP/1.x or HTTP/2 server if no {nameof(IConnectionListenerFactory)} is registered.");
                     }
 
-                    options.UseHttpServer(ServiceContext, application, options.Protocols, addAltSvcHeader);
+                    options.UseHttpServer(ServiceContext, application, options.Protocols, addAltSvcHeader: !options.DisableAltSvcHeader);
                     var connectionDelegate = options.Build();
 
                     // Add the connection limit middleware
@@ -217,7 +207,7 @@ internal sealed class KestrelServerImpl : IServer
                     }
                     else
                     {
-                        options.UseHttp3Server(ServiceContext, application, options.Protocols, addAltSvcHeader);
+                        options.UseHttp3Server(ServiceContext, application, options.Protocols, addAltSvcHeader: !options.DisableAltSvcHeader);
                         var multiplexedConnectionDelegate = ((IMultiplexedConnectionBuilder)options).Build();
 
                         // Add the connection limit middleware

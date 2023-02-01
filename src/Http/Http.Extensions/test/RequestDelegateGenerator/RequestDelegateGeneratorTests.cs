@@ -245,8 +245,8 @@ app.MapGet("/", GetTodo);
     public async Task Multiple_MapAction_NoParam_StringReturn()
     {
         var source = """
-app.MapGet("/en", () => "Hello world!");
-app.MapGet("/es", () => "Hola mundo!");
+app.MapGet("/en", () => Task.FromResult("Hello world!"));
+app.MapGet("/es", () => new ValueTask<string>("Hola mundo!"));
 """;
         var (_, compilation) = RunGenerator(source);
 

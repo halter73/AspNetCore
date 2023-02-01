@@ -57,9 +57,8 @@ internal class Endpoint
 
         if (o is Endpoint endpoint)
         {
-            return endpoint.HttpMethod.Equals(HttpMethod, StringComparison.OrdinalIgnoreCase) ||
-                endpoint.Location.Item1.Equals(Location.Item1, StringComparison.OrdinalIgnoreCase) ||
-                endpoint.Location.Item2.Equals(Location.Item2) ||
+            return endpoint.HttpMethod.Equals(HttpMethod, StringComparison.Ordinal) &&
+                endpoint.Location.Equals(Location) &&
                 endpoint.Response.Equals(Response);
         }
 
@@ -68,6 +67,7 @@ internal class Endpoint
 
     public override int GetHashCode()
     {
+        //return System.HashCode.Combine(HttpMethod, Location, )
         unchecked
         {
             var hashCode = HttpMethod.GetHashCode();

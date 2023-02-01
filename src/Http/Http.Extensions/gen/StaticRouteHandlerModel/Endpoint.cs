@@ -1,5 +1,6 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -12,24 +13,63 @@ namespace Microsoft.AspNetCore.Http.Generators.StaticRouteHandlerModel;
 
 internal class Endpoint
 {
-    public string HttpMethod { get; }
-    public EndpointRoute Route { get; }
-    public EndpointResponse Response { get; }
-    public List<DiagnosticDescriptor> Diagnostics { get; } = new List<DiagnosticDescriptor>();
-    public (string, int) Location { get; }
-    public IInvocationOperation Operation { get; }
-
-    private WellKnownTypes WellKnownTypes { get; }
+    private string? _argumentListCache;
 
     public Endpoint(IInvocationOperation operation, WellKnownTypes wellKnownTypes)
     {
         Operation = operation;
-        WellKnownTypes = wellKnownTypes;
         Location = GetLocation();
         HttpMethod = GetHttpMethod();
-        Response = new EndpointResponse(Operation, wellKnownTypes);
-        Route = new EndpointRoute(Operation);
+
+        if (!operation.TryGetRouteHandlerPattern(out var routeToken))
+        {
+            Diagnostics.Add(DiagnosticDescriptors.UnableToResolveRoutePattern);
+            return;
+        }
+
+        RoutePattern = routeToken.ValueText;
+
+        if (!operation.TryGetRouteHandlerMethod(out var method))
+        {
+            Diagnostics.Add(DiagnosticDescriptors.UnableToResolveMethod);
+            return;
+        }
+
+        Response = new EndpointResponse(method, wellKnownTypes);
+
+        if (method.Parameters.Length == 0)
+        {
+            return;
+        }
+
+        var parameters = new EndpointParameter[method.Parameters.Length];
+
+        for (var i = 0; i < method.Parameters.Length; i++)
+        {
+            var parameter = new EndpointParameter(method.Parameters[i], wellKnownTypes);
+
+            if (parameter.Source == EndpointParameterSource.Unknown)
+            {
+                Diagnostics.Add(DiagnosticDescriptors.GetUnableToResolveParameterDescriptor(parameter.Name));
+                return;
+            }
+
+            parameters[i] = parameter;
+        }
+
+        Parameters = parameters;
     }
+
+    public string HttpMethod { get; }
+    public string? RoutePattern { get; }
+    public EndpointResponse? Response { get; }
+    public EndpointParameter[] Parameters { get; } = Array.Empty<EndpointParameter>();
+    public string EmitArgumentList() => _argumentListCache ??= string.Join(", ", Parameters.Select(p => p.EmitArgument()));
+
+    public List<DiagnosticDescriptor> Diagnostics { get; } = new List<DiagnosticDescriptor>();
+
+    public (string, int) Location { get; }
+    public IInvocationOperation Operation { get; }
 
     private (string, int) GetLocation()
     {

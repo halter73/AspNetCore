@@ -274,7 +274,7 @@ Actual Line:
         }
     }
 
-    private class EmptyServiceProvider : IServiceScope, IServiceProvider, IServiceScopeFactory
+    private class EmptyServiceProvider : IServiceScope, IServiceProvider, IServiceScopeFactory, IServiceProviderIsService
     {
         public IServiceProvider ServiceProvider => this;
 
@@ -287,8 +287,18 @@ Actual Line:
 
         public object GetService(Type serviceType)
         {
+            if (IsService(serviceType))
+            {
+                return this;
+            }
+
             return null;
         }
+
+        public bool IsService(Type serviceType) =>
+            serviceType == typeof(IServiceProvider) ||
+            serviceType == typeof(IServiceScopeFactory) ||
+            serviceType == typeof(IServiceProviderIsService);
     }
 
     private class DefaultEndpointRouteBuilder : IEndpointRouteBuilder

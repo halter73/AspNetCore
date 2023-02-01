@@ -47,6 +47,11 @@ internal class Endpoint
 
         Response = new EndpointResponse(method, wellKnownTypes);
 
+        if (method.Parameters.Length == 0)
+        {
+            return;
+        }
+
         var parameters = new EndpointParameter[method.Parameters.Length];
 
         for (var i = 0; i < method.Parameters.Length; i++)

@@ -15,19 +15,16 @@ internal class Endpoint
     public string HttpMethod { get; }
     public string? RoutePattern { get; }
     public EndpointResponse? Response { get; }
-    public IEnumerable<EndpointParameter> Parameters { get; } = Array.Empty<EndpointParameter>();
+    public EndpointParameter[] Parameters { get; } = Array.Empty<EndpointParameter>();
 
     public List<DiagnosticDescriptor> Diagnostics { get; } = new List<DiagnosticDescriptor>();
 
     public (string, int) Location { get; }
     public IInvocationOperation Operation { get; }
 
-    private WellKnownTypes WellKnownTypes { get; }
-
     public Endpoint(IInvocationOperation operation, WellKnownTypes wellKnownTypes)
     {
         Operation = operation;
-        WellKnownTypes = wellKnownTypes;
         Location = GetLocation();
         HttpMethod = GetHttpMethod();
 
@@ -56,7 +53,7 @@ internal class Endpoint
 
         for (var i = 0; i < method.Parameters.Length; i++)
         {
-            var parameter = new EndpointParameter(method.Parameters[i]);
+            var parameter = new EndpointParameter(method.Parameters[i], wellKnownTypes);
 
             if (parameter.Source == EndpointParameterSource.Unknown)
             {

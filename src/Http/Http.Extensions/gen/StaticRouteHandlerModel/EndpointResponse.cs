@@ -14,7 +14,7 @@ using WellKnownType = WellKnownTypeData.WellKnownType;
 
 public class EndpointResponse
 {
-    public ITypeSymbol ResponseType { get; set; }
+    public ITypeSymbol? ResponseType { get; set; }
     public string WrappedResponseType { get; set; }
     public string ContentType { get; set; }
     public bool IsAwaitable { get; set; }

@@ -130,7 +130,7 @@
     <value>Unable to statically resolve endpoint handler method. Only method groups, lambda expressions or readonly fields/variables are allowed. Compile-time endpoint generation will skip this endpoint.</value>
   </data>
   <data name="UnableToResolveParameter_Message" xml:space="preserve">
-    <value>Unable to statically resolve parameter '{ParamaterName}' for endpoint. Compile-time endpoint generation will skip this endpoint.</value>
+    <value>Unable to statically resolve parameter '{0}' for endpoint. Compile-time endpoint generation will skip this endpoint.</value>
   </data>
   <data name="UnableToResolveParameter_Title" xml:space="preserve">
     <value>Unable to resolve parameter</value>

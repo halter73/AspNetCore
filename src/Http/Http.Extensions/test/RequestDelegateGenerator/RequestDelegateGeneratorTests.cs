@@ -40,6 +40,38 @@ public class RequestDelegateGeneratorTests : RequestDelegateGeneratorTestBase
         Assert.Equal(expectedBody, body);
     }
 
+    [Theory]
+    [InlineData("HttpContext")]
+    [InlineData("HttpRequest")]
+    [InlineData("HttpResponse")]
+    [InlineData("System.IO.Pipelines.PipeReader")]
+    public async Task MapAction_SingleSpecialTypeParam_StringReturn(string parameterType)
+    {
+        var (results, compilation) = RunGenerator(
+            $"app.MapGet(\"/hello\", ({parameterType} param) => param is null ? \"null!\" : \"Hello world!\");");
+
+        var endpointModel = GetStaticEndpoint(results, GeneratorSteps.EndpointsStep);
+        var endpoint = GetEndpointFromCompilation(compilation);
+        var requestDelegate = endpoint.RequestDelegate;
+
+        Assert.Equal("/hello", endpointModel.RoutePattern);
+        Assert.Equal("MapGet", endpointModel.HttpMethod);
+
+        var httpContext = new DefaultHttpContext();
+
+        var outStream = new MemoryStream();
+        httpContext.Response.Body = outStream;
+
+        await requestDelegate(httpContext);
+
+        var httpResponse = httpContext.Response;
+        httpResponse.Body.Seek(0, SeekOrigin.Begin);
+        var streamReader = new StreamReader(httpResponse.Body);
+        var body = await streamReader.ReadToEndAsync();
+        Assert.Equal(200, httpContext.Response.StatusCode);
+        Assert.Equal("Hello world!", body);
+    }
+
     [Fact]
     public async Task MapGet_NoParam_StringReturn_WithFilter()
     {

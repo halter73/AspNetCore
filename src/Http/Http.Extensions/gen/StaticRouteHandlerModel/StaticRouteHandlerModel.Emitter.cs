@@ -2,6 +2,8 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
+using System.Diagnostics;
+using System.Linq;
 using System.Text;
 using Microsoft.AspNetCore.Analyzers.Infrastructure;
 using Microsoft.CodeAnalysis;
@@ -10,30 +12,25 @@ namespace Microsoft.AspNetCore.Http.Generators.StaticRouteHandlerModel;
 
 internal static class StaticRouteHandlerModelEmitter
 {
-    /*
-     * TODO: Emit code that represents the signature of the delegate
-     * represented by the handler. When the handler does not return a value
-     * but consumes parameters the following will be emitted:
-     *
-     * ```
-     * System.Action<string, int>
-     * ```
-     *
-     * Where `string` and `int` represent parameter types. For handlers
-     * that do return a value, `System.Func<string, int, string>` will
-     * be emitted to indicate a `string`return type.
-     */
     public static string EmitHandlerDelegateType(this Endpoint endpoint)
     {
-        if (endpoint.Response.IsVoid)
+        if (endpoint.Parameters.Length == 0)
         {
-            return $"System.Action";
+            return endpoint.Response.IsVoid ? "System.Action" : $"System.Func<{endpoint.Response.WrappedResponseType}>";
         }
-        if (endpoint.Response.IsAwaitable)
+        else
         {
-            return $"System.Func<{endpoint.Response.WrappedResponseType}>";
+            var parameterTypeList = string.Join(", ", endpoint.Parameters.Select(p => p.Type));
+
+            if (endpoint.Response.IsVoid)
+            {
+                return $"System.Action<{parameterTypeList}>";
+            }
+            else
+            {
+                return $"System.Func<{parameterTypeList}, {endpoint.Response.WrappedResponseType}>";
+            }
         }
-        return $"System.Func<{endpoint.Response.ResponseType}>";
     }
 
     public static string EmitSourceKey(this Endpoint endpoint)
@@ -69,9 +66,11 @@ internal static class StaticRouteHandlerModelEmitter
             : "Task RequestHandler(HttpContext httpContext)");
         code.StartBlock();
 
+        var parameterList = string.Join(", ", endpoint.Parameters.Select(p => p.EmitParameter()));
+
         if (endpoint.Response.IsVoid)
         {
-            code.WriteLine("handler();");
+            code.WriteLine($"handler({parameterList});");
             code.WriteLine("return Task.CompletedTask;");
         }
         else
@@ -79,17 +78,30 @@ internal static class StaticRouteHandlerModelEmitter
             code.WriteLine($"""httpContext.Response.ContentType ??= "{endpoint.Response.ContentType}";""");
             if (endpoint.Response.IsAwaitable)
             {
-                code.WriteLine("var result = await handler();");
+                code.WriteLine($"var result = await handler({parameterList});");
                 code.WriteLine(endpoint.EmitResponseWritingCall());
             }
             else
             {
-                code.WriteLine("var result = handler();");
+                code.WriteLine($"var result = handler({parameterList});");
                 code.WriteLine("return GeneratedRouteBuilderExtensionsCore.ExecuteObjectResult(result, httpContext);");
             }
         }
         code.EndBlock();
         return code.ToString();
+    }
+
+    private static string EmitParameter(this EndpointParameter parameter)
+    {
+        switch (parameter.Source)
+        {
+            case EndpointParameterSource.SpecialType:
+                return parameter.CallingCode!;
+            default:
+                // Eventually there should be know unknown parameter sources, but in the meantime we don't expect them to get this far.
+                // The netstandard2.0 target means there is no UnreachableException.
+                throw new Exception("Unreachable!");
+        }
     }
 
     private static string EmitResponseWritingCall(this Endpoint endpoint)

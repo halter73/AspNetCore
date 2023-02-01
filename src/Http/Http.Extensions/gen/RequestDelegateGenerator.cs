@@ -53,20 +53,10 @@ public sealed class RequestDelegateGenerator : IIncrementalGenerator
             {
                 context.ReportDiagnostic(Diagnostic.Create(diagnostic, endpoint.Operation.Syntax.GetLocation(), filePath));
             }
-            foreach (var diagnostic in endpoint.Response.Diagnostics)
-            {
-                context.ReportDiagnostic(Diagnostic.Create(diagnostic, endpoint.Operation.Syntax.GetLocation(), filePath));
-            }
-            foreach (var diagnostic in endpoint.Route.Diagnostics)
-            {
-                context.ReportDiagnostic(Diagnostic.Create(diagnostic, endpoint.Operation.Syntax.GetLocation(), filePath));
-            }
         });
 
         var endpoints = endpointsWithDiagnostics
-            .Where(endpoint => endpoint.Diagnostics.Count == 0 &&
-                               endpoint.Response.Diagnostics.Count == 0 &&
-                               endpoint.Route.Diagnostics.Count == 0)
+            .Where(endpoint => endpoint.Diagnostics.Count == 0)
             .WithTrackingName(GeneratorSteps.EndpointsWithoutDiagnosicsStep);
 
         var thunks = endpoints.Select((endpoint, _) => $$"""

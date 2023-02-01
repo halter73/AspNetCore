@@ -22,7 +22,7 @@ public class RequestDelegateGeneratorTests : RequestDelegateGeneratorTestBase
         var endpoint = GetEndpointFromCompilation(compilation);
         var requestDelegate = endpoint.RequestDelegate;
 
-        Assert.Equal("/hello", endpointModel.Route.RoutePattern);
+        Assert.Equal("/hello", endpointModel.RoutePattern);
         Assert.Equal(httpMethod, endpointModel.HttpMethod);
 
         var httpContext = new DefaultHttpContext();
@@ -59,7 +59,7 @@ app.MapGet("/hello", () => "Hello world!")
         var endpoint = GetEndpointFromCompilation(compilation);
         var requestDelegate = endpoint.RequestDelegate;
 
-        Assert.Equal("/hello", endpointModel.Route.RoutePattern);
+        Assert.Equal("/hello", endpointModel.RoutePattern);
 
         var httpContext = new DefaultHttpContext();
 
@@ -88,7 +88,7 @@ app.MapGet("/hello", () => "Hello world!")
         var endpoint = GetEndpointFromCompilation(compilation);
         var requestDelegate = endpoint.RequestDelegate;
 
-        Assert.Equal("/", endpointModel.Route.RoutePattern);
+        Assert.Equal("/", endpointModel.RoutePattern);
         Assert.Equal("MapGet", endpointModel.HttpMethod);
 
         var httpContext = new DefaultHttpContext();
@@ -122,7 +122,7 @@ app.MapGet("/", GetTodo);
         var endpoint = GetEndpointFromCompilation(compilation);
         var requestDelegate = endpoint.RequestDelegate;
 
-        Assert.Equal("/", endpointModel.Route.RoutePattern);
+        Assert.Equal("/", endpointModel.RoutePattern);
         Assert.Equal("MapGet", endpointModel.HttpMethod);
 
         var httpContext = CreateHttpContext();
@@ -149,7 +149,7 @@ app.MapGet("/", GetTodo);
 
         var endpointModel = GetStaticEndpoint(results, GeneratorSteps.EndpointsStep);
 
-        Assert.Equal("/", endpointModel.Route.RoutePattern);
+        Assert.Equal("/", endpointModel.RoutePattern);
         Assert.Equal("MapGet", endpointModel.HttpMethod);
         Assert.Equal(expectedContentType, endpointModel.Response.ContentType);
     }
@@ -166,7 +166,7 @@ app.MapGet("/", GetTodo);
         var endpoint = GetEndpointFromCompilation(compilation);
         var requestDelegate = endpoint.RequestDelegate;
 
-        Assert.Equal("/", endpointModel.Route.RoutePattern);
+        Assert.Equal("/", endpointModel.RoutePattern);
         Assert.Equal("MapGet", endpointModel.HttpMethod);
         Assert.True(endpointModel.Response.IsAwaitable);
 
@@ -194,7 +194,7 @@ app.MapGet("/", GetTodo);
         var endpoint = GetEndpointFromCompilation(compilation);
         var requestDelegate = endpoint.RequestDelegate;
 
-        Assert.Equal("/", endpointModel.Route.RoutePattern);
+        Assert.Equal("/", endpointModel.RoutePattern);
         Assert.Equal("MapGet", endpointModel.HttpMethod);
         Assert.True(endpointModel.Response.IsAwaitable);
 
@@ -225,7 +225,7 @@ app.MapGet("/", GetTodo);
         var endpoint = GetEndpointFromCompilation(compilation);
         var requestDelegate = endpoint.RequestDelegate;
 
-        Assert.Equal("/", endpointModel.Route.RoutePattern);
+        Assert.Equal("/", endpointModel.RoutePattern);
         Assert.Equal("MapGet", endpointModel.HttpMethod);
         Assert.True(endpointModel.Response.IsAwaitable);
 

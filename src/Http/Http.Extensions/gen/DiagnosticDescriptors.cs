@@ -24,4 +24,15 @@ internal static class DiagnosticDescriptors
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true
     );
+
+    public static DiagnosticDescriptor GetUnableToResolveParameterDescriptor(string parameterName)
+    {
+        return new(
+            "RDG003",
+            new LocalizableResourceString(nameof(Resources.UnableToResolveParameter_Title), Resources.ResourceManager, typeof(Resources)),
+            new LocalizableResourceString(nameof(Resources.FormatUnableToResolveParameter_Message), Resources.ResourceManager, typeof(Resources), parameterName),
+            "Usage",
+            DiagnosticSeverity.Warning,
+            isEnabledByDefault: true);
+    }
 }

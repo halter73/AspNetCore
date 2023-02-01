@@ -1,5 +1,6 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
+
 using System;
 using System.Collections.Generic;
 using Microsoft.AspNetCore.App.Analyzers.Infrastructure;
@@ -12,8 +13,10 @@ namespace Microsoft.AspNetCore.Http.Generators.StaticRouteHandlerModel;
 internal class Endpoint
 {
     public string HttpMethod { get; }
-    public EndpointRoute Route { get; }
-    public EndpointResponse Response { get; }
+    public string? RoutePattern { get; }
+    public EndpointResponse? Response { get; }
+    public IEnumerable<EndpointParameter> Parameters { get; } = Array.Empty<EndpointParameter>();
+
     public List<DiagnosticDescriptor> Diagnostics { get; } = new List<DiagnosticDescriptor>();
 
     public (string, int) Location { get; }
@@ -27,8 +30,37 @@ internal class Endpoint
         WellKnownTypes = wellKnownTypes;
         Location = GetLocation();
         HttpMethod = GetHttpMethod();
-        Response = new EndpointResponse(Operation, wellKnownTypes);
-        Route = new EndpointRoute(Operation);
+
+        if (!operation.TryGetRouteHandlerPattern(out var routeToken))
+        {
+            Diagnostics.Add(DiagnosticDescriptors.UnableToResolveRoutePattern);
+            return;
+        }
+
+        RoutePattern = routeToken.ValueText;
+
+        if (!operation.TryGetRouteHandlerMethod(out var method))
+        {
+            Diagnostics.Add(DiagnosticDescriptors.UnableToResolveMethod);
+            return;
+        }
+
+        Response = new EndpointResponse(method, wellKnownTypes);
+
+        var parameters = new EndpointParameter[method.Parameters.Length];
+
+        for (var i = 0; i < method.Parameters.Length; i++)
+        {
+            var parameter = new EndpointParameter(method.Parameters[i]);
+
+            if (parameter.Source == EndpointParameterSource.Unknown)
+            {
+                Diagnostics.Add(DiagnosticDescriptors.GetUnableToResolveParameterDescriptor(parameter.Name));
+                return;
+            }
+        }
+
+        Parameters = parameters;
     }
 
     private (string, int) GetLocation()
@@ -71,7 +103,6 @@ internal class Endpoint
         unchecked
         {
             var hashCode = HttpMethod.GetHashCode();
-            hashCode = (hashCode * 397) ^ Route.GetHashCode();
             hashCode = (hashCode * 397) ^ Response.GetHashCode();
             hashCode = (hashCode * 397) ^ Diagnostics.GetHashCode();
             hashCode = (hashCode * 397) ^ Location.GetHashCode();

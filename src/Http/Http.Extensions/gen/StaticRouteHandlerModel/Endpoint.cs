@@ -1,7 +1,9 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
+
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.AspNetCore.App.Analyzers.Infrastructure;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -11,25 +13,63 @@ namespace Microsoft.AspNetCore.Http.Generators.StaticRouteHandlerModel;
 
 internal class Endpoint
 {
-    public string HttpMethod { get; }
-    public EndpointRoute Route { get; }
-    public EndpointResponse Response { get; }
-    public List<DiagnosticDescriptor> Diagnostics { get; } = new List<DiagnosticDescriptor>();
-
-    public (string, int) Location { get; }
-    public IInvocationOperation Operation { get; }
-
-    private WellKnownTypes WellKnownTypes { get; }
+    private string? _argumentListCache;
 
     public Endpoint(IInvocationOperation operation, WellKnownTypes wellKnownTypes)
     {
         Operation = operation;
-        WellKnownTypes = wellKnownTypes;
         Location = GetLocation();
         HttpMethod = GetHttpMethod();
-        Response = new EndpointResponse(Operation, wellKnownTypes);
-        Route = new EndpointRoute(Operation);
+
+        if (!operation.TryGetRouteHandlerPattern(out var routeToken))
+        {
+            Diagnostics.Add(DiagnosticDescriptors.UnableToResolveRoutePattern);
+            return;
+        }
+
+        RoutePattern = routeToken.ValueText;
+
+        if (!operation.TryGetRouteHandlerMethod(out var method))
+        {
+            Diagnostics.Add(DiagnosticDescriptors.UnableToResolveMethod);
+            return;
+        }
+
+        Response = new EndpointResponse(method, wellKnownTypes);
+
+        if (method.Parameters.Length == 0)
+        {
+            return;
+        }
+
+        var parameters = new EndpointParameter[method.Parameters.Length];
+
+        for (var i = 0; i < method.Parameters.Length; i++)
+        {
+            var parameter = new EndpointParameter(method.Parameters[i], wellKnownTypes);
+
+            if (parameter.Source == EndpointParameterSource.Unknown)
+            {
+                Diagnostics.Add(DiagnosticDescriptors.GetUnableToResolveParameterDescriptor(parameter.Name));
+                return;
+            }
+
+            parameters[i] = parameter;
+        }
+
+        Parameters = parameters;
     }
+
+    public string HttpMethod { get; }
+    public string? RoutePattern { get; }
+    public EndpointResponse? Response { get; }
+    public EndpointParameter[] Parameters { get; } = Array.Empty<EndpointParameter>();
+    public string EmitArgumentList() => _argumentListCache ??= string.Join(", ", Parameters.Select(p => p.EmitArgument()));
+
+    public List<DiagnosticDescriptor> Diagnostics { get; } = new List<DiagnosticDescriptor>();
+
+    public (string, int) Location { get; }
+    public IInvocationOperation Operation { get; }
 
     private (string, int) GetLocation()
     {
@@ -48,35 +88,48 @@ internal class Endpoint
         return identifier.ValueText;
     }
 
-    public override bool Equals(object o)
+    public bool SignatureEquals(Endpoint other)
     {
-        if (o is null)
+        // Eventually we may not have to compare HttpMethod because it should only influence parameter sources
+        // which is compared as part of the Parameters array.
+        if (!other.HttpMethod.Equals(HttpMethod, StringComparison.Ordinal) ||
+            !other.Response.Equals(Response) ||
+            other.Parameters.Length != Parameters.Length)
         {
             return false;
         }
 
-        if (o is Endpoint endpoint)
+        for (var i = 0; i < Parameters.Length; i++)
         {
-            return endpoint.HttpMethod.Equals(HttpMethod, StringComparison.OrdinalIgnoreCase) ||
-                endpoint.Location.Item1.Equals(Location.Item1, StringComparison.OrdinalIgnoreCase) ||
-                endpoint.Location.Item2.Equals(Location.Item2) ||
-                endpoint.Response.Equals(Response);
+            if (other.Parameters[i] != Parameters[i])
+            {
+                return false;
+            }
         }
 
-        return false;
+        return true;
     }
 
-    public override int GetHashCode()
+    public int GetSignatureHashCode()
     {
         unchecked
         {
             var hashCode = HttpMethod.GetHashCode();
-            hashCode = (hashCode * 397) ^ Route.GetHashCode();
+            hashCode = (hashCode * 397) ^ HttpMethod.GetHashCode();
             hashCode = (hashCode * 397) ^ Response.GetHashCode();
-            hashCode = (hashCode * 397) ^ Diagnostics.GetHashCode();
-            hashCode = (hashCode * 397) ^ Location.GetHashCode();
-            hashCode = (hashCode * 397) ^ Operation.GetHashCode();
+
+            foreach (var parameter in Parameters)
+            {
+                hashCode = (hashCode * 397) ^ parameter.GetHashCode();
+            }
+
             return hashCode;
         }
     }
+
+    public override bool Equals(object obj) =>
+        obj is Endpoint other && other.Location.Equals(Location) && SignatureEquals(other);
+
+    public override int GetHashCode() =>
+        unchecked((Location.GetHashCode() * 397) ^ GetSignatureHashCode());
 }

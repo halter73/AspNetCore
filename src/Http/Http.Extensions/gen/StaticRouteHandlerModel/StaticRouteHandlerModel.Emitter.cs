@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
+using System.Linq;
 using System.Text;
 using Microsoft.AspNetCore.Analyzers.Infrastructure;
 using Microsoft.CodeAnalysis;
@@ -10,30 +11,25 @@ namespace Microsoft.AspNetCore.Http.Generators.StaticRouteHandlerModel;
 
 internal static class StaticRouteHandlerModelEmitter
 {
-    /*
-     * TODO: Emit code that represents the signature of the delegate
-     * represented by the handler. When the handler does not return a value
-     * but consumes parameters the following will be emitted:
-     *
-     * ```
-     * System.Action<string, int>
-     * ```
-     *
-     * Where `string` and `int` represent parameter types. For handlers
-     * that do return a value, `System.Func<string, int, string>` will
-     * be emitted to indicate a `string`return type.
-     */
     public static string EmitHandlerDelegateType(this Endpoint endpoint)
     {
-        if (endpoint.Response.IsVoid)
+        if (endpoint.Parameters.Length == 0)
         {
-            return $"System.Action";
+            return endpoint.Response.IsVoid ? "System.Action" : $"System.Func<{endpoint.Response.WrappedResponseType}>";
         }
-        if (endpoint.Response.IsAwaitable)
+        else
         {
-            return $"System.Func<{endpoint.Response.WrappedResponseType}>";
+            var parameterTypeList = string.Join(", ", endpoint.Parameters.Select(p => p.Type));
+
+            if (endpoint.Response.IsVoid)
+            {
+                return $"System.Action<{parameterTypeList}>";
+            }
+            else
+            {
+                return $"System.Func<{parameterTypeList}, {endpoint.Response.WrappedResponseType}>";
+            }
         }
-        return $"System.Func<{endpoint.Response.ResponseType}>";
     }
 
     public static string EmitSourceKey(this Endpoint endpoint)
@@ -71,7 +67,7 @@ internal static class StaticRouteHandlerModelEmitter
 
         if (endpoint.Response.IsVoid)
         {
-            code.WriteLine("handler();");
+            code.WriteLine($"handler({endpoint.EmitArgumentList()});");
             code.WriteLine("return Task.CompletedTask;");
         }
         else
@@ -79,12 +75,12 @@ internal static class StaticRouteHandlerModelEmitter
             code.WriteLine($"""httpContext.Response.ContentType ??= "{endpoint.Response.ContentType}";""");
             if (endpoint.Response.IsAwaitable)
             {
-                code.WriteLine("var result = await handler();");
+                code.WriteLine($"var result = await handler({endpoint.EmitArgumentList()});");
                 code.WriteLine(endpoint.EmitResponseWritingCall());
             }
             else
             {
-                code.WriteLine("var result = handler();");
+                code.WriteLine($"var result = handler({endpoint.EmitArgumentList()});");
                 code.WriteLine("return GeneratedRouteBuilderExtensionsCore.ExecuteObjectResult(result, httpContext);");
             }
         }
@@ -121,55 +117,62 @@ internal static class StaticRouteHandlerModelEmitter
         return code.ToString();
     }
 
-    /*
-     * TODO: Emit invocation to the `filteredInvocation` pipeline by constructing
-     * the `EndpointFilterInvocationContext` using the bound arguments for the handler.
-     * In the source generator context, the generic overloads for `EndpointFilterInvocationContext`
-     * can be used to reduce the boxing that happens at runtime when constructing
-     * the context object.
-     */
-    public static string EmitFilteredRequestHandler()
+    public static string EmitFilteredRequestHandler(this Endpoint endpoint)
     {
         var code = new CodeWriter(new StringBuilder());
         code.Indent(5);
         code.WriteLine("async Task RequestHandlerFiltered(HttpContext httpContext)");
         code.StartBlock();
-        code.WriteLine("var result = await filteredInvocation(new DefaultEndpointFilterInvocationContext(httpContext));");
+        if (endpoint.Parameters.Length == 0)
+        {
+            code.WriteLine("var result = await filteredInvocation(new DefaultEndpointFilterInvocationContext(httpContext));");
+        }
+        else
+        {
+            code.WriteLine($"var result = await filteredInvocation(new DefaultEndpointFilterInvocationContext(httpContext, {endpoint.EmitArgumentList()}));");
+        }
         code.WriteLine("await GeneratedRouteBuilderExtensionsCore.ExecuteObjectResult(result, httpContext);");
         code.EndBlock();
         return code.ToString();
     }
 
-    /*
-     * TODO: Emit code that will call the `handler` with
-     * the appropriate arguments processed via the parameter binding.
-     *
-     * ```
-     * return ValueTask.FromResult<object?>(handler(name, age));
-     * ```
-     *
-     * If the handler returns void, it will be invoked and an `EmptyHttpResult`
-     * will be returned to the user.
-     *
-     * ```
-     * handler(name, age);
-     * return ValueTask.FromResult<object?>(Results.Empty);
-     * ```
-     */
     public static string EmitFilteredInvocation(this Endpoint endpoint)
     {
         var code = new CodeWriter(new StringBuilder());
         code.Indent(7);
+        
         if (endpoint.Response.IsVoid)
         {
-            code.WriteLine("handler();");
+            code.WriteLine($"handler({endpoint.EmitFilteredArgumentList()});");
             code.WriteLine("return ValueTask.FromResult<object?>(Results.Empty);");
         }
         else
         {
-            code.WriteLine("return ValueTask.FromResult<object?>(handler());");
+            code.WriteLine($"return ValueTask.FromResult<object?>(handler({endpoint.EmitFilteredArgumentList()}));");
         }
 
         return code.ToString();
+    }
+
+    public static string EmitFilteredArgumentList(this Endpoint endpoint)
+    {
+        if (endpoint.Parameters.Length == 0)
+        {
+            return "";
+        }
+
+        var sb = new StringBuilder();
+
+        for (var i = 0; i < endpoint.Parameters.Length; i++)
+        {
+            sb.Append($"ic.GetArgument<{endpoint.Parameters[i].Type}>({i})");
+
+            if (i < endpoint.Parameters.Length - 1)
+            {
+                sb.Append(", ");
+            }
+        }
+
+        return sb.ToString();
     }
 }

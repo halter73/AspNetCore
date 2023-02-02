@@ -1,6 +1,8 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using Microsoft.AspNetCore.Http.Generators.StaticRouteHandlerModel;
+
 namespace Microsoft.AspNetCore.Http.Generators.Tests;
 
 public class RequestDelegateGeneratorTests : RequestDelegateGeneratorTestBase
@@ -58,7 +60,9 @@ public class RequestDelegateGeneratorTests : RequestDelegateGeneratorTestBase
 
         Assert.Equal("/hello", endpointModel.RoutePattern);
         Assert.Equal("MapGet", endpointModel.HttpMethod);
-        Assert.Equal(1, endpointModel.Parameters.Length);
+        var p = Assert.Single(endpointModel.Parameters);
+        Assert.Equal(EndpointParameterSource.SpecialType, p.Source);
+        Assert.Equal("p", p.Name);
 
         var httpContext = CreateHttpContext();
         await endpoint.RequestDelegate(httpContext);
@@ -77,6 +81,10 @@ public class RequestDelegateGeneratorTests : RequestDelegateGeneratorTestBase
         Assert.Equal("/hello", endpointModel.RoutePattern);
         Assert.Equal("MapGet", endpointModel.HttpMethod);
         Assert.Equal(2, endpointModel.Parameters.Length);
+        Assert.Equal(EndpointParameterSource.SpecialType, endpointModel.Parameters[0].Source);
+        Assert.Equal("req", endpointModel.Parameters[0].Name);
+        Assert.Equal(EndpointParameterSource.SpecialType, endpointModel.Parameters[1].Source);
+        Assert.Equal("res", endpointModel.Parameters[1].Name);
 
         var httpContext = CreateHttpContext();
         await endpoint.RequestDelegate(httpContext);
@@ -89,10 +97,9 @@ public class RequestDelegateGeneratorTests : RequestDelegateGeneratorTestBase
         var (results, compilation) = RunGenerator(
             $"app.MapGet(\"/hello\", (HttpContext context) => Task.CompletedTask);");
 
-        var endpointModel = GetStaticEndpoint(results, GeneratorSteps.EndpointsStep);
-        var endpoint = GetEndpointFromCompilation(compilation, expectSourceKey: false);
+        Assert.Empty(GetStaticEndpoints(results, GeneratorSteps.EndpointsStep));
 
-        Assert.Null(endpointModel);
+        var endpoint = GetEndpointFromCompilation(compilation, expectSourceKey: false);
 
         var httpContext = CreateHttpContext();
         await endpoint.RequestDelegate(httpContext);
@@ -319,9 +326,40 @@ app.MapGet("/es", () => "Hola mundo!");
 app.MapGet("/en", (HttpRequest req) => "Hello world!");
 app.MapGet("/es", (HttpResponse res) => "Hola mundo!");
 """;
-        var (_, compilation) = RunGenerator(source);
+        var (results, compilation) = RunGenerator(source);
 
         await VerifyAgainstBaselineUsingFile(compilation);
+
+        var endpointModels = GetStaticEndpoints(results, GeneratorSteps.EndpointsStep);
+
+        Assert.Collection(endpointModels,
+            endpointModel =>
+            {
+                Assert.Equal("/en", endpointModel.RoutePattern);
+                Assert.Equal("MapGet", endpointModel.HttpMethod);
+                var reqParam = Assert.Single(endpointModel.Parameters);
+                Assert.Equal(EndpointParameterSource.SpecialType, reqParam.Source);
+                Assert.Equal("req", reqParam.Name);
+            },
+            endpointModel =>
+            {
+                Assert.Equal("/es", endpointModel.RoutePattern);
+                Assert.Equal("MapGet", endpointModel.HttpMethod);
+                var reqParam = Assert.Single(endpointModel.Parameters);
+                Assert.Equal(EndpointParameterSource.SpecialType, reqParam.Source);
+                Assert.Equal("res", reqParam.Name);
+            });
+
+        var endpoints = GetEndpointsFromCompilation(compilation);
+
+        Assert.Equal(2, endpoints.Length);
+        var httpContext = CreateHttpContext();
+        await endpoints[0].RequestDelegate(httpContext);
+        await VerifyResponseBodyAsync(httpContext, "Hello world!");
+
+        httpContext = CreateHttpContext();
+        await endpoints[1].RequestDelegate(httpContext);
+        await VerifyResponseBodyAsync(httpContext, "Hola mundo!");
     }
 
     [Fact]
@@ -372,7 +410,7 @@ app.MapGet("/", (IServiceProvider provider) => "Hello world!");
         // Emits diagnostic but generates no source
         var result = Assert.Single(results);
         var diagnostic = Assert.Single(result.Diagnostics);
-        Assert.Equal(DiagnosticDescriptors.GetUnableToResolveParameterDescriptor("provider").Id,diagnostic.Id);
+        Assert.Equal(DiagnosticDescriptors.GetUnableToResolveParameterDescriptor("provider").Id, diagnostic.Id);
         Assert.Empty(result.GeneratedSources);
 
         // Falls back to runtime-generated endpoint

@@ -7,17 +7,15 @@ using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
 using System.Text;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http.Generators;
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Testing;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Emit;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyModel;
 using Microsoft.Extensions.DependencyModel.Resolution;
-using Microsoft.Extensions.Logging;
 
 namespace Microsoft.AspNetCore.Http.Generators.Tests;
 
@@ -45,22 +43,28 @@ public class RequestDelegateGeneratorTestBase : LoggedTest
         return (runResult.Results, updatedCompilation);
     }
 
-    internal static StaticRouteHandlerModel.Endpoint GetStaticEndpoint(ImmutableArray<GeneratorRunResult> results, string stepName)
+    internal static StaticRouteHandlerModel.Endpoint GetStaticEndpoint(ImmutableArray<GeneratorRunResult> results, string stepName) =>
+        Assert.Single(GetStaticEndpoints(results, stepName));
+
+    internal static StaticRouteHandlerModel.Endpoint[] GetStaticEndpoints(ImmutableArray<GeneratorRunResult> results, string stepName)
     {
         // We only invoke the generator once in our test scenarios
         var firstGeneratorPass = results[0];
         if (firstGeneratorPass.TrackedSteps.TryGetValue(stepName, out var staticEndpointSteps))
         {
-            var staticEndpointStep = staticEndpointSteps.Single();
-            var staticEndpointOutput = staticEndpointStep.Outputs.Single();
-            var (staticEndpoint, _) = staticEndpointOutput;
-            var endpoint = Assert.IsType<StaticRouteHandlerModel.Endpoint>(staticEndpoint);
-            return endpoint;
+            return staticEndpointSteps
+                .SelectMany(step => step.Outputs)
+                .Select(output => Assert.IsType<StaticRouteHandlerModel.Endpoint>(output.Value))
+                .ToArray();
         }
-        return null;
+
+        return Array.Empty<StaticRouteHandlerModel.Endpoint>();
     }
 
-    internal static Endpoint GetEndpointFromCompilation(Compilation compilation, bool expectSourceKey = true)
+    internal static Endpoint GetEndpointFromCompilation(Compilation compilation, bool expectSourceKey = true) =>
+        Assert.Single(GetEndpointsFromCompilation(compilation, expectSourceKey));
+
+    internal static Endpoint[] GetEndpointsFromCompilation(Compilation compilation, bool expectSourceKey = true)
     {
         var assemblyName = compilation.AssemblyName!;
         var symbolsName = Path.ChangeExtension(assemblyName, "pdb");
@@ -102,6 +106,7 @@ public class RequestDelegateGeneratorTestBase : LoggedTest
         var handler = assembly.GetType("TestMapActions")
             ?.GetMethod("MapTestEndpoints", BindingFlags.Public | BindingFlags.Static)
             ?.CreateDelegate<Func<IEndpointRouteBuilder, IEndpointRouteBuilder>>();
+        var sourceKeyType = assembly.GetType("Microsoft.AspNetCore.Builder.SourceKey");
 
         Assert.NotNull(handler);
 
@@ -109,22 +114,25 @@ public class RequestDelegateGeneratorTestBase : LoggedTest
         _ = handler(builder);
 
         var dataSource = Assert.Single(builder.DataSources);
+
         // Trigger Endpoint build by calling getter.
-        var endpoint = Assert.Single(dataSource.Endpoints);
+        var endpoints = dataSource.Endpoints.ToArray();
 
-        var sourceKeyType = assembly.GetType("Microsoft.AspNetCore.Builder.SourceKey");
-        var sourceKeyMetadata = endpoint.Metadata.FirstOrDefault(metadata => metadata.GetType() == sourceKeyType);
-
-        if (expectSourceKey)
+        foreach (var endpoint in endpoints)
         {
-            Assert.NotNull(sourceKeyMetadata);
-        }
-        else
-        {
-            Assert.Null(sourceKeyMetadata);
+            var sourceKeyMetadata = endpoint.Metadata.FirstOrDefault(metadata => metadata.GetType() == sourceKeyType);
+
+            if (expectSourceKey)
+            {
+                Assert.NotNull(sourceKeyMetadata);
+            }
+            else
+            {
+                Assert.Null(sourceKeyMetadata);
+            }
         }
 
-        return endpoint;
+        return endpoints;
     }
 
     internal HttpContext CreateHttpContext()

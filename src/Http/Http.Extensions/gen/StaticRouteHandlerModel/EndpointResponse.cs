@@ -111,18 +111,9 @@ public class EndpointResponse
         return method.ReturnType.SpecialType is SpecialType.System_String ? "text/plain" : "application/json";
     }
 
-    public override bool Equals(object obj)
-    {
-        return obj is EndpointResponse otherEndpointResponse &&
-               SymbolEqualityComparer.Default.Equals(otherEndpointResponse.ResponseType, ResponseType) &&
-               otherEndpointResponse.IsAwaitable == IsAwaitable &&
-               otherEndpointResponse.IsVoid == IsVoid &&
-               otherEndpointResponse.IsIResult == IsIResult &&
-               otherEndpointResponse.ContentType.Equals(ContentType, StringComparison.OrdinalIgnoreCase);
-    }
+    public override bool Equals(object obj) =>
+        obj is EndpointResponse otherEndpointResponse &&
+        otherEndpointResponse.WrappedResponseType.Equals(WrappedResponseType, StringComparison.Ordinal);
 
-    public override int GetHashCode()
-    {
-        return base.GetHashCode();
-    }
+    public override int GetHashCode() => WrappedResponseType.GetHashCode();
 }

@@ -2,7 +2,6 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
-using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using Microsoft.AspNetCore.Analyzers.Infrastructure;
@@ -66,11 +65,9 @@ internal static class StaticRouteHandlerModelEmitter
             : "Task RequestHandler(HttpContext httpContext)");
         code.StartBlock();
 
-        var parameterList = string.Join(", ", endpoint.Parameters.Select(p => p.EmitParameter()));
-
         if (endpoint.Response.IsVoid)
         {
-            code.WriteLine($"handler({parameterList});");
+            code.WriteLine($"handler({endpoint.EmitArgumentList()});");
             code.WriteLine("return Task.CompletedTask;");
         }
         else
@@ -78,30 +75,17 @@ internal static class StaticRouteHandlerModelEmitter
             code.WriteLine($"""httpContext.Response.ContentType ??= "{endpoint.Response.ContentType}";""");
             if (endpoint.Response.IsAwaitable)
             {
-                code.WriteLine($"var result = await handler({parameterList});");
+                code.WriteLine($"var result = await handler({endpoint.EmitArgumentList()});");
                 code.WriteLine(endpoint.EmitResponseWritingCall());
             }
             else
             {
-                code.WriteLine($"var result = handler({parameterList});");
+                code.WriteLine($"var result = handler({endpoint.EmitArgumentList()});");
                 code.WriteLine("return GeneratedRouteBuilderExtensionsCore.ExecuteObjectResult(result, httpContext);");
             }
         }
         code.EndBlock();
         return code.ToString();
-    }
-
-    private static string EmitParameter(this EndpointParameter parameter)
-    {
-        switch (parameter.Source)
-        {
-            case EndpointParameterSource.SpecialType:
-                return parameter.CallingCode!;
-            default:
-                // Eventually there should be know unknown parameter sources, but in the meantime we don't expect them to get this far.
-                // The netstandard2.0 target means there is no UnreachableException.
-                throw new Exception("Unreachable!");
-        }
     }
 
     private static string EmitResponseWritingCall(this Endpoint endpoint)
@@ -133,55 +117,62 @@ internal static class StaticRouteHandlerModelEmitter
         return code.ToString();
     }
 
-    /*
-     * TODO: Emit invocation to the `filteredInvocation` pipeline by constructing
-     * the `EndpointFilterInvocationContext` using the bound arguments for the handler.
-     * In the source generator context, the generic overloads for `EndpointFilterInvocationContext`
-     * can be used to reduce the boxing that happens at runtime when constructing
-     * the context object.
-     */
-    public static string EmitFilteredRequestHandler()
+    public static string EmitFilteredRequestHandler(this Endpoint endpoint)
     {
         var code = new CodeWriter(new StringBuilder());
         code.Indent(5);
         code.WriteLine("async Task RequestHandlerFiltered(HttpContext httpContext)");
         code.StartBlock();
-        code.WriteLine("var result = await filteredInvocation(new DefaultEndpointFilterInvocationContext(httpContext));");
+        if (endpoint.Parameters.Length == 0)
+        {
+            code.WriteLine("var result = await filteredInvocation(new DefaultEndpointFilterInvocationContext(httpContext));");
+        }
+        else
+        {
+            code.WriteLine($"var result = await filteredInvocation(new DefaultEndpointFilterInvocationContext(httpContext, {endpoint.EmitArgumentList()}));");
+        }
         code.WriteLine("await GeneratedRouteBuilderExtensionsCore.ExecuteObjectResult(result, httpContext);");
         code.EndBlock();
         return code.ToString();
     }
 
-    /*
-     * TODO: Emit code that will call the `handler` with
-     * the appropriate arguments processed via the parameter binding.
-     *
-     * ```
-     * return ValueTask.FromResult<object?>(handler(name, age));
-     * ```
-     *
-     * If the handler returns void, it will be invoked and an `EmptyHttpResult`
-     * will be returned to the user.
-     *
-     * ```
-     * handler(name, age);
-     * return ValueTask.FromResult<object?>(Results.Empty);
-     * ```
-     */
     public static string EmitFilteredInvocation(this Endpoint endpoint)
     {
         var code = new CodeWriter(new StringBuilder());
         code.Indent(7);
+        
         if (endpoint.Response.IsVoid)
         {
-            code.WriteLine("handler();");
+            code.WriteLine($"handler({endpoint.EmitFilteredArgumentList()});");
             code.WriteLine("return ValueTask.FromResult<object?>(Results.Empty);");
         }
         else
         {
-            code.WriteLine("return ValueTask.FromResult<object?>(handler());");
+            code.WriteLine($"return ValueTask.FromResult<object?>(handler({endpoint.EmitFilteredArgumentList()}));");
         }
 
         return code.ToString();
+    }
+
+    public static string EmitFilteredArgumentList(this Endpoint endpoint)
+    {
+        if (endpoint.Parameters.Length == 0)
+        {
+            return "";
+        }
+
+        var sb = new StringBuilder();
+
+        for (var i = 0; i < endpoint.Parameters.Length; i++)
+        {
+            sb.Append($"ic.GetArgument<{endpoint.Parameters[i].Type}>({i})");
+
+            if (i < endpoint.Parameters.Length - 1)
+            {
+                sb.Append(", ");
+            }
+        }
+
+        return sb.ToString();
     }
 }

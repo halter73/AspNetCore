@@ -60,7 +60,7 @@ public class RequestDelegateGeneratorTestBase : LoggedTest
         return null;
     }
 
-    internal static Endpoint GetEndpointFromCompilation(Compilation compilation, bool checkSourceKey = true)
+    internal static Endpoint GetEndpointFromCompilation(Compilation compilation, bool expectSourceKey = true)
     {
         var assemblyName = compilation.AssemblyName!;
         var symbolsName = Path.ChangeExtension(assemblyName, "pdb");
@@ -112,11 +112,16 @@ public class RequestDelegateGeneratorTestBase : LoggedTest
         // Trigger Endpoint build by calling getter.
         var endpoint = Assert.Single(dataSource.Endpoints);
 
-        if (checkSourceKey)
+        var sourceKeyType = assembly.GetType("Microsoft.AspNetCore.Builder.SourceKey");
+        var sourceKeyMetadata = endpoint.Metadata.FirstOrDefault(metadata => metadata.GetType() == sourceKeyType);
+
+        if (expectSourceKey)
         {
-            var sourceKeyType = assembly.GetType("Microsoft.AspNetCore.Builder.SourceKey");
-            var sourceKeyMetadata = endpoint.Metadata.Single(metadata => metadata.GetType() == sourceKeyType);
             Assert.NotNull(sourceKeyMetadata);
+        }
+        else
+        {
+            Assert.Null(sourceKeyMetadata);
         }
 
         return endpoint;
@@ -135,6 +140,17 @@ public class RequestDelegateGeneratorTestBase : LoggedTest
 
         return httpContext;
     }
+
+    internal static async Task VerifyResponseBodyAsync(HttpContext httpContext, string expectedBody)
+    {
+        var httpResponse = httpContext.Response;
+        httpResponse.Body.Seek(0, SeekOrigin.Begin);
+        var streamReader = new StreamReader(httpResponse.Body);
+        var body = await streamReader.ReadToEndAsync();
+        Assert.Equal(200, httpContext.Response.StatusCode);
+        Assert.Equal(expectedBody, body);
+    }
+
     private static Compilation CreateCompilation(string sources)
     {
         var source = $$"""

@@ -45,31 +45,58 @@ public class RequestDelegateGeneratorTests : RequestDelegateGeneratorTestBase
     [InlineData("HttpRequest")]
     [InlineData("HttpResponse")]
     [InlineData("System.IO.Pipelines.PipeReader")]
-    public async Task MapAction_SingleSpecialTypeParam_StringReturn(string parameterType)
+    [InlineData("System.IO.Stream")]
+    [InlineData("System.Security.Claims.ClaimsPrincipal")]
+    [InlineData("System.Threading.CancellationToken")]
+    public async Task MapGet_SingleSpecialTypeParam_StringReturn(string parameterType)
     {
         var (results, compilation) = RunGenerator(
-            $"app.MapGet(\"/hello\", ({parameterType} param) => param is null ? \"null!\" : \"Hello world!\");");
+            $"app.MapGet(\"/hello\", ({parameterType} p) => p == null ? \"null!\" : \"Hello world!\");");
 
         var endpointModel = GetStaticEndpoint(results, GeneratorSteps.EndpointsStep);
         var endpoint = GetEndpointFromCompilation(compilation);
-        var requestDelegate = endpoint.RequestDelegate;
 
         Assert.Equal("/hello", endpointModel.RoutePattern);
         Assert.Equal("MapGet", endpointModel.HttpMethod);
+        Assert.Equal(1, endpointModel.Parameters.Length);
 
-        var httpContext = new DefaultHttpContext();
+        var httpContext = CreateHttpContext();
+        await endpoint.RequestDelegate(httpContext);
+        await VerifyResponseBodyAsync(httpContext, "Hello world!");
+    }
 
-        var outStream = new MemoryStream();
-        httpContext.Response.Body = outStream;
+    [Fact]
+    public async Task MapGet_MultipleSpecialTypeParam_StringReturn()
+    {
+        var (results, compilation) = RunGenerator(
+            $"app.MapGet(\"/hello\", (HttpRequest req, HttpResponse res) => req is null || res is null ? \"null!\" : \"Hello world!\");");
 
-        await requestDelegate(httpContext);
+        var endpointModel = GetStaticEndpoint(results, GeneratorSteps.EndpointsStep);
+        var endpoint = GetEndpointFromCompilation(compilation);
 
-        var httpResponse = httpContext.Response;
-        httpResponse.Body.Seek(0, SeekOrigin.Begin);
-        var streamReader = new StreamReader(httpResponse.Body);
-        var body = await streamReader.ReadToEndAsync();
-        Assert.Equal(200, httpContext.Response.StatusCode);
-        Assert.Equal("Hello world!", body);
+        Assert.Equal("/hello", endpointModel.RoutePattern);
+        Assert.Equal("MapGet", endpointModel.HttpMethod);
+        Assert.Equal(2, endpointModel.Parameters.Length);
+
+        var httpContext = CreateHttpContext();
+        await endpoint.RequestDelegate(httpContext);
+        await VerifyResponseBodyAsync(httpContext, "Hello world!");
+    }
+
+    [Fact]
+    public async Task MapGet_WithRequestDelegate_DoesNotGenerateSources()
+    {
+        var (results, compilation) = RunGenerator(
+            $"app.MapGet(\"/hello\", (HttpContext context) => Task.CompletedTask);");
+
+        var endpointModel = GetStaticEndpoint(results, GeneratorSteps.EndpointsStep);
+        var endpoint = GetEndpointFromCompilation(compilation, expectSourceKey: false);
+
+        Assert.Null(endpointModel);
+
+        var httpContext = CreateHttpContext();
+        await endpoint.RequestDelegate(httpContext);
+        await VerifyResponseBodyAsync(httpContext, "");
     }
 
     [Fact]
@@ -286,6 +313,18 @@ app.MapGet("/es", () => "Hola mundo!");
     }
 
     [Fact]
+    public async Task Multiple_MapAction_SingleParam_StringReturn()
+    {
+        var source = """
+app.MapGet("/en", (HttpRequest req) => "Hello world!");
+app.MapGet("/es", (HttpResponse res) => "Hola mundo!");
+""";
+        var (_, compilation) = RunGenerator(source);
+
+        await VerifyAgainstBaselineUsingFile(compilation);
+    }
+
+    [Fact]
     public async Task MapAction_VariableRoutePattern_EmitsDiagnostic_NoSource()
     {
         var expectedBody = "Hello world!";
@@ -302,7 +341,7 @@ app.MapGet(route, () => "Hello world!");
         Assert.Empty(result.GeneratedSources);
 
         // Falls back to runtime-generated endpoint
-        var endpoint = GetEndpointFromCompilation(compilation, checkSourceKey: false);
+        var endpoint = GetEndpointFromCompilation(compilation, expectSourceKey: false);
         var requestDelegate = endpoint.RequestDelegate;
 
         var httpContext = CreateHttpContext();
@@ -337,7 +376,7 @@ app.MapGet("/", (IServiceProvider provider) => "Hello world!");
         Assert.Empty(result.GeneratedSources);
 
         // Falls back to runtime-generated endpoint
-        var endpoint = GetEndpointFromCompilation(compilation, checkSourceKey: false);
+        var endpoint = GetEndpointFromCompilation(compilation, expectSourceKey: false);
         var requestDelegate = endpoint.RequestDelegate;
 
         var httpContext = CreateHttpContext();
@@ -351,5 +390,4 @@ app.MapGet("/", (IServiceProvider provider) => "Hello world!");
         Assert.Equal(200, httpContext.Response.StatusCode);
         Assert.Equal(expectedBody, body);
     }
-
 }

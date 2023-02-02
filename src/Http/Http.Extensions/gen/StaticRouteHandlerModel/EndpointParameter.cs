@@ -1,6 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System;
 using Microsoft.AspNetCore.App.Analyzers.Infrastructure;
 using Microsoft.CodeAnalysis;
 using WellKnownType = Microsoft.AspNetCore.App.Analyzers.Infrastructure.WellKnownTypeData.WellKnownType;
@@ -29,6 +30,19 @@ internal class EndpointParameter
     public string Name { get; }
     public string? CallingCode { get; }
 
+    public string EmitArgument()
+    {
+        switch (Source)
+        {
+            case EndpointParameterSource.SpecialType:
+                return CallingCode!;
+            default:
+                // Eventually there should be know unknown parameter sources, but in the meantime we don't expect them to get this far.
+                // The netstandard2.0 target means there is no UnreachableException.
+                throw new Exception("Unreachable!");
+        }
+    }
+
     // TODO: Handle special form types like IFormFileCollection that need special body-reading logic.
     private static string? GetSpecialTypeCallingCode(ITypeSymbol type, WellKnownTypes wellKnownTypes)
     {
@@ -54,7 +68,7 @@ internal class EndpointParameter
         }
         if (SymbolEqualityComparer.Default.Equals(type, wellKnownTypes.Get(WellKnownType.System_Security_Claims_ClaimsPrincipal)))
         {
-            return "httpContext.Request.User";
+            return "httpContext.User";
         }
         if (SymbolEqualityComparer.Default.Equals(type, wellKnownTypes.Get(WellKnownType.System_Threading_CancellationToken)))
         {
@@ -62,5 +76,22 @@ internal class EndpointParameter
         }
 
         return null;
+    }
+
+    public override bool Equals(object obj) =>
+        obj is EndpointParameter other &&
+        other.Source == Source &&
+        other.Name == Name &&
+        SymbolEqualityComparer.Default.Equals(other.Type, Type);
+
+    public override int GetHashCode()
+    {
+        unchecked
+        {
+            var hashCode = Source.GetHashCode();
+            hashCode = (hashCode * 397) ^ Name.GetHashCode();
+            hashCode = (hashCode * 397) ^ SymbolEqualityComparer.Default.GetHashCode(Type);
+            return hashCode;
+        }
     }
 }

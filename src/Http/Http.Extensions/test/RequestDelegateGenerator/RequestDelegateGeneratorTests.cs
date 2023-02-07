@@ -50,7 +50,7 @@ public class RequestDelegateGeneratorTests : RequestDelegateGeneratorTestBase
     [InlineData("System.IO.Stream")]
     [InlineData("System.Security.Claims.ClaimsPrincipal")]
     [InlineData("System.Threading.CancellationToken")]
-    public async Task MapGet_SingleSpecialTypeParam_StringReturn(string parameterType)
+    public async Task MapAction_SingleSpecialTypeParam_StringReturn(string parameterType)
     {
         var (results, compilation) = RunGenerator($"""
 app.MapGet("/hello", ({parameterType} p) => p == null ? "null!" : "Hello world!");
@@ -71,7 +71,7 @@ app.MapGet("/hello", ({parameterType} p) => p == null ? "null!" : "Hello world!"
     }
 
     [Fact]
-    public async Task MapGet_MultipleSpecialTypeParam_StringReturn()
+    public async Task MapAction_MultipleSpecialTypeParam_StringReturn()
     {
         var (results, compilation) = RunGenerator("""
 app.MapGet("/hello", (HttpRequest req, HttpResponse res) => req is null || res is null ? "null!" : "Hello world!");
@@ -116,7 +116,7 @@ app.MapGet("/hello", (HttpRequest req, HttpResponse res) => req is null || res i
     }
 
     [Fact]
-    public async Task MapGet_NoParam_StringReturn_WithFilter()
+    public async Task MapAction_NoParam_StringReturn_WithFilter()
     {
         var source = """
 app.MapGet("/hello", () => "Hello world!")

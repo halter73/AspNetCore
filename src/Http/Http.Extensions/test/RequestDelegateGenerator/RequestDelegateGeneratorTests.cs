@@ -331,7 +331,7 @@ app.MapGet("/es-task", () => new ValueTask<string>("Hola mundo!"));
     }
 
     [Fact]
-    public async Task Multiple_MapAction_SingleParam_StringReturn()
+    public async Task Multiple_MapAction_WithParams_StringReturn()
     {
         var source = """
 app.MapGet("/en", (HttpRequest req) => "Hello world!");
@@ -380,7 +380,7 @@ app.MapGet("/zh", (HttpRequest req, HttpResponse res) => "你好世界！");
 
         var endpoints = GetEndpointsFromCompilation(compilation);
 
-        Assert.Equal(2, endpoints.Length);
+        Assert.Equal(3, endpoints.Length);
         var httpContext = CreateHttpContext();
         await endpoints[0].RequestDelegate(httpContext);
         await VerifyResponseBodyAsync(httpContext, "Hello world!");

@@ -18,8 +18,8 @@ internal class Endpoint
     public Endpoint(IInvocationOperation operation, WellKnownTypes wellKnownTypes)
     {
         Operation = operation;
-        Location = GetLocation();
-        HttpMethod = GetHttpMethod();
+        Location = GetLocation(operation);
+        HttpMethod = GetHttpMethod(operation);
 
         if (!operation.TryGetRouteHandlerPattern(out var routeToken))
         {
@@ -71,42 +71,62 @@ internal class Endpoint
     public (string, int) Location { get; }
     public IInvocationOperation Operation { get; }
 
-    private (string, int) GetLocation()
+    public override bool Equals(object o) =>
+        o is Endpoint other && Location == other.Location && SignatureEquals(this, other);
+
+    public override int GetHashCode() =>
+        HashCode.Combine(Location, GetSignatureHashCode(this));
+
+    public static bool SignatureEquals(Endpoint a, Endpoint b)
     {
-        var filePath = Operation.Syntax.SyntaxTree.FilePath;
-        var span = Operation.Syntax.SyntaxTree.GetLineSpan(Operation.Syntax.Span);
+        // Eventually we may not have to compare HttpMethod because it should only influence parameter sources
+        // which is compared as part of the Parameters array.
+        if (!a.Response.WrappedResponseType.Equals(b.Response.WrappedResponseType, StringComparison.Ordinal) ||
+            !a.HttpMethod.Equals(b.HttpMethod, StringComparison.Ordinal) ||
+            a.Parameters.Length != b.Parameters.Length)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < a.Parameters.Length; i++)
+        {
+            if (a.Parameters[i].Equals(b.Parameters[i]))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    public static int GetSignatureHashCode(Endpoint endpoint)
+    {
+        var hashCode = new HashCode();
+        hashCode.Add(endpoint.Response.WrappedResponseType);
+        hashCode.Add(endpoint.HttpMethod);
+
+        foreach (var parameter in endpoint.Parameters)
+        {
+            hashCode.Add(parameter);
+        }
+
+        return hashCode.ToHashCode();
+    }
+
+    private static (string, int) GetLocation(IInvocationOperation operation)
+    {
+        var filePath = operation.Syntax.SyntaxTree.FilePath;
+        var span = operation.Syntax.SyntaxTree.GetLineSpan(operation.Syntax.Span);
         var lineNumber = span.EndLinePosition.Line + 1;
         return (filePath, lineNumber);
     }
 
-    private string GetHttpMethod()
+    private static string GetHttpMethod(IInvocationOperation operation)
     {
-        var syntax = (InvocationExpressionSyntax)Operation.Syntax;
+        var syntax = (InvocationExpressionSyntax)operation.Syntax;
         var expression = (MemberAccessExpressionSyntax)syntax.Expression;
         var name = (IdentifierNameSyntax)expression.Name;
         var identifier = name.Identifier;
         return identifier.ValueText;
     }
-
-    public override bool Equals(object o)
-    {
-        if (o is null)
-        {
-            return false;
-        }
-
-        if (o is Endpoint endpoint)
-        {
-            return endpoint.HttpMethod.Equals(HttpMethod, StringComparison.OrdinalIgnoreCase) &&
-                endpoint.Location.Item1.Equals(Location.Item1, StringComparison.OrdinalIgnoreCase) &&
-                endpoint.Location.Item2.Equals(Location.Item2) &&
-                endpoint.Response.Equals(Response) &&
-                endpoint.Diagnostics.SequenceEqual(Diagnostics);
-        }
-
-        return false;
-    }
-
-    public override int GetHashCode() =>
-        HashCode.Combine(HttpMethod, RoutePattern, Location, Response, Diagnostics);
 }

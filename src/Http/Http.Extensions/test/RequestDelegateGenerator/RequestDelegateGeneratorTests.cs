@@ -52,7 +52,7 @@ public class RequestDelegateGeneratorTests : RequestDelegateGeneratorTestBase
     [InlineData("System.Threading.CancellationToken")]
     public async Task MapAction_SingleSpecialTypeParam_StringReturn(string parameterType)
     {
-        var (results, compilation) = RunGenerator($"""
+        var (results, compilation) = await RunGeneratorAsync($"""
 app.MapGet("/hello", ({parameterType} p) => p == null ? "null!" : "Hello world!");
 """);
 
@@ -73,7 +73,7 @@ app.MapGet("/hello", ({parameterType} p) => p == null ? "null!" : "Hello world!"
     [Fact]
     public async Task MapAction_MultipleSpecialTypeParam_StringReturn()
     {
-        var (results, compilation) = RunGenerator("""
+        var (results, compilation) = await RunGeneratorAsync("""
 app.MapGet("/hello", (HttpRequest req, HttpResponse res) => req is null || res is null ? "null!" : "Hello world!");
 """);
 
@@ -103,7 +103,7 @@ app.MapGet("/hello", (HttpRequest req, HttpResponse res) => req is null || res i
     [Fact]
     public async Task MapGet_WithRequestDelegate_DoesNotGenerateSources()
     {
-        var (results, compilation) = RunGenerator(
+        var (results, compilation) = await RunGeneratorAsync(
             $"app.MapGet(\"/hello\", (HttpContext context) => Task.CompletedTask);");
 
         Assert.Empty(GetStaticEndpoints(results, GeneratorSteps.EndpointModelStep));
@@ -338,7 +338,7 @@ app.MapGet("/en", (HttpRequest req) => "Hello world!");
 app.MapGet("/es", (HttpResponse res) => "Hola mundo!");
 app.MapGet("/zh", (HttpRequest req, HttpResponse res) => "你好世界！");
 """;
-        var (results, compilation) = RunGenerator(source);
+        var (results, compilation) = await RunGeneratorAsync(source);
 
         await VerifyAgainstBaselineUsingFile(compilation);
 
@@ -435,7 +435,7 @@ app.MapGet(route, () => "Hello world!");
 app.MapGet("/", (IServiceProvider provider) => "Hello world!");
 """;
         var expectedBody = "Hello world!";
-        var (result, compilation) = RunGenerator(source);
+        var (result, compilation) = await RunGeneratorAsync(source);
 
         // Emits diagnostic but generates no source
         var diagnostic = Assert.Single(result.Diagnostics);

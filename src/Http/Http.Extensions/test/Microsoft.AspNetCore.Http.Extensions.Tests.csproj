@@ -31,8 +31,4 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
-
-  <ItemGroup>
-    <None Remove="RequestDelegateGenerator\Baselines\Multiple_MapAction_SingleParam_StringReturn.generated.txt" />
-  </ItemGroup>
 </Project>

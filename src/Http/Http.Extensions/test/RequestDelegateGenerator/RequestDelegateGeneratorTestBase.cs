@@ -51,7 +51,7 @@ public class RequestDelegateGeneratorTestBase : LoggedTest
     }
 
     internal static StaticRouteHandlerModel.Endpoint GetStaticEndpoint(GeneratorRunResult result, string stepName) =>
-        Assert.Single(GetStaticEndpoints(results, stepName));
+        Assert.Single(GetStaticEndpoints(result, stepName));
 
     internal static StaticRouteHandlerModel.Endpoint[] GetStaticEndpoints(GeneratorRunResult result, string stepName)
     {

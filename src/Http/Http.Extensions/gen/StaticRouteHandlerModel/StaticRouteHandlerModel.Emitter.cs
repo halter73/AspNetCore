@@ -3,6 +3,7 @@
 
 using System;
 using System.Linq;
+using System.Text;
 using Microsoft.CodeAnalysis;
 
 namespace Microsoft.AspNetCore.Http.Generators.StaticRouteHandlerModel;
@@ -64,7 +65,7 @@ internal static class StaticRouteHandlerModelEmitter
                     {{handlerSignature}}
                     {
                         {{setContentType}}
-                        {{resultAssignment}}{{awaitHandler}}handler();
+                        {{resultAssignment}}{{awaitHandler}}handler({{endpoint.EmitArgumentList()}});
                         {{(endpoint.Response.IsVoid ? "return Task.CompletedTask;" : endpoint.EmitResponseWritingCall())}}
                     }
 """;
@@ -100,12 +101,21 @@ internal static class StaticRouteHandlerModelEmitter
         }
     }
 
+    /*
+     * TODO: Emit invocation to the `filteredInvocation` pipeline by constructing
+     * the `EndpointFilterInvocationContext` using the bound arguments for the handler.
+     * In the source generator context, the generic overloads for `EndpointFilterInvocationContext`
+     * can be used to reduce the boxing that happens at runtime when constructing
+     * the context object.
+     */
     public static string EmitFilteredRequestHandler(this Endpoint endpoint)
     {
-        return """
+        var argumentList = endpoint.Parameters.Length == 0 ? string.Empty : $", {endpoint.EmitArgumentList()}";
+
+        return $$"""
                     async Task RequestHandlerFiltered(HttpContext httpContext)
                     {
-                        var result = await filteredInvocation(new DefaultEndpointFilterInvocationContext(httpContext));
+                        var result = await filteredInvocation(new DefaultEndpointFilterInvocationContext(httpContext{{argumentList}}));
                         await GeneratedRouteBuilderExtensionsCore.ExecuteObjectResult(result, httpContext);
                     }
 """;
@@ -115,11 +125,11 @@ internal static class StaticRouteHandlerModelEmitter
     {
         // Note: This string does not need indentation since it is
         // handled when we generate the output string in the `thunks` pipeline.
-        return endpoint.Response.IsVoid ? """
-handler();
+        return endpoint.Response.IsVoid ? $"""
+handler({endpoint.EmitFilteredArgumentList()});
 return ValueTask.FromResult<object?>(Results.Empty);
-""" : """
-return ValueTask.FromResult<object?>(handler());
+""" : $"""
+return ValueTask.FromResult<object?>(handler({endpoint.EmitFilteredArgumentList()}));
 """;
     }
 

@@ -108,5 +108,5 @@ internal class Endpoint
     }
 
     public override int GetHashCode() =>
-        HashCode.Combine(HttpMethod, Route, Location, Response, Diagnostics);
+        HashCode.Combine(HttpMethod, RoutePattern, Location, Response, Diagnostics);
 }

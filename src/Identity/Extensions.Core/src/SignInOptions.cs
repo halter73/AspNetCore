@@ -58,7 +58,6 @@ internal class SignInContext<TUser> where TUser : class
 
     public SignInResult? Result { get; set; }
 
-
     public async Task<bool> IsTwoFactorEnabledAsync()
         => UserManager.SupportsUserTwoFactor &&
         await UserManager.GetTwoFactorEnabledAsync(User).ConfigureAwait(false) &&

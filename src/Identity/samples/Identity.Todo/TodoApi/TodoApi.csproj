@@ -7,6 +7,11 @@
     <UserSecretsId>e616b306-8ad0-4843-a0e0-79b3b5655c22</UserSecretsId>
   </PropertyGroup>
 
+  <Target Name="MyTarget" AfterTargets="Build">
+    <Message Text="BaseIntermediateOutputPath: $(BaseIntermediateOutputPath)" Importance="high" />
+    <Message Text="MSBuildProjectExtensionsPath: $(MSBuildProjectExtensionsPath)" Importance="high" />
+  </Target>
+
   <ItemGroup>
     <Reference Include="Microsoft.AspNetCore" />
     <Reference Include="Microsoft.AspNetCore.Http.Results" />

@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -24,6 +25,9 @@ public static class AuthenticationCoreServiceCollectionExtensions
         services.TryAddSingleton<IClaimsTransformation, NoopClaimsTransformation>(); // Can be replaced with scoped ones that use DbContext
         services.TryAddScoped<IAuthenticationHandlerProvider, AuthenticationHandlerProvider>();
         services.TryAddSingleton<IAuthenticationSchemeProvider, AuthenticationSchemeProvider>();
+        services.TryAddSingleton<IAuthenticationConfigurationProvider, DefaultAuthenticationConfigurationProvider>();
+        services.TryAddSingleton<ISystemClock, SystemClock>();
+        services.AddWebEncoders();
         return services;
     }
 
@@ -43,3 +47,19 @@ public static class AuthenticationCoreServiceCollectionExtensions
         return services;
     }
 }
+
+internal sealed class DefaultAuthenticationConfigurationProvider : IAuthenticationConfigurationProvider
+{
+    private readonly IConfiguration _configuration;
+    private const string AuthenticationKey = "Authentication";
+
+    // Note: this generally will never be called except in unit tests as IConfiguration is generally available from the host
+    public DefaultAuthenticationConfigurationProvider() : this(new ConfigurationManager())
+    { }
+
+    public DefaultAuthenticationConfigurationProvider(IConfiguration configuration)
+        => _configuration = configuration;
+
+    public IConfiguration AuthenticationConfiguration => _configuration.GetSection(AuthenticationKey);
+}
+

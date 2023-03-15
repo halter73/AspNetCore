@@ -1,1 +1,6 @@
 #nullable enable
+Microsoft.AspNetCore.Authentication.ISystemClock
+Microsoft.AspNetCore.Authentication.ISystemClock.UtcNow.get -> System.DateTimeOffset
+Microsoft.AspNetCore.Authentication.SystemClock
+Microsoft.AspNetCore.Authentication.SystemClock.SystemClock() -> void
+Microsoft.AspNetCore.Authentication.SystemClock.UtcNow.get -> System.DateTimeOffset

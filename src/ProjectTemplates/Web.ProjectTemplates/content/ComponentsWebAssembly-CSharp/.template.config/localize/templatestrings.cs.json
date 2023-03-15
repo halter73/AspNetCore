@@ -41,6 +41,5 @@
   "postActions/restore/description": "Obnoví balíčky NuGet vyžadované tímto projektem.",
   "postActions/restore/manualInstructions/default/text": "Spustit dotnet restore",
   "postActions/restoreClient/description": "Obnoví balíčky NuGet vyžadované tímto projektem.",
-  "postActions/restoreClient/manualInstructions/default/text": "Spustit „dotnet restore“",
-  "postActions/open-file/description": "Otevře soubor Readme.txt v editoru."
+  "postActions/restoreClient/manualInstructions/default/text": "Spustit „dotnet restore“"
 }

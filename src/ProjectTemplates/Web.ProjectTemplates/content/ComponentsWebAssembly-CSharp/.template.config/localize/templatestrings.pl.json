@@ -41,6 +41,5 @@
   "postActions/restore/description": "Przywróć pakiety NuGet wymagane przez ten projekt.",
   "postActions/restore/manualInstructions/default/text": "Uruchom polecenie \"dotnet restore\"",
   "postActions/restoreClient/description": "Przywróć pakiety NuGet wymagane przez ten projekt.",
-  "postActions/restoreClient/manualInstructions/default/text": "Uruchom polecenie „dotnet restore”",
-  "postActions/open-file/description": "Otwiera plik Readme.txt w edytorze"
+  "postActions/restoreClient/manualInstructions/default/text": "Uruchom polecenie „dotnet restore”"
 }

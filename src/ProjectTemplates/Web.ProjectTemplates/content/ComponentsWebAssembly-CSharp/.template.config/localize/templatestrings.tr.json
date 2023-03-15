@@ -41,6 +41,5 @@
   "postActions/restore/description": "Bu projenin gerektirdiği NuGet paketlerini geri yükleyin.",
   "postActions/restore/manualInstructions/default/text": "'dotnet restore' çalıştır",
   "postActions/restoreClient/description": "Bu projenin gerektirdiği NuGet paketlerini geri yükleyin.",
-  "postActions/restoreClient/manualInstructions/default/text": "'dotnet restore' çalıştır",
-  "postActions/open-file/description": "Benioku.txt dosyasını düzenleyicide açar"
+  "postActions/restoreClient/manualInstructions/default/text": "'dotnet restore' çalıştır"
 }

@@ -41,6 +41,5 @@
   "postActions/restore/description": "이 프로젝트에 필요한 NuGet 패키지를 복원합니다.",
   "postActions/restore/manualInstructions/default/text": "'dotnet restore' 실행",
   "postActions/restoreClient/description": "이 프로젝트에 필요한 NuGet 패키지를 복원합니다.",
-  "postActions/restoreClient/manualInstructions/default/text": "'dotnet restore' 실행",
-  "postActions/open-file/description": "편집기에서 Readme.txt를 엽니다."
+  "postActions/restoreClient/manualInstructions/default/text": "'dotnet restore' 실행"
 }

@@ -41,6 +41,5 @@
   "postActions/restore/description": "Восстановление пакетов NuGet, необходимых для этого проекта.",
   "postActions/restore/manualInstructions/default/text": "Выполнить команду \"dotnet restore\"",
   "postActions/restoreClient/description": "Восстановление пакетов NuGet, необходимых для этого проекта.",
-  "postActions/restoreClient/manualInstructions/default/text": "Выполнить команду \"dotnet restore\"",
-  "postActions/open-file/description": "Открывает Readme.txt в редакторе"
+  "postActions/restoreClient/manualInstructions/default/text": "Выполнить команду \"dotnet restore\""
 }

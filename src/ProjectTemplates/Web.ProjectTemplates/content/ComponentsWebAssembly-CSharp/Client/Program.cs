@@ -25,20 +25,7 @@ builder.Services.AddScoped(sp => sp.GetRequiredService<IHttpClientFactory>().Cre
 #if(!NoAuth)
 
 #endif
-#if (IndividualLocalAuth)
-    #if (Hosted)
-builder.Services.AddApiAuthorization();
-    #else
-builder.Services.AddOidcAuthentication(options =>
-{
-    #if(MissingAuthority)
-    // Configure your authentication provider options here.
-    // For more information, see https://aka.ms/blazor-standalone-auth
-    #endif
-    builder.Configuration.Bind("Local", options.ProviderOptions);
-});
-    #endif
-#endif
+
 #if (IndividualB2CAuth)
 builder.Services.AddMsalAuthentication(options =>
 {

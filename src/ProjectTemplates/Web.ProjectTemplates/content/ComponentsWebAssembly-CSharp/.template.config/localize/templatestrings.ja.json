@@ -41,6 +41,5 @@
   "postActions/restore/description": "このプロジェクトに必要な NuGet パッケージを復元します。",
   "postActions/restore/manualInstructions/default/text": "'dotnet restore' を実行する",
   "postActions/restoreClient/description": "このプロジェクトに必要な NuGet パッケージを復元します。",
-  "postActions/restoreClient/manualInstructions/default/text": "'dotnet restore' を実行する",
-  "postActions/open-file/description": "エディターで Readme.txt を開きます"
+  "postActions/restoreClient/manualInstructions/default/text": "'dotnet restore' を実行する"
 }

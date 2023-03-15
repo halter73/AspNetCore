@@ -25,10 +25,6 @@
   "preferNameDirectory": true,
   "primaryOutputs": [
     {
-      "condition": "(Hosted && IndividualLocalAuth && HostIdentifier != \"dotnetcli\" && HostIdentifier != \"dotnetcli-preview\")",
-      "path": "Server/Readme.txt"
-    },
-    {
       "condition": "(Hosted && (HostIdentifier == \"dotnetcli\" || HostIdentifier == \"dotnetcli-preview\"))",
       "path": "ComponentsWebAssembly-CSharp.sln"
     },
@@ -113,40 +109,6 @@
           }
         },
         {
-          "condition": "(!IndividualLocalAuth || UseLocalDB)",
-          "exclude": [
-            "Server/app.db"
-          ]
-        },
-        {
-          "condition": "(!IndividualLocalAuth)",
-          "exclude": [
-            "Server/Data/SqlLite/**",
-            "Server/Data/SqlServer/**",
-            "Server/Data/ApplicationDbContext.cs",
-            "Server/Areas/**",
-            "Client/wwwroot/appsettings.Development.json"
-          ]
-        },
-        {
-          "condition": "(IndividualLocalAuth && UseLocalDB)",
-          "rename": {
-            "Server/Data/SqlServer/": "Server/Data/Migrations/"
-          },
-          "exclude": [
-            "Server/Data/SqlLite/**"
-          ]
-        },
-        {
-          "condition": "(IndividualLocalAuth && !UseLocalDB)",
-          "rename": {
-            "Server/Data/SqlLite/": "Server/Data/Migrations/"
-          },
-          "exclude": [
-            "Server/Data/SqlServer/**"
-          ]
-        },
-        {
           "condition": "(Hosted && NoAuth)",
           "rename": {
             "Client/Shared/MainLayout.NoAuth.razor": "Client/Shared/MainLayout.razor"
@@ -170,24 +132,10 @@
           ]
         },
         {
-          "condition": "(Hosted && IndividualLocalAuth)",
-          "rename": {
-            "Client/Shared/LoginDisplay.IndividualLocalAuth.razor": "Client/Shared/LoginDisplay.razor"
-          },
-          "exclude": [
-            "Client/Shared/LoginDisplay.IndividualMsalAuth.razor",
-            "Client/wwwroot/appsettings.json",
-            "Client/wwwroot/appsettings.Development.json"
-          ]
-        },
-        {
           "condition": "(Hosted && (IndividualB2CAuth || OrganizationalAuth))",
           "rename": {
             "Client/Shared/LoginDisplay.IndividualMsalAuth.razor": "Client/Shared/LoginDisplay.razor"
-          },
-          "exclude": [
-            "Client/Shared/LoginDisplay.IndividualLocalAuth.razor"
-          ]
+          }
         },
         {
           "condition": "(!Hosted && NoAuth)",
@@ -213,31 +161,10 @@
           ]
         },
         {
-          "condition": "(!Hosted && IndividualLocalAuth)",
-          "rename": {
-            "Client/Shared/LoginDisplay.IndividualLocalAuth.razor": "Shared/LoginDisplay.razor"
-          },
-          "exclude": [
-            "Client/Shared/LoginDisplay.IndividualMsalAuth.razor"
-          ]
-        },
-        {
           "condition": "(!Hosted && (IndividualB2CAuth || OrganizationalAuth))",
           "rename": {
             "Client/Shared/LoginDisplay.IndividualMsalAuth.razor": "Shared/LoginDisplay.razor"
-          },
-          "exclude": [
-            "Client/Shared/LoginDisplay.IndividualLocalAuth.razor"
-          ]
-        },
-        {
-          "condition": "(!IndividualLocalAuth || !Hosted)",
-          "exclude": [
-            "Server/Areas/Identity/Pages/Shared/_LoginPartial.cshtml",
-            "Server/Controllers/OidcConfigurationController.cs",
-            "Server/Models/ApplicationUser.cs",
-            "Server/Readme.txt"
-          ]
+          }
         },
         {
           "condition": "(!GenerateApi)",
@@ -665,17 +592,6 @@
         "files": ["ComponentsWebAssembly-CSharp.Client.csproj"]
       },
       "actionId": "210D431B-A78B-4D2F-B762-4ED3E3EA9025",
-      "continueOnError": true
-    },
-    {
-      "id": "open-file",
-      "condition": "(IndividualLocalAuth && HostIdentifier != \"dotnetcli\" && HostIdentifier != \"dotnetcli-preview\")",
-      "description": "Opens Readme.txt in the editor",
-      "manualInstructions": [],
-      "actionId": "84C0DA21-51C8-4541-9940-6CA19AF04EE6",
-      "args": {
-        "files": "0"
-      },
       "continueOnError": true
     }
   ]

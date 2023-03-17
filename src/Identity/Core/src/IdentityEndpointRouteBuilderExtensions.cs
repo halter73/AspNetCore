@@ -3,6 +3,7 @@
 
 using System.Linq;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Http.Metadata;
@@ -88,6 +89,11 @@ public static class IdentityEndpointRouteBuilderExtensions
         });
 
         return new IdentityEndpointConventionBuilder(group);
+    }
+
+    private static string CreateJwtToken(IDataProtectionProvider dp, string userId)
+    {
+        return "";
     }
 
     // If we return a public type like RouteGroupBuilder, it'd be breaking to change it even if it's declared to be a less specific type.

@@ -15,6 +15,7 @@
     <Reference Include="Microsoft.AspNetCore.Authentication.Cookies" />
     <Reference Include="Microsoft.AspNetCore.Http.Results" />
     <Reference Include="Microsoft.Extensions.Identity.Stores" />
+    <Reference Include="Microsoft.IdentityModel.Tokens.Jwt" />
 
     <Compile Include="$(SharedSourceRoot)TrimmingAttributes.cs" LinkBase="Shared"
       Condition="'$(TargetFramework)' != '$(DefaultNetCoreTargetFramework)'" />

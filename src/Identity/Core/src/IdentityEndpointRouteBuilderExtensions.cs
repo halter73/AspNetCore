@@ -13,20 +13,23 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Microsoft.AspNetCore.Routing;
 
 /// <summary>
-/// 
+/// Provides extension methods for <see cref="IEndpointRouteBuilder"/> to add identity endpoints.
 /// </summary>
 public static class IdentityEndpointRouteBuilderExtensions
 {
     /// <summary>
-    /// 
+    /// Add endpoints for registering, logging in, and logging out using ASP.NET Core Identity.
     /// </summary>
-    /// <typeparam name="TUser"></typeparam>
-    /// <param name="routeBuilder"></param>
+    /// <typeparam name="TUser">The type encapsulating the user. This should match <see cref="UserManager{TUser}"/>.</typeparam>
+    /// <param name="endpoints">
+    /// The <see cref="IEndpointRouteBuilder"/> to add the identity endpoints to.
+    /// Call <see cref="EndpointRouteBuilderExtensions.MapGroup(IEndpointRouteBuilder, string)"/> to add a prefix to all the endpoints.
+    /// </param>
     /// <returns></returns>
-    public static IEndpointConventionBuilder MapIdentity<TUser>(this IEndpointRouteBuilder routeBuilder) where TUser : class, new()
+    public static IEndpointConventionBuilder MapIdentity<TUser>(this IEndpointRouteBuilder endpoints) where TUser : class, new()
     {
         // Call MapGroup yourself to get a prefix.
-        var group = routeBuilder.MapGroup("");
+        var group = endpoints.MapGroup("");
 
         // NOTE: We cannot inject UserManager<TUser> directly because the TUser generic parameter is currently unsupported by RDG.
         group.MapPost("/register", async Task<Results<Ok, ValidationProblem>> ([FromBody] RegisterEndpointInfo info, [FromService] IServiceProvider services) =>

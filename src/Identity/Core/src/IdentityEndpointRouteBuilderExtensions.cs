@@ -3,11 +3,14 @@
 
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
+using System.Text;
+using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Microsoft.AspNetCore.Routing;
@@ -51,7 +54,35 @@ public static class IdentityEndpointRouteBuilderExtensions
         var group = endpoints.MapGroup("");
 
         // NOTE: We cannot inject UserManager<TUser> directly because the TUser generic parameter is currently unsupported by RDG.
-        group.MapPost("/register", async Task<Results<Ok, ValidationProblem>> ([FromBody] RegisterEndpointInfo info, [FromService] IServiceProvider services) =>
+        group.MapPost("/register", async Task<Results<Ok, ValidationProblem>> (
+            [FromBody] RegisterEndpointInfo info, [FromService] IServiceProvider services) =>
+        {
+            var userManager = services.GetRequiredService<UserManager<TUser>>();
+
+            var user = new TUser();
+            await userManager.SetUserNameAsync(user, info.Username);
+            var result = await userManager.CreateAsync(user, info.Password);
+
+            if (result.Succeeded)
+            {
+                var emailSender = services.GetRequiredService<IEmailSender>();
+
+                var userId = await userManager.GetUserIdAsync(user);
+                var code = await userManager.GenerateEmailConfirmationTokenAsync(user);
+                code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
+
+                await emailSender.SendEmailAsync(Input.Email, "Confirm your email",
+                    $"Please confirm your account by <a href='{HtmlEncoder.Default.Encode(callbackUrl)}'>clicking here</a>.");
+
+            if (result.Succeeded)
+            {
+                return TypedResults.Ok();
+            }
+
+            return TypedResults.ValidationProblem(result.Errors.ToDictionary(e => e.Code, e => new[] { e.Description }));
+        });
+
+        group.MapPost("/confirmEmail", async Task<Results<Ok, ValidationProblem>> ([FromBody] RegisterEndpointInfo info, [FromService] IServiceProvider services) =>
         {
             var userManager = services.GetRequiredService<UserManager<TUser>>();
 
@@ -108,6 +139,23 @@ public static class IdentityEndpointRouteBuilderExtensions
         /// The email for the user.
         /// </summary>
         public string Email { get; set; } = default!;
+    }
+
+    /// <summary>
+    /// DTO representing a verification token, used for confirming emails, 2fa, authenticator
+    /// </summary>
+    internal class VerificationToken
+    {
+        /// <summary>
+        /// THe user id being confirmed.
+        /// </summary>
+        public string UserId { get; set; } = default!;
+
+        /// <summary>
+        /// The confirmation code.
+        /// </summary>
+        [Required]
+        public string Token { get; set; } = default!;
     }
 
     [AttributeUsage(AttributeTargets.Parameter)]

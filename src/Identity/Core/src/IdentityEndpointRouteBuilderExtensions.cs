@@ -1,7 +1,6 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -17,11 +16,10 @@ namespace Microsoft.AspNetCore.Routing;
 /// </summary>
 public static class IdentityEndpointRouteBuilderExtensions
 {
-
     /// <summary>
     /// Add endpoints for registering, logging in, and logging out using ASP.NET Core Identity.
     /// </summary>
-    /// <typeparam name="TUser">The type encapsulating the user. This should match the generic parameter in <see cref="UserManager{TUser}"/>.</typeparam>
+    /// <typeparam name="TUser">The <see cref="IdentityUser"/> type describing the user. This should match the generic parameter in <see cref="UserManager{TUser}"/>.</typeparam>
     /// <param name="endpoints">
     /// The <see cref="IEndpointRouteBuilder"/> to add the identity endpoints to.
     /// Call <see cref="EndpointRouteBuilderExtensions.MapGroup(IEndpointRouteBuilder, string)"/> to add a prefix to all the endpoints.
@@ -36,8 +34,8 @@ public static class IdentityEndpointRouteBuilderExtensions
     /// <summary>
     /// Add endpoints for registering, logging in, and logging out using ASP.NET Core Identity.
     /// </summary>
-    /// <typeparam name="TUser">The type encapsulating the user. This should match the generic parameter in <see cref="UserManager{TUser}"/>.</typeparam>
-    /// <typeparam name="TUserKey">The type encapsulating the user. This should match the generic parameter <see cref="IdentityUser{TKey}"/>.</typeparam>
+    /// <typeparam name="TUser">The <see cref="IdentityUser{TKey}"/> type describing the user. This should match the generic parameter in <see cref="UserManager{TUser}"/>.</typeparam>
+    /// <typeparam name="TUserKey">The type of the user's primary key. This should match the generic parameter <see cref="IdentityUser{TKey}"/>.</typeparam>
     /// <param name="endpoints">
     /// The <see cref="IEndpointRouteBuilder"/> to add the identity endpoints to.
     /// Call <see cref="EndpointRouteBuilderExtensions.MapGroup(IEndpointRouteBuilder, string)"/> to add a prefix to all the endpoints.
@@ -51,20 +49,42 @@ public static class IdentityEndpointRouteBuilderExtensions
         var group = endpoints.MapGroup("");
 
         // NOTE: We cannot inject UserManager<TUser> directly because the TUser generic parameter is currently unsupported by RDG.
-        group.MapPost("/register", async Task<Results<Ok, ValidationProblem>> ([FromBody] RegisterEndpointInfo info, [FromService] IServiceProvider services) =>
+        group.MapPost("/register", async Task<Results<Ok, ValidationProblem>>
+            ([FromBody] RegisterDTO registration, [FromServices] IServiceProvider services) =>
         {
             var userManager = services.GetRequiredService<UserManager<TUser>>();
 
             var user = new TUser();
-            await userManager.SetUserNameAsync(user, info.Username);
-            var result = await userManager.CreateAsync(user, info.Password);
+            await userManager.SetUserNameAsync(user, registration.Username);
+            var result = await userManager.CreateAsync(user, registration.Password);
 
             if (result.Succeeded)
             {
+                // TODO: Send email confirmation
+
                 return TypedResults.Ok();
             }
 
             return TypedResults.ValidationProblem(result.Errors.ToDictionary(e => e.Code, e => new[] { e.Description }));
+        });
+
+        group.MapPost("/login", async Task<Results<UnauthorizedHttpResult, Ok<AuthTokensDTO>, SignInHttpResult>>
+            ([FromBody] LoginDTO login, [FromServices] IServiceProvider services) =>
+        {
+            var userManager = services.GetRequiredService<UserManager<TUser>>();
+            var user = await userManager.FindByNameAsync(login.Username);
+
+            if (user is null || !await userManager.CheckPasswordAsync(user, login.Password))
+            {
+                return TypedResults.Unauthorized();
+            }
+
+            var claimsFactory = services.GetRequiredService<IUserClaimsPrincipalFactory<TUser>>();
+
+            return login.CookieMode
+                ? TypedResults.SignIn(await claimsFactory.CreateAsync(user),
+                    authenticationScheme: IdentityConstants.ApplicationScheme)
+                : TypedResults.Ok(new AuthTokensDTO { AccessToken = "" });
         });
 
         return new IdentityEndpointConventionBuilder(group);
@@ -86,28 +106,26 @@ public static class IdentityEndpointRouteBuilderExtensions
     }
 
     // NOTE: private classes cannot be used as parameter types with RDG Delegates.
-
-    /// <summary>
-    /// DTO for the register endpoint, username, password
-    /// </summary>
-    internal class RegisterEndpointInfo
+    // TODO: Register DTOs with JsonSerializerOptions.TypeInfoResolverChain (was previously the soon-to-be-obsolete AddContext)
+    internal class RegisterDTO
     {
-        /// <summary>
-        /// The user name.
-        /// </summary>
-        [Required]
-        public string Username { get; set; } = default!;
+        public required string Username { get; init; }
+        public required string Password { get; init; }
+        // TODO: public string? Email { get; set; }
+    }
 
-        /// <summary>
-        /// The password
-        /// </summary>
-        [Required]
-        public string Password { get; set; } = default!;
+    internal class LoginDTO
+    {
+        public required string Username { get; init; }
+        public required string Password { get; init; }
+        public bool CookieMode { get; init; }
+        // TODO: public string? TfaCode { get; set; }
+    }
 
-        /// <summary>
-        /// The email for the user.
-        /// </summary>
-        public string Email { get; set; } = default!;
+    internal class AuthTokensDTO
+    {
+        public required string AccessToken { get; init; }
+        // TODO: public required string RefreshToken { get; init; }
     }
 
     [AttributeUsage(AttributeTargets.Parameter)]
@@ -116,7 +134,7 @@ public static class IdentityEndpointRouteBuilderExtensions
     }
 
     [AttributeUsage(AttributeTargets.Parameter)]
-    private class FromServiceAttribute : Attribute, IFromServiceMetadata
+    private class FromServicesAttribute : Attribute, IFromServiceMetadata
     {
     }
 }

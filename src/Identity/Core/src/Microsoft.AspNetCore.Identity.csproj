@@ -8,14 +8,21 @@
     <PackageTags>aspnetcore;identity;membership</PackageTags>
     <IsPackable>false</IsPackable>
     <IsTrimmable>true</IsTrimmable>
+    <EnableRequestDelegateGenerator>true</EnableRequestDelegateGenerator>
   </PropertyGroup>
 
   <ItemGroup>
     <Reference Include="Microsoft.AspNetCore.Authentication.Cookies" />
+    <Reference Include="Microsoft.AspNetCore.Http.Results" />
     <Reference Include="Microsoft.Extensions.Identity.Core" />
 
     <Compile Include="$(SharedSourceRoot)TrimmingAttributes.cs" LinkBase="Shared"
       Condition="'$(TargetFramework)' != '$(DefaultNetCoreTargetFramework)'" />
+  </ItemGroup>
+
+  <!-- REVIEW: I copied this from MinimalSample.csproj. Is this okay in a non-sample project? -->
+  <ItemGroup>
+    <ProjectReference Include="$(RepoRoot)/src/Http/Http.Extensions/gen/Microsoft.AspNetCore.Http.Generators.csproj" OutputItemType="Analyzer" />
   </ItemGroup>
 
   <ItemGroup>

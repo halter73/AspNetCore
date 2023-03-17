@@ -1,2 +1,4 @@
 #nullable enable
+Microsoft.AspNetCore.Routing.IdentityEndpointRouteBuilderExtensions
+static Microsoft.AspNetCore.Routing.IdentityEndpointRouteBuilderExtensions.MapIdentity<TUser>(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! routeBuilder) -> Microsoft.AspNetCore.Builder.IEndpointConventionBuilder!
 virtual Microsoft.AspNetCore.Identity.SignInManager<TUser>.IsTwoFactorEnabledAsync(TUser! user) -> System.Threading.Tasks.Task<bool>!

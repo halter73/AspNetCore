@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>ASP.NET Core Identity Endpoints defines endpoints for HTTP clients to login and interact with the ASP.NET Core Identity framework.</Description>
+    <TargetFramework>$(DefaultNetCoreTargetFramework)</TargetFramework>
+    <IsAspNetCoreApp>true</IsAspNetCoreApp>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <PackageTags>aspnetcore;identity;membership</PackageTags>
+    <IsTrimmable>true</IsTrimmable>
+    <EnableRequestDelegateGenerator>true</EnableRequestDelegateGenerator>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="Microsoft.AspNetCore.Http.Results" />
+    <Reference Include="Microsoft.AspNetCore.Identity" />
+    <Reference Include="Microsoft.Extensions.Identity.Stores" />
+    <Reference Include="Microsoft.IdentityModel.JsonWebTokens" />
+  </ItemGroup>
+
+  <!-- REVIEW: I copied this from MinimalSample.csproj. Is this okay in a non-sample project? -->
+  <ItemGroup>
+    <ProjectReference Include="$(RepoRoot)/src/Http/Http.Extensions/gen/Microsoft.AspNetCore.Http.Generators.csproj" OutputItemType="Analyzer" />
+  </ItemGroup>
+</Project>

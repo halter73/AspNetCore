@@ -14,7 +14,7 @@
   <ItemGroup>
     <Reference Include="Microsoft.AspNetCore.Authentication.Cookies" />
     <Reference Include="Microsoft.AspNetCore.Http.Results" />
-    <Reference Include="Microsoft.Extensions.Identity.Core" />
+    <Reference Include="Microsoft.Extensions.Identity.Stores" />
   </ItemGroup>
 
   <!-- REVIEW: I copied this from MinimalSample.csproj. Is this okay in a non-sample project? -->

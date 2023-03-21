@@ -3,7 +3,6 @@
   <PropertyGroup>
     <Description>ASP.NET Core Identity Endpoints defines endpoints for HTTP clients to login and interact with the ASP.NET Core Identity framework.</Description>
     <TargetFramework>$(DefaultNetCoreTargetFramework)</TargetFramework>
-    <IsAspNetCoreApp>true</IsAspNetCoreApp>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <PackageTags>aspnetcore;identity;membership</PackageTags>
     <IsTrimmable>true</IsTrimmable>

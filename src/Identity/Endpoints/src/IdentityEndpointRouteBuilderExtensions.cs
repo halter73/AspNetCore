@@ -3,6 +3,8 @@
 
 using System.Linq;
 using System.Security.Claims;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
@@ -57,7 +59,7 @@ public static class IdentityEndpointRouteBuilderExtensions
             var userManager = services.GetRequiredService<UserManager<TUser>>();
 
             var user = new TUser();
-            await userManager.SetUserNameAsync(user, registration.Username);
+            await userManager.SetUserNameAsync(user, registration.UserName);
             var result = await userManager.CreateAsync(user, registration.Password);
 
             if (result.Succeeded)
@@ -74,7 +76,7 @@ public static class IdentityEndpointRouteBuilderExtensions
             ([FromBody] LoginDTO login, [FromServices] IServiceProvider services) =>
         {
             var userManager = services.GetRequiredService<UserManager<TUser>>();
-            var user = await userManager.FindByNameAsync(login.Username);
+            var user = await userManager.FindByNameAsync(login.UserName);
 
             if (user is null || !await userManager.CheckPasswordAsync(user, login.Password))
             {
@@ -82,22 +84,27 @@ public static class IdentityEndpointRouteBuilderExtensions
             }
 
             var claimsFactory = services.GetRequiredService<IUserClaimsPrincipalFactory<TUser>>();
+            var claimsPrincipal = await claimsFactory.CreateAsync(user);
 
-            return login.CookieMode
-                ? TypedResults.SignIn(await claimsFactory.CreateAsync(user),
-                    authenticationScheme: IdentityConstants.ApplicationScheme)
-                : TypedResults.Ok(new AuthTokensDTO { AccessToken = "" });
+            if (login.CookieMode)
+            {
+                return TypedResults.SignIn(claimsPrincipal,
+                    authenticationScheme: IdentityConstants.ApplicationScheme);
+            }
+
+            var dp = services.GetRequiredService<IDataProtectionProvider>();
+            var token = await CreateTokenAsync(dp, userManager, user);
+            return TypedResults.Ok(new AuthTokensDTO { AccessToken = token });
         });
 
         return new IdentityEndpointConventionBuilder(group);
     }
 
-    private static async Task<string> CreateJwtToken<TUser>(IDataProtectionProvider dp, UserManager<TUser> userManager, TUser user)
+    private static async Task<string> CreateTokenAsync<TUser>(IDataProtectionProvider dp, UserManager<TUser> userManager, TUser user)
         where TUser : class
     {
         var payload = new Dictionary<string, string>();
 
-        // Based on UserClaimsPrincipalFactory
         var userId = await userManager.GetUserIdAsync(user);
         payload[ClaimTypes.NameIdentifier] = userId;
 
@@ -125,22 +132,22 @@ public static class IdentityEndpointRouteBuilderExtensions
             }
         }
 
-        (var format, var provider) = _formatManager.GetFormatProvider(TokenPurpose.AccessToken);
+        //var jwtHandler = new JsonWebTokenHandler();
+        //jwtHandler.CreateToken()
 
-        // Store the token metadata, with jwt token as payload
-        var info = new TokenInfo(Guid.NewGuid().ToString(),
-            format, userId, TokenPurpose.AccessToken, TokenStatus.Active)
-        {
-            Expiration = DateTimeOffset.UtcNow.AddDays(1),
-            Payload = payload
-        };
-
-        if (_tokenManager.Options.StoreAccessTokens)
-        {
-            await _tokenManager.StoreAsync(info).ConfigureAwait(false);
-        }
-
-        return await provider.CreateTokenAsync(info);
+        //var jwtBuilder = new JwtBuilder(
+        //    JWSAlg.None,
+        //    Issuer,
+        //    signingKey: null,
+        //    Audience,
+        //    token.Subject,
+        //    payloadDict,
+        //    notBefore: DateTimeOffset.UtcNow,
+        //    expires: DateTimeOffset.UtcNow.AddMinutes(30));
+        //jwtBuilder.IssuedAt = DateTimeOffset.UtcNow;
+        //jwtBuilder.Jti = token.Id;
+        var protector = dp.CreateProtector($"Token:access_token");
+        return protector.Protect(JsonSerializer.Serialize(payload, JwtJsonSerializerContext.Default.DictionaryStringString));
     }
 
     // If we return a public type like RouteGroupBuilder, it'd be breaking to change it even if it's declared to be a less specific type.
@@ -162,14 +169,14 @@ public static class IdentityEndpointRouteBuilderExtensions
     // TODO: Register DTOs with JsonSerializerOptions.TypeInfoResolverChain (was previously the soon-to-be-obsolete AddContext)
     internal sealed class RegisterDTO
     {
-        public required string Username { get; init; }
+        public required string UserName { get; init; }
         public required string Password { get; init; }
         // TODO: public string? Email { get; set; }
     }
 
     internal sealed class LoginDTO
     {
-        public required string Username { get; init; }
+        public required string UserName { get; init; }
         public required string Password { get; init; }
         public bool CookieMode { get; init; }
         // TODO: public string? TfaCode { get; set; }
@@ -190,4 +197,9 @@ public static class IdentityEndpointRouteBuilderExtensions
     private sealed class FromServicesAttribute : Attribute, IFromServiceMetadata
     {
     }
+}
+
+[JsonSerializable(typeof(Dictionary<string, string>))]
+internal partial class JwtJsonSerializerContext : JsonSerializerContext
+{
 }

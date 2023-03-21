@@ -2,7 +2,9 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Linq;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Http.Metadata;
@@ -90,10 +92,56 @@ public static class IdentityEndpointRouteBuilderExtensions
         return new IdentityEndpointConventionBuilder(group);
     }
 
-    //private static string CreateJwtToken(IDataProtectionProvider dp, string userId)
-    //{
-    //    return "";
-    //}
+    private static async Task<string> CreateJwtToken<TUser>(IDataProtectionProvider dp, UserManager<TUser> userManager, TUser user)
+        where TUser : class
+    {
+        var payload = new Dictionary<string, string>();
+
+        // Based on UserClaimsPrincipalFactory
+        var userId = await userManager.GetUserIdAsync(user);
+        payload[ClaimTypes.NameIdentifier] = userId;
+
+        if (userManager.SupportsUserEmail)
+        {
+            var email = await userManager.GetEmailAsync(user);
+            if (!string.IsNullOrEmpty(email))
+            {
+                payload["email"] = email;
+            }
+        }
+
+        if (userManager.SupportsUserSecurityStamp)
+        {
+            payload[userManager.Options.ClaimsIdentity.SecurityStampClaimType] =
+                await userManager.GetSecurityStampAsync(user);
+        }
+
+        if (userManager.SupportsUserClaim)
+        {
+            var claims = await userManager.GetClaimsAsync(user);
+            foreach (var claim in claims)
+            {
+                payload[claim.Type] = claim.Value;
+            }
+        }
+
+        (var format, var provider) = _formatManager.GetFormatProvider(TokenPurpose.AccessToken);
+
+        // Store the token metadata, with jwt token as payload
+        var info = new TokenInfo(Guid.NewGuid().ToString(),
+            format, userId, TokenPurpose.AccessToken, TokenStatus.Active)
+        {
+            Expiration = DateTimeOffset.UtcNow.AddDays(1),
+            Payload = payload
+        };
+
+        if (_tokenManager.Options.StoreAccessTokens)
+        {
+            await _tokenManager.StoreAsync(info).ConfigureAwait(false);
+        }
+
+        return await provider.CreateTokenAsync(info);
+    }
 
     // If we return a public type like RouteGroupBuilder, it'd be breaking to change it even if it's declared to be a less specific type.
     // https://learn.microsoft.com/en-us/dotnet/core/compatibility/library-change-rules#properties-fields-parameters-and-return-values

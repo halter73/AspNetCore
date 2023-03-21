@@ -3,7 +3,6 @@
 
 using System.Linq;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Http.Metadata;
@@ -91,14 +90,14 @@ public static class IdentityEndpointRouteBuilderExtensions
         return new IdentityEndpointConventionBuilder(group);
     }
 
-    private static string CreateJwtToken(IDataProtectionProvider dp, string userId)
-    {
-        return "";
-    }
+    //private static string CreateJwtToken(IDataProtectionProvider dp, string userId)
+    //{
+    //    return "";
+    //}
 
     // If we return a public type like RouteGroupBuilder, it'd be breaking to change it even if it's declared to be a less specific type.
     // https://learn.microsoft.com/en-us/dotnet/core/compatibility/library-change-rules#properties-fields-parameters-and-return-values
-    private class IdentityEndpointConventionBuilder : IEndpointConventionBuilder
+    private sealed class IdentityEndpointConventionBuilder : IEndpointConventionBuilder
     {
         private readonly IEndpointConventionBuilder _inner;
 
@@ -113,14 +112,14 @@ public static class IdentityEndpointRouteBuilderExtensions
 
     // NOTE: private classes cannot be used as parameter types with RDG Delegates.
     // TODO: Register DTOs with JsonSerializerOptions.TypeInfoResolverChain (was previously the soon-to-be-obsolete AddContext)
-    internal class RegisterDTO
+    internal sealed class RegisterDTO
     {
         public required string Username { get; init; }
         public required string Password { get; init; }
         // TODO: public string? Email { get; set; }
     }
 
-    internal class LoginDTO
+    internal sealed class LoginDTO
     {
         public required string Username { get; init; }
         public required string Password { get; init; }
@@ -128,19 +127,19 @@ public static class IdentityEndpointRouteBuilderExtensions
         // TODO: public string? TfaCode { get; set; }
     }
 
-    internal class AuthTokensDTO
+    internal sealed class AuthTokensDTO
     {
         public required string AccessToken { get; init; }
         // TODO: public required string RefreshToken { get; init; }
     }
 
     [AttributeUsage(AttributeTargets.Parameter)]
-    private class FromBodyAttribute : Attribute, IFromBodyMetadata
+    private sealed class FromBodyAttribute : Attribute, IFromBodyMetadata
     {
     }
 
     [AttributeUsage(AttributeTargets.Parameter)]
-    private class FromServicesAttribute : Attribute, IFromServiceMetadata
+    private sealed class FromServicesAttribute : Attribute, IFromServiceMetadata
     {
     }
 }

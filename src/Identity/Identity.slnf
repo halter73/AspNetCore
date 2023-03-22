@@ -43,6 +43,7 @@
       "src\\Identity\\Specification.Tests\\src\\Microsoft.AspNetCore.Identity.Specification.Tests.csproj",
       "src\\Identity\\UI\\src\\Microsoft.AspNetCore.Identity.UI.csproj",
       "src\\Identity\\samples\\IdentitySample.DefaultUI\\IdentitySample.DefaultUI.csproj",
+      "src\\Identity\\samples\\IdentitySample.Endpoints\\IdentitySample.Endpoints.csproj",
       "src\\Identity\\samples\\IdentitySample.Mvc\\IdentitySample.Mvc.csproj",
       "src\\Identity\\test\\Identity.FunctionalTests\\Microsoft.AspNetCore.Identity.FunctionalTests.csproj",
       "src\\Identity\\test\\Identity.Test\\Microsoft.AspNetCore.Identity.Test.csproj",

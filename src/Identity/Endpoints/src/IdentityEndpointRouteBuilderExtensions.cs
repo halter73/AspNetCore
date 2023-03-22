@@ -200,6 +200,6 @@ public static class IdentityEndpointRouteBuilderExtensions
 }
 
 [JsonSerializable(typeof(Dictionary<string, string>))]
-internal partial class JwtJsonSerializerContext : JsonSerializerContext
+internal sealed partial class JwtJsonSerializerContext : JsonSerializerContext
 {
 }

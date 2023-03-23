@@ -50,7 +50,7 @@ public static class IdentityEndpointRouteBuilderExtensions
         where TUserKey : IEquatable<TUserKey>
     {
         // Call MapGroup yourself to get a prefix.
-        var group = endpoints.MapGroup("");
+        var group = endpoints.MapGroup("/v1");
 
         // NOTE: We cannot inject UserManager<TUser> directly because the TUser generic parameter is currently unsupported by RDG.
         group.MapPost("/register", async Task<Results<Ok, ValidationProblem>>
@@ -147,7 +147,7 @@ public static class IdentityEndpointRouteBuilderExtensions
         //jwtBuilder.IssuedAt = DateTimeOffset.UtcNow;
         //jwtBuilder.Jti = token.Id;
         var protector = dp.CreateProtector($"Token:access_token");
-        return protector.Protect(JsonSerializer.Serialize(payload, JwtJsonSerializerContext.Default.DictionaryStringString));
+        return protector.Protect(JsonSerializer.Serialize(payload, IdentityEndpointJsonSerializerContext.Default.DictionaryStringString));
     }
 
     // If we return a public type like RouteGroupBuilder, it'd be breaking to change it even if it's declared to be a less specific type.
@@ -165,29 +165,6 @@ public static class IdentityEndpointRouteBuilderExtensions
         public void Finally(Action<EndpointBuilder> finallyConvention) => _inner.Finally(finallyConvention);
     }
 
-    // NOTE: private classes cannot be used as parameter types with RDG Delegates.
-    // TODO: Register DTOs with JsonSerializerOptions.TypeInfoResolverChain (was previously the soon-to-be-obsolete AddContext)
-    internal sealed class RegisterDTO
-    {
-        public required string UserName { get; init; }
-        public required string Password { get; init; }
-        // TODO: public string? Email { get; set; }
-    }
-
-    internal sealed class LoginDTO
-    {
-        public required string UserName { get; init; }
-        public required string Password { get; init; }
-        public bool CookieMode { get; init; }
-        // TODO: public string? TfaCode { get; set; }
-    }
-
-    internal sealed class AuthTokensDTO
-    {
-        public required string AccessToken { get; init; }
-        // TODO: public required string RefreshToken { get; init; }
-    }
-
     [AttributeUsage(AttributeTargets.Parameter)]
     private sealed class FromBodyAttribute : Attribute, IFromBodyMetadata
     {
@@ -199,7 +176,32 @@ public static class IdentityEndpointRouteBuilderExtensions
     }
 }
 
+// TODO: Register DTOs with JsonSerializerOptions.TypeInfoResolverChain (was previously the soon-to-be-obsolete AddContext)
+internal sealed class RegisterDTO
+{
+    public required string UserName { get; init; }
+    public required string Password { get; init; }
+    // TODO: public string? Email { get; set; }
+}
+
+internal sealed class LoginDTO
+{
+    public required string UserName { get; init; }
+    public required string Password { get; init; }
+    public bool CookieMode { get; init; }
+    // TODO: public string? TfaCode { get; set; }
+}
+
+internal sealed class AuthTokensDTO
+{
+    public required string AccessToken { get; init; }
+    // TODO: public required string RefreshToken { get; init; }
+}
+
+[JsonSerializable(typeof(RegisterDTO))]
+[JsonSerializable(typeof(LoginDTO))]
+[JsonSerializable(typeof(AuthTokensDTO))]
 [JsonSerializable(typeof(Dictionary<string, string>))]
-internal sealed partial class JwtJsonSerializerContext : JsonSerializerContext
+internal sealed partial class IdentityEndpointJsonSerializerContext : JsonSerializerContext
 {
 }

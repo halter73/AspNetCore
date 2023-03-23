@@ -16,8 +16,8 @@
     <Reference Include="Microsoft.IdentityModel.JsonWebTokens" />
   </ItemGroup>
 
-  <!-- REVIEW: I copied this from MinimalSample.csproj. Is this okay in a non-sample project? -->
   <ItemGroup>
-    <ProjectReference Include="$(RepoRoot)/src/Http/Http.Extensions/gen/Microsoft.AspNetCore.Http.Generators.csproj" OutputItemType="Analyzer" />
+    <!-- REVIEW: Can we do with a Reference instead of a ProjectReference? -->
+    <ProjectReference Include="$(RepoRoot)/src/Http/Http.Extensions/gen/Microsoft.AspNetCore.Http.RequestDelegateGenerator.csproj" OutputItemType="Analyzer"  ReferenceOutputAssembly="false" />
   </ItemGroup>
 </Project>

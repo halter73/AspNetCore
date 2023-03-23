@@ -2,9 +2,8 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Linq;
-using System.Security.Claims;
-using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
@@ -92,66 +91,23 @@ public static class IdentityEndpointRouteBuilderExtensions
                     authenticationScheme: IdentityConstants.ApplicationScheme);
             }
 
-            var dp = services.GetRequiredService<IDataProtectionProvider>();
-            var token = await CreateTokenAsync(dp, userManager, user);
-            return TypedResults.Ok(new AuthTokensDTO { AccessToken = token });
+            var dpProvider = services.GetRequiredService<IDataProtectionProvider>();
+            var dp = dpProvider.CreateProtector(IdentityConstants.BearerScheme, "v1", "AccessToken");
+            var sd = new TicketDataFormat(dp);
+
+            // TODO: Expiration and other stuff from CookieAuthenticationHandler
+            var properties = new AuthenticationProperties();
+            var ticket = new AuthenticationTicket(claimsPrincipal, properties, IdentityConstants.BearerScheme);
+
+            sd.Protect(ticket);
+
+            return TypedResults.Ok(new AuthTokensDTO { AccessToken = sd.Protect(ticket) });
         });
 
         return new IdentityEndpointConventionBuilder(group);
     }
 
-    private static async Task<string> CreateTokenAsync<TUser>(IDataProtectionProvider dp, UserManager<TUser> userManager, TUser user)
-        where TUser : class
-    {
-        var payload = new Dictionary<string, string>();
-
-        var userId = await userManager.GetUserIdAsync(user);
-        payload[ClaimTypes.NameIdentifier] = userId;
-
-        if (userManager.SupportsUserEmail)
-        {
-            var email = await userManager.GetEmailAsync(user);
-            if (!string.IsNullOrEmpty(email))
-            {
-                payload["email"] = email;
-            }
-        }
-
-        if (userManager.SupportsUserSecurityStamp)
-        {
-            payload[userManager.Options.ClaimsIdentity.SecurityStampClaimType] =
-                await userManager.GetSecurityStampAsync(user);
-        }
-
-        if (userManager.SupportsUserClaim)
-        {
-            var claims = await userManager.GetClaimsAsync(user);
-            foreach (var claim in claims)
-            {
-                payload[claim.Type] = claim.Value;
-            }
-        }
-
-        //var jwtHandler = new JsonWebTokenHandler();
-        //jwtHandler.CreateToken()
-
-        //var jwtBuilder = new JwtBuilder(
-        //    JWSAlg.None,
-        //    Issuer,
-        //    signingKey: null,
-        //    Audience,
-        //    token.Subject,
-        //    payloadDict,
-        //    notBefore: DateTimeOffset.UtcNow,
-        //    expires: DateTimeOffset.UtcNow.AddMinutes(30));
-        //jwtBuilder.IssuedAt = DateTimeOffset.UtcNow;
-        //jwtBuilder.Jti = token.Id;
-        var protector = dp.CreateProtector($"Token:access_token");
-        return protector.Protect(JsonSerializer.Serialize(payload, IdentityEndpointJsonSerializerContext.Default.DictionaryStringString));
-    }
-
     // If we return a public type like RouteGroupBuilder, it'd be breaking to change it even if it's declared to be a less specific type.
-    // https://learn.microsoft.com/en-us/dotnet/core/compatibility/library-change-rules#properties-fields-parameters-and-return-values
     private sealed class IdentityEndpointConventionBuilder : IEndpointConventionBuilder
     {
         private readonly IEndpointConventionBuilder _inner;
@@ -201,7 +157,6 @@ internal sealed class AuthTokensDTO
 [JsonSerializable(typeof(RegisterDTO))]
 [JsonSerializable(typeof(LoginDTO))]
 [JsonSerializable(typeof(AuthTokensDTO))]
-[JsonSerializable(typeof(Dictionary<string, string>))]
 internal sealed partial class IdentityEndpointJsonSerializerContext : JsonSerializerContext
 {
 }

@@ -36,8 +36,8 @@ internal sealed class IdentityBearerAuthenticationHandler : SignInAuthentication
     private IDataProtectionProvider DataProtectionProvider
         => Options.DataProtectionProvider ?? _fallbackDataProtectionProvider;
 
-    private ISecureDataFormat<AuthenticationTicket> AccessTokenProtector
-        => Options.TicketDataFormat ?? new TicketDataFormat(DataProtectionProvider.CreateProtector(AccessTokenPurpose));
+    private ISecureDataFormat<AuthenticationTicket> BearerTokenProtector
+        => Options.BearerTokenProtector ?? new TicketDataFormat(DataProtectionProvider.CreateProtector(AccessTokenPurpose));
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
@@ -47,7 +47,7 @@ internal sealed class IdentityBearerAuthenticationHandler : SignInAuthentication
             return Context.AuthenticateAsync(IdentityConstants.ApplicationScheme);
         }
 
-        var ticket = AccessTokenProtector.Unprotect(token);
+        var ticket = BearerTokenProtector.Unprotect(token);
 
         if (ticket?.Properties?.ExpiresUtc is null)
         {
@@ -77,17 +77,16 @@ internal sealed class IdentityBearerAuthenticationHandler : SignInAuthentication
     protected override Task HandleSignInAsync(ClaimsPrincipal user, AuthenticationProperties? properties)
     {
         properties ??= new();
-        properties.ExpiresUtc ??= Clock.UtcNow + Options.AccessTokenExpiration;
+        properties.ExpiresUtc ??= Clock.UtcNow + Options.BearerTokenExpiration;
 
         var ticket = new AuthenticationTicket(user, properties, Scheme.Name);
-        var accessToken = AccessTokenProtector.Protect(ticket);
+        var accessToken = BearerTokenProtector.Protect(ticket);
 
         return Context.Response.WriteAsJsonAsync(
             new() { AccessToken = accessToken },
             IdentityEndpointJsonSerializerContext.Default.AuthTokensDTO);
     }
 
-    // TODO revoke tokens?
     protected override Task HandleSignOutAsync(AuthenticationProperties? properties)
         => throw new NotSupportedException($"""
 Sign out is not currently supported by identity bearer tokens.

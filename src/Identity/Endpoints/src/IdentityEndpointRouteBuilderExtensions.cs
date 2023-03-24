@@ -118,7 +118,6 @@ internal sealed class AuthTokensDTO
     [JsonPropertyName("access_token")]
     public required string AccessToken { get; init; }
 
-
     // TODO: public required string RefreshToken { get; init; }
 }
 

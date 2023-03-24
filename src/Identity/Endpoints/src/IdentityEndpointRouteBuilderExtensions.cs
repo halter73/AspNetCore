@@ -3,16 +3,13 @@
 
 using System.Linq;
 using System.Text.Json.Serialization;
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.Endpoints;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 
 namespace Microsoft.AspNetCore.Routing;
 
@@ -36,13 +33,7 @@ public static class IdentityEndpointRouteBuilderExtensions
 
         var v1 = endpoints.MapGroup("/v1");
 
-        var clock = endpoints.ServiceProvider.GetRequiredService<ISystemClock>();
-        var bearerOptions = endpoints.ServiceProvider.GetRequiredService<IOptions<IdentityBearerAuthenticationOptions>>().Value;
-        var expireTimeSpan = bearerOptions.AccessTokenExpireTimeSpan;
-
-        var dataProtection = endpoints.ServiceProvider.GetRequiredService<IDataProtectionProvider>();
-        var protector = dataProtection.CreateProtector(IdentityConstants.BearerScheme, "v1", "AccessToken");
-        var ticketProtector = new TicketDataFormat(protector);
+        var authHandler = endpoints.ServiceProvider.GetRequiredService<IdentityBearerAuthenticationHandler>();
 
         // NOTE: We cannot inject UserManager<TUser> directly because the TUser generic parameter is currently unsupported by RDG.
         // https://github.com/dotnet/aspnetcore/issues/47338
@@ -79,20 +70,9 @@ public static class IdentityEndpointRouteBuilderExtensions
             var claimsFactory = services.GetRequiredService<IUserClaimsPrincipalFactory<TUser>>();
             var claimsPrincipal = await claimsFactory.CreateAsync(user);
 
-            if (login.CookieMode)
-            {
-                return TypedResults.SignIn(claimsPrincipal,
-                    authenticationScheme: IdentityConstants.ApplicationScheme);
-            }
-
-            var properties = new AuthenticationProperties
-            {
-                ExpiresUtc = clock.UtcNow + expireTimeSpan
-            };
-
-            var ticket = new AuthenticationTicket(claimsPrincipal, properties, IdentityConstants.BearerScheme);
-
-            return TypedResults.Ok(new AuthTokensDTO { AccessToken = ticketProtector.Protect(ticket) });
+            return login.CookieMode
+                ? TypedResults.SignIn(claimsPrincipal, authenticationScheme: IdentityConstants.ApplicationScheme)
+                : TypedResults.Ok(new AuthTokensDTO { AccessToken = authHandler.CreateAccessToken(claimsPrincipal) });
         });
 
         return new IdentityEndpointConventionBuilder(v1);

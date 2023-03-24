@@ -68,9 +68,9 @@ public class MapIdentityTests : LoggedTest
         builder.Services.AddIdentityEndpoints<TUser>().AddEntityFrameworkStores<TContext>();
         builder.Services.AddAuthorization();
 
-        // Dispose SqliteConnection with host by registering as a singleton factory.
         var dbConnection = new SqliteConnection($"DataSource=:memory:");
         builder.Services.AddDbContext<TContext>(options => options.UseSqlite(dbConnection));
+        // Dispose SqliteConnection with host by registering as a singleton factory.
         builder.Services.AddSingleton(() => dbConnection);
 
         var app = builder.Build();

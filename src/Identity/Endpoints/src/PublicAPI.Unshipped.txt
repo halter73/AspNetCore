@@ -1,7 +1,7 @@
 #nullable enable
 Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerAuthenticationOptions
-Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerAuthenticationOptions.AccessTokenExpireTimeSpan.get -> System.TimeSpan
-Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerAuthenticationOptions.AccessTokenExpireTimeSpan.set -> void
+Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerAuthenticationOptions.AccessTokenExpiration.get -> System.TimeSpan
+Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerAuthenticationOptions.AccessTokenExpiration.set -> void
 Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerAuthenticationOptions.IdentityBearerAuthenticationOptions() -> void
 Microsoft.AspNetCore.Routing.IdentityEndpointRouteBuilderExtensions
 Microsoft.Extensions.DependencyInjection.IdentityEndpointServiceCollectionExtensions

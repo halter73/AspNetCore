@@ -16,5 +16,5 @@ public sealed class IdentityBearerAuthenticationOptions : AuthenticationSchemeOp
     /// The expiration information is stored in the protected token. Because of that, an expired token will be rejected
     /// even if it is passed to the server after the client should have purged it.
     /// </summary>
-    public TimeSpan AccessTokenExpireTimeSpan { get; set; } = TimeSpan.FromHours(1);
+    public TimeSpan AccessTokenExpiration { get; set; } = TimeSpan.FromHours(1);
 }

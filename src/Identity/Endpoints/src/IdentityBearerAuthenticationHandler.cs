@@ -5,79 +5,98 @@ using System.Security.Claims;
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Net.Http.Headers;
 
 namespace Microsoft.AspNetCore.Identity.Endpoints;
 
-internal class IdentityBearerAuthenticationHandler : SignInAuthenticationHandler<IdentityBearerAuthenticationOptions>
+internal sealed class IdentityBearerAuthenticationHandler : SignInAuthenticationHandler<IdentityBearerAuthenticationOptions>
 {
-    internal static AuthenticateResult FailedUnprotectingToken = AuthenticateResult.Fail("Unprotect token failed");
-    internal static AuthenticateResult TokenExpired = AuthenticateResult.Fail("Token expired");
+    internal static Task<AuthenticateResult> FailedUnprotectingTokenTask = Task.FromResult(AuthenticateResult.Fail("Unprotect token failed"));
+    internal static Task<AuthenticateResult> TokenExpiredTask = Task.FromResult(AuthenticateResult.Fail("Token expired"));
 
     private readonly IDataProtectionProvider _dataProtectionProvider;
+    private TicketDataFormat? _accessTokenProtector;
 
     public IdentityBearerAuthenticationHandler(
-        IOptionsMonitor<IdentityBearerAuthenticationOptions> options,
-        ILoggerFactory logger,
-        UrlEncoder encoder,
+        IOptionsMonitor<IdentityBearerAuthenticationOptions> optionsMonitor,
+        ILoggerFactory loggerFactory,
+        UrlEncoder urlEncoder,
         ISystemClock clock,
         IDataProtectionProvider dataProtectionProvider)
-        : base(options, logger, encoder, clock)
+        : base(optionsMonitor, loggerFactory, urlEncoder, clock)
     {
         _dataProtectionProvider = dataProtectionProvider;
     }
 
-    protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
+    private TicketDataFormat AccessTokenProtector =>
+        _accessTokenProtector ??= new(_dataProtectionProvider.CreateProtector(IdentityConstants.BearerScheme, "v1", "AccessToken"));
+
+    private TimeSpan AccessTokenExpiration => OptionsMonitor.Get(IdentityConstants.BearerScheme).AccessTokenExpiration;
+
+    internal string CreateAccessToken(ClaimsPrincipal principal)
     {
-        var cookieResult = await Context.AuthenticateAsync(IdentityConstants.ApplicationScheme);
-
-        if (cookieResult.Succeeded)
+        var properties = new AuthenticationProperties
         {
-            return cookieResult;
+            ExpiresUtc = Clock.UtcNow + AccessTokenExpiration,
+        };
+
+        var ticket = new AuthenticationTicket(principal, properties, IdentityConstants.BearerScheme);
+        return AccessTokenProtector.Protect(ticket);
+    }
+
+    protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+    {
+        // If there's no bearer token, forward to cookie auth.
+        if (GetBearerTokenOrNull() is not string token)
+        {
+            return Context.AuthenticateAsync(IdentityConstants.ApplicationScheme);
         }
 
-        // Otherwise check for Bearer token
-        string? token = null;
-        var authorization = Request.Headers.Authorization.ToString();
-
-        // If no authorization header found, nothing to process further
-        if (string.IsNullOrEmpty(authorization))
-        {
-            return AuthenticateResult.NoResult();
-        }
-
-        if (authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-        {
-            token = authorization["Bearer ".Length..].Trim();
-        }
-
-        // If no token found, no further work possible
-        if (string.IsNullOrEmpty(token))
-        {
-            return AuthenticateResult.NoResult();
-        }
-
-        var dp = _dataProtectionProvider.CreateProtector(IdentityConstants.BearerScheme, "v1", "AccessToken");
-        var ticketUnprotector = new TicketDataFormat(dp);
-        var ticket = ticketUnprotector.Unprotect(token);
+        var ticket = AccessTokenProtector.Unprotect(token);
 
         if (ticket?.Properties?.ExpiresUtc is null)
         {
-            return FailedUnprotectingToken;
+            return FailedUnprotectingTokenTask;
         }
 
         if (Clock.UtcNow > ticket.Properties.ExpiresUtc)
         {
-            return TokenExpired;
+            return TokenExpiredTask;
         }
 
-        return AuthenticateResult.Success(ticket);
+        return Task.FromResult(AuthenticateResult.Success(ticket));
     }
 
+    protected override Task HandleChallengeAsync(AuthenticationProperties properties)
+    {
+        if (GetBearerTokenOrNull() is null)
+        {
+            return Context.ChallengeAsync(IdentityConstants.ApplicationScheme);
+        }
+
+        Response.Headers.Append(HeaderNames.WWWAuthenticate, "Bearer");
+        return base.HandleChallengeAsync(properties);
+    }
+
+    // Forward to cookie auth.
     protected override Task HandleSignInAsync(ClaimsPrincipal user, AuthenticationProperties? properties)
         => Context.SignInAsync(IdentityConstants.ApplicationScheme, user, properties);
 
+    // Delete cookies and clear session if any. This does not prevent a bad client from reusing the bearer token or cookie.
     protected override Task HandleSignOutAsync(AuthenticationProperties? properties)
         => Context.SignOutAsync(IdentityConstants.ApplicationScheme, properties);
+
+    private string? GetBearerTokenOrNull()
+    {
+        var authorization = Request.Headers.Authorization.ToString();
+        if (!authorization.StartsWith("Bearer ", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        return authorization["Bearer ".Length..];
+    }
 }

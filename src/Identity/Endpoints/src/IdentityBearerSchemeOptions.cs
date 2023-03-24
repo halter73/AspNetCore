@@ -26,7 +26,13 @@ public sealed class IdentityBearerAuthenticationOptions : AuthenticationSchemeOp
     public ISecureDataFormat<AuthenticationTicket>? BearerTokenProtector { get; set; }
 
     /// <summary>
-    /// If set, and <see cref="BearerTokenProtector"/> is not set, this will be used to protect the bearer token.
+    /// If set, and <see cref="BearerTokenProtector"/> is not set, this will be used to protect the bearer token using <see cref="TicketDataFormat"/>.
     /// </summary>
     public IDataProtectionProvider? DataProtectionProvider { get; set; }
+
+    /// <summary>
+    /// If set, authentication and challenges will be forwarded to this scheme only if the request does not contain a bearer token.
+    /// This is typically set to Usually Identity.Application cookies <see cref="IdentityConstants.ApplicationScheme"/>
+    /// </summary>
+    public string? NoTokenFallbackScheme { get; set; }
 }

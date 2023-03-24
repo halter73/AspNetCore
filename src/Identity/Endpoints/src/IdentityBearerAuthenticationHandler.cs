@@ -17,6 +17,7 @@ internal sealed class IdentityBearerAuthenticationHandler : SignInAuthentication
 {
     private const string AccessTokenPurpose = $"Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerAuthenticationHandler:v1:AccessToken";
 
+    private static readonly Task<AuthenticateResult> TokenMissingTask = Task.FromResult(AuthenticateResult.Fail("Token missing"));
     private static readonly Task<AuthenticateResult> FailedUnprotectingTokenTask = Task.FromResult(AuthenticateResult.Fail("Unprotect token failed"));
     private static readonly Task<AuthenticateResult> TokenExpiredTask = Task.FromResult(AuthenticateResult.Fail("Token expired"));
 
@@ -44,7 +45,9 @@ internal sealed class IdentityBearerAuthenticationHandler : SignInAuthentication
         // If there's no bearer token, forward to cookie auth.
         if (GetBearerTokenOrNull() is not string token)
         {
-            return Context.AuthenticateAsync(IdentityConstants.ApplicationScheme);
+            return Options.BearerTokenMissingFallbackScheme is string fallbackScheme
+                ? Context.AuthenticateAsync(fallbackScheme)
+                : TokenMissingTask;
         }
 
         var ticket = BearerTokenProtector.Unprotect(token);
@@ -67,7 +70,9 @@ internal sealed class IdentityBearerAuthenticationHandler : SignInAuthentication
         // If there's no bearer token, forward to cookie auth.
         if (GetBearerTokenOrNull() is null)
         {
-            return Context.ChallengeAsync(IdentityConstants.ApplicationScheme);
+            return Options.BearerTokenMissingFallbackScheme is string fallbackScheme
+                ? Context.AuthenticateAsync(fallbackScheme)
+                : TokenMissingTask;
         }
 
         Response.Headers.Append(HeaderNames.WWWAuthenticate, "Bearer");
@@ -90,7 +95,7 @@ internal sealed class IdentityBearerAuthenticationHandler : SignInAuthentication
     protected override Task HandleSignOutAsync(AuthenticationProperties? properties)
         => throw new NotSupportedException($"""
 Sign out is not currently supported by identity bearer tokens.
-If you want to delete cookies or clear a session, specify "{IdentityConstants.ApplicationScheme}" as the authentication scheme.
+If you want to delete cookies or clear a session, specify "{Options.BearerTokenMissingFallbackScheme}" as the authentication scheme.
 """);
 
     private string? GetBearerTokenOrNull()

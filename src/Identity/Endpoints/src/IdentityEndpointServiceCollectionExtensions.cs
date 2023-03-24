@@ -51,7 +51,7 @@ public static class IdentityEndpointServiceCollectionExtensions
     {
         var (identityBuilder, authBuilder) = services.AddIdentityEndpointsCoreInternal<TUser>(configureIdentityOptions, options =>
         {
-            options.NoTokenFallbackScheme = IdentityConstants.ApplicationScheme;
+            options.BearerTokenMissingFallbackScheme = IdentityConstants.ApplicationScheme;
             configureIdentityBearerOptions(options);
         });
 

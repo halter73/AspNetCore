@@ -2,13 +2,13 @@
 Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerAuthenticationOptions
 Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerAuthenticationOptions.BearerTokenExpiration.get -> System.TimeSpan
 Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerAuthenticationOptions.BearerTokenExpiration.set -> void
+Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerAuthenticationOptions.BearerTokenMissingFallbackScheme.get -> string?
+Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerAuthenticationOptions.BearerTokenMissingFallbackScheme.set -> void
 Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerAuthenticationOptions.BearerTokenProtector.get -> Microsoft.AspNetCore.Authentication.ISecureDataFormat<Microsoft.AspNetCore.Authentication.AuthenticationTicket!>?
 Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerAuthenticationOptions.BearerTokenProtector.set -> void
 Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerAuthenticationOptions.DataProtectionProvider.get -> Microsoft.AspNetCore.DataProtection.IDataProtectionProvider?
 Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerAuthenticationOptions.DataProtectionProvider.set -> void
 Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerAuthenticationOptions.IdentityBearerAuthenticationOptions() -> void
-Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerAuthenticationOptions.NoTokenFallbackScheme.get -> string?
-Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerAuthenticationOptions.NoTokenFallbackScheme.set -> void
 Microsoft.AspNetCore.Routing.IdentityEndpointRouteBuilderExtensions
 Microsoft.Extensions.DependencyInjection.IdentityEndpointServiceCollectionExtensions
 static Microsoft.AspNetCore.Routing.IdentityEndpointRouteBuilderExtensions.MapIdentity<TUser>(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints) -> Microsoft.AspNetCore.Builder.IEndpointConventionBuilder!

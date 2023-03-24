@@ -24,10 +24,10 @@ public class MapIdentityTests : LoggedTest
         await using var app = await CreateAppAsync<ApplicationUser, ApplicationDbContext>();
         using var client = app.GetTestClient();
 
-        var userName = $"{Guid.NewGuid()}@example.com";
+        var username = $"{Guid.NewGuid()}@example.com";
         var password = $"[PLACEHOLDER]-1a";
 
-        var response = await client.PostAsJsonAsync("/identity/v1/register", new { userName, password });
+        var response = await client.PostAsJsonAsync("/identity/v1/register", new { username, password });
 
         response.EnsureSuccessStatusCode();
         Assert.Equal(0, response.Content.Headers.ContentLength);
@@ -39,22 +39,22 @@ public class MapIdentityTests : LoggedTest
         await using var app = await CreateAppAsync<ApplicationUser, ApplicationDbContext>();
         using var client = app.GetTestClient();
 
-        var userName = $"{Guid.NewGuid()}@example.com";
+        var username = $"{Guid.NewGuid()}@example.com";
         var password = $"[PLACEHOLDER]-1a";
 
-        var registerResponse = await client.PostAsJsonAsync("/identity/v1/register", new { userName, password });
+        var registerResponse = await client.PostAsJsonAsync("/identity/v1/register", new { username, password });
 
         registerResponse.EnsureSuccessStatusCode();
         Assert.Equal(0, registerResponse.Content.Headers.ContentLength);
 
-        var loginResponse = await client.PostAsJsonAsync("/identity/v1/login", new { userName, password });
+        var loginResponse = await client.PostAsJsonAsync("/identity/v1/login", new { username, password });
 
         loginResponse.EnsureSuccessStatusCode();
         var loginContent = await loginResponse.Content.ReadFromJsonAsync<JsonElement>();
-        var accessToken = loginContent.GetProperty("accessToken").ToString();
+        var accessToken = loginContent.GetProperty("access_token").ToString();
 
         client.DefaultRequestHeaders.Authorization = new("Bearer", accessToken);
-        Assert.Equal($"Hello, {userName}!", await client.GetStringAsync("/auth/hello"));
+        Assert.Equal($"Hello, {username}!", await client.GetStringAsync("/auth/hello"));
     }
 
     private async Task<WebApplication> CreateAppAsync<TUser, TContext>()

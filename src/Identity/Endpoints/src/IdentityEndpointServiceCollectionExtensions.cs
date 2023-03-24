@@ -29,8 +29,7 @@ public static class IdentityEndpointServiceCollectionExtensions
     /// <param name="services">The <see cref="IServiceCollection"/>.</param>
     /// <param name="configureOptions">Configures the <see cref="IdentityOptions"/>.</param>
     /// <returns>The <see cref="IdentityBuilder"/>.</returns>
-    public static IdentityBuilder AddIdentityEndpoints<TUser>(
-        this IServiceCollection services, Action<IdentityOptions> configureOptions)
+    public static IdentityBuilder AddIdentityEndpoints<TUser>(this IServiceCollection services, Action<IdentityOptions> configureOptions)
         where TUser : class
     {
         ArgumentNullException.ThrowIfNull(nameof(services));
@@ -40,7 +39,7 @@ public static class IdentityEndpointServiceCollectionExtensions
         {
             o.DefaultScheme = IdentityConstants.BearerScheme;
         })
-        .AddScheme<IdentityBearerAuthenticationOptions, IdentityBearerAuthenticationHandler>(IdentityConstants.BearerScheme, null)
+        .AddScheme<IdentityBearerAuthenticationOptions, IdentityBearerAuthenticationHandler>(IdentityConstants.BearerScheme, _ => { })
         .AddIdentityCookies();
 
         return services.AddIdentityCore<TUser>(o =>

@@ -6,6 +6,7 @@ using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
@@ -14,11 +15,12 @@ namespace Microsoft.AspNetCore.Identity.Endpoints;
 
 internal sealed class IdentityBearerAuthenticationHandler : SignInAuthenticationHandler<IdentityBearerAuthenticationOptions>
 {
-    internal static Task<AuthenticateResult> FailedUnprotectingTokenTask = Task.FromResult(AuthenticateResult.Fail("Unprotect token failed"));
-    internal static Task<AuthenticateResult> TokenExpiredTask = Task.FromResult(AuthenticateResult.Fail("Token expired"));
+    private const string AccessTokenPurpose = $"Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerAuthenticationHandler:v1:AccessToken";
 
-    private readonly IDataProtectionProvider _dataProtectionProvider;
-    private TicketDataFormat? _accessTokenProtector;
+    private static readonly Task<AuthenticateResult> FailedUnprotectingTokenTask = Task.FromResult(AuthenticateResult.Fail("Unprotect token failed"));
+    private static readonly Task<AuthenticateResult> TokenExpiredTask = Task.FromResult(AuthenticateResult.Fail("Token expired"));
+
+    private readonly IDataProtectionProvider _fallbackDataProtectionProvider;
 
     public IdentityBearerAuthenticationHandler(
         IOptionsMonitor<IdentityBearerAuthenticationOptions> optionsMonitor,
@@ -28,24 +30,14 @@ internal sealed class IdentityBearerAuthenticationHandler : SignInAuthentication
         IDataProtectionProvider dataProtectionProvider)
         : base(optionsMonitor, loggerFactory, urlEncoder, clock)
     {
-        _dataProtectionProvider = dataProtectionProvider;
+        _fallbackDataProtectionProvider = dataProtectionProvider;
     }
 
-    private TicketDataFormat AccessTokenProtector =>
-        _accessTokenProtector ??= new(_dataProtectionProvider.CreateProtector(IdentityConstants.BearerScheme, "v1", "AccessToken"));
+    private IDataProtectionProvider DataProtectionProvider
+        => Options.DataProtectionProvider ?? _fallbackDataProtectionProvider;
 
-    private TimeSpan AccessTokenExpiration => OptionsMonitor.Get(IdentityConstants.BearerScheme).AccessTokenExpiration;
-
-    internal string CreateAccessToken(ClaimsPrincipal principal)
-    {
-        var properties = new AuthenticationProperties
-        {
-            ExpiresUtc = Clock.UtcNow + AccessTokenExpiration,
-        };
-
-        var ticket = new AuthenticationTicket(principal, properties, IdentityConstants.BearerScheme);
-        return AccessTokenProtector.Protect(ticket);
-    }
+    private ISecureDataFormat<AuthenticationTicket> AccessTokenProtector
+        => Options.TicketDataFormat ?? new TicketDataFormat(DataProtectionProvider.CreateProtector(AccessTokenPurpose));
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
@@ -72,6 +64,7 @@ internal sealed class IdentityBearerAuthenticationHandler : SignInAuthentication
 
     protected override Task HandleChallengeAsync(AuthenticationProperties properties)
     {
+        // If there's no bearer token, forward to cookie auth.
         if (GetBearerTokenOrNull() is null)
         {
             return Context.ChallengeAsync(IdentityConstants.ApplicationScheme);
@@ -81,22 +74,32 @@ internal sealed class IdentityBearerAuthenticationHandler : SignInAuthentication
         return base.HandleChallengeAsync(properties);
     }
 
-    // Forward to cookie auth.
     protected override Task HandleSignInAsync(ClaimsPrincipal user, AuthenticationProperties? properties)
-        => Context.SignInAsync(IdentityConstants.ApplicationScheme, user, properties);
+    {
+        properties ??= new();
+        properties.ExpiresUtc ??= Clock.UtcNow + Options.AccessTokenExpiration;
 
-    // Delete cookies and clear session if any. This does not prevent a bad client from reusing the bearer token or cookie.
+        var ticket = new AuthenticationTicket(user, properties, Scheme.Name);
+        var accessToken = AccessTokenProtector.Protect(ticket);
+
+        return Context.Response.WriteAsJsonAsync(
+            new() { AccessToken = accessToken },
+            IdentityEndpointJsonSerializerContext.Default.AuthTokensDTO);
+    }
+
+    // TODO revoke tokens?
     protected override Task HandleSignOutAsync(AuthenticationProperties? properties)
-        => Context.SignOutAsync(IdentityConstants.ApplicationScheme, properties);
+        => throw new NotSupportedException($"""
+Sign out is not currently supported by identity bearer tokens.
+If you want to delete cookies or clear a session, specify "{IdentityConstants.ApplicationScheme}" as the authentication scheme.
+""");
 
     private string? GetBearerTokenOrNull()
     {
         var authorization = Request.Headers.Authorization.ToString();
-        if (!authorization.StartsWith("Bearer ", StringComparison.Ordinal))
-        {
-            return null;
-        }
 
-        return authorization["Bearer ".Length..];
+        return authorization.StartsWith("Bearer ", StringComparison.Ordinal)
+            ? authorization["Bearer ".Length..]
+            : null;
     }
 }

@@ -2,7 +2,11 @@
 Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerAuthenticationOptions
 Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerAuthenticationOptions.AccessTokenExpiration.get -> System.TimeSpan
 Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerAuthenticationOptions.AccessTokenExpiration.set -> void
+Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerAuthenticationOptions.DataProtectionProvider.get -> Microsoft.AspNetCore.DataProtection.IDataProtectionProvider?
+Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerAuthenticationOptions.DataProtectionProvider.set -> void
 Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerAuthenticationOptions.IdentityBearerAuthenticationOptions() -> void
+Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerAuthenticationOptions.TicketDataFormat.get -> Microsoft.AspNetCore.Authentication.ISecureDataFormat<Microsoft.AspNetCore.Authentication.AuthenticationTicket!>?
+Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerAuthenticationOptions.TicketDataFormat.set -> void
 Microsoft.AspNetCore.Routing.IdentityEndpointRouteBuilderExtensions
 Microsoft.Extensions.DependencyInjection.IdentityEndpointServiceCollectionExtensions
 static Microsoft.AspNetCore.Routing.IdentityEndpointRouteBuilderExtensions.MapIdentity<TUser>(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints) -> Microsoft.AspNetCore.Builder.IEndpointConventionBuilder!

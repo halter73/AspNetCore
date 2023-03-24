@@ -43,7 +43,7 @@ public static class IdentityEndpointRouteBuilderExtensions
             var userManager = services.GetRequiredService<UserManager<TUser>>();
 
             var user = new TUser();
-            await userManager.SetUserNameAsync(user, registration.UserName);
+            await userManager.SetUserNameAsync(user, registration.Username);
             var result = await userManager.CreateAsync(user, registration.Password);
 
             if (result.Succeeded)
@@ -60,19 +60,18 @@ public static class IdentityEndpointRouteBuilderExtensions
             ([FromBody] LoginDTO login, [FromServices] IServiceProvider services) =>
         {
             var userManager = services.GetRequiredService<UserManager<TUser>>();
-            var user = await userManager.FindByNameAsync(login.UserName);
+            var user = await userManager.FindByNameAsync(login.Username);
 
             if (user is null || !await userManager.CheckPasswordAsync(user, login.Password))
             {
                 return TypedResults.Unauthorized();
             }
 
+            var scheme = login.CookieMode ? IdentityConstants.ApplicationScheme : IdentityConstants.BearerScheme;
             var claimsFactory = services.GetRequiredService<IUserClaimsPrincipalFactory<TUser>>();
             var claimsPrincipal = await claimsFactory.CreateAsync(user);
 
-            return login.CookieMode
-                ? TypedResults.SignIn(claimsPrincipal, authenticationScheme: IdentityConstants.ApplicationScheme)
-                : TypedResults.Ok(new AuthTokensDTO { AccessToken = authHandler.CreateAccessToken(claimsPrincipal) });
+            return TypedResults.SignIn(claimsPrincipal, authenticationScheme: scheme);
         });
 
         return new IdentityEndpointConventionBuilder(v1);
@@ -101,14 +100,14 @@ public static class IdentityEndpointRouteBuilderExtensions
 // TODO: Register DTOs with JsonSerializerOptions.TypeInfoResolverChain (was previously the soon-to-be-obsolete AddContext)
 internal sealed class RegisterDTO
 {
-    public required string UserName { get; init; }
+    public required string Username { get; init; }
     public required string Password { get; init; }
     // TODO: public string? Email { get; set; }
 }
 
 internal sealed class LoginDTO
 {
-    public required string UserName { get; init; }
+    public required string Username { get; init; }
     public required string Password { get; init; }
     public bool CookieMode { get; init; }
     // TODO: public string? TfaCode { get; set; }
@@ -116,7 +115,10 @@ internal sealed class LoginDTO
 
 internal sealed class AuthTokensDTO
 {
+    [JsonPropertyName("access_token")]
     public required string AccessToken { get; init; }
+
+
     // TODO: public required string RefreshToken { get; init; }
 }
 

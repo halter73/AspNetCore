@@ -3,23 +3,23 @@
 
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
+using var connection = new SqliteConnection("DataSource=:memory:");
+connection.Open();
 builder.Services.AddDbContext<ApplicationDbContext>(
-    options => options.UseSqlite("DataSource=:memory:"));
+    options => options.UseSqlite(connection));
 
-builder.Services.AddIdentityCore<IdentityUser>()
+builder.Services.AddIdentityEndpoints<IdentityUser>()
     .AddEntityFrameworkStores<ApplicationDbContext>();
-
-builder.Services.AddScoped<IUserClaimsPrincipalFactory<IdentityUser>, UserClaimsPrincipalFactory<IdentityUser>>();
 
 var app = builder.Build();
 
 app.MapGet("/", () => "Hello, World!");
-
-//app.MapGroup("/identity").MapIdentity<IdentityUser>();
+app.MapGroup("/identity").MapIdentity<IdentityUser>();
 
 app.Run();
 

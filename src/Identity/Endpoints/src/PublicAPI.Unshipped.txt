@@ -1,4 +1,10 @@
 #nullable enable
+Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerAuthenticationOptions
+Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerAuthenticationOptions.AccessTokenExpireTimeSpan.get -> System.TimeSpan
+Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerAuthenticationOptions.AccessTokenExpireTimeSpan.set -> void
+Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerAuthenticationOptions.IdentityBearerAuthenticationOptions() -> void
 Microsoft.AspNetCore.Routing.IdentityEndpointRouteBuilderExtensions
-static Microsoft.AspNetCore.Routing.IdentityEndpointRouteBuilderExtensions.MapIdentity<TUser, TUserKey>(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints) -> Microsoft.AspNetCore.Builder.IEndpointConventionBuilder!
+Microsoft.Extensions.DependencyInjection.IdentityEndpointServiceCollectionExtensions
 static Microsoft.AspNetCore.Routing.IdentityEndpointRouteBuilderExtensions.MapIdentity<TUser>(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints) -> Microsoft.AspNetCore.Builder.IEndpointConventionBuilder!
+static Microsoft.Extensions.DependencyInjection.IdentityEndpointServiceCollectionExtensions.AddIdentityEndpoints<TUser>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.AspNetCore.Identity.IdentityBuilder!
+static Microsoft.Extensions.DependencyInjection.IdentityEndpointServiceCollectionExtensions.AddIdentityEndpoints<TUser>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Microsoft.AspNetCore.Identity.IdentityOptions!>! configureOptions) -> Microsoft.AspNetCore.Identity.IdentityBuilder!

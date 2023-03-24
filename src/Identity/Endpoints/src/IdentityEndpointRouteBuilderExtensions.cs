@@ -10,7 +10,9 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.Endpoints;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.AspNetCore.Routing;
 
@@ -27,14 +29,24 @@ public static class IdentityEndpointRouteBuilderExtensions
     /// The <see cref="IEndpointRouteBuilder"/> to add the identity endpoints to.
     /// Call <see cref="EndpointRouteBuilderExtensions.MapGroup(IEndpointRouteBuilder, string)"/> to add a prefix to all the endpoints.
     /// </param>
-    /// <returns></returns>
+    /// <returns>An <see cref="IEndpointConventionBuilder"/> to further customize the added endpoints.</returns>
     public static IEndpointConventionBuilder MapIdentity<TUser>(this IEndpointRouteBuilder endpoints) where TUser : class, new()
     {
-        // Call MapGroup yourself to get a custom prefix.
-        var group = endpoints.MapGroup("/v1");
+        ArgumentNullException.ThrowIfNull(endpoints);
+
+        var v1 = endpoints.MapGroup("/v1");
+
+        var clock = endpoints.ServiceProvider.GetRequiredService<ISystemClock>();
+        var bearerOptions = endpoints.ServiceProvider.GetRequiredService<IOptions<IdentityBearerAuthenticationOptions>>().Value;
+        var expireTimeSpan = bearerOptions.AccessTokenExpireTimeSpan;
+
+        var dataProtection = endpoints.ServiceProvider.GetRequiredService<IDataProtectionProvider>();
+        var protector = dataProtection.CreateProtector(IdentityConstants.BearerScheme, "v1", "AccessToken");
+        var ticketProtector = new TicketDataFormat(protector);
 
         // NOTE: We cannot inject UserManager<TUser> directly because the TUser generic parameter is currently unsupported by RDG.
-        group.MapPost("/register", async Task<Results<Ok, ValidationProblem>>
+        // https://github.com/dotnet/aspnetcore/issues/47338
+        v1.MapPost("/register", async Task<Results<Ok, ValidationProblem>>
             ([FromBody] RegisterDTO registration, [FromServices] IServiceProvider services) =>
         {
             var userManager = services.GetRequiredService<UserManager<TUser>>();
@@ -53,7 +65,7 @@ public static class IdentityEndpointRouteBuilderExtensions
             return TypedResults.ValidationProblem(result.Errors.ToDictionary(e => e.Code, e => new[] { e.Description }));
         });
 
-        group.MapPost("/login", async Task<Results<UnauthorizedHttpResult, Ok<AuthTokensDTO>, SignInHttpResult>>
+        v1.MapPost("/login", async Task<Results<UnauthorizedHttpResult, Ok<AuthTokensDTO>, SignInHttpResult>>
             ([FromBody] LoginDTO login, [FromServices] IServiceProvider services) =>
         {
             var userManager = services.GetRequiredService<UserManager<TUser>>();
@@ -73,31 +85,23 @@ public static class IdentityEndpointRouteBuilderExtensions
                     authenticationScheme: IdentityConstants.ApplicationScheme);
             }
 
-            var dpProvider = services.GetRequiredService<IDataProtectionProvider>();
-            var dp = dpProvider.CreateProtector(IdentityConstants.BearerScheme, "v1", "AccessToken");
-            var sd = new TicketDataFormat(dp);
+            var properties = new AuthenticationProperties
+            {
+                ExpiresUtc = clock.UtcNow + expireTimeSpan
+            };
 
-            // TODO: Expiration and other stuff from CookieAuthenticationHandler
-            var properties = new AuthenticationProperties();
             var ticket = new AuthenticationTicket(claimsPrincipal, properties, IdentityConstants.BearerScheme);
 
-            sd.Protect(ticket);
-
-            return TypedResults.Ok(new AuthTokensDTO { AccessToken = sd.Protect(ticket) });
+            return TypedResults.Ok(new AuthTokensDTO { AccessToken = ticketProtector.Protect(ticket) });
         });
 
-        return new IdentityEndpointConventionBuilder(group);
+        return new IdentityEndpointConventionBuilder(v1);
     }
 
-    // If we return a public type like RouteGroupBuilder, it'd be breaking to change it even if it's declared to be a less specific type.
-    private sealed class IdentityEndpointConventionBuilder : IEndpointConventionBuilder
+    // Wrap RouteGroupBuilder with a non-public type to avoid a potential future behavioral breaking change.
+    private sealed class IdentityEndpointConventionBuilder(RouteGroupBuilder inner) : IEndpointConventionBuilder
     {
-        private readonly IEndpointConventionBuilder _inner;
-
-        public IdentityEndpointConventionBuilder(IEndpointConventionBuilder inner)
-        {
-            _inner = inner;
-        }
+        private readonly IEndpointConventionBuilder _inner = inner;
 
         public void Add(Action<EndpointBuilder> convention) => _inner.Add(convention);
         public void Finally(Action<EndpointBuilder> finallyConvention) => _inner.Finally(finallyConvention);

@@ -22,33 +22,15 @@ public static class IdentityEndpointRouteBuilderExtensions
     /// <summary>
     /// Add endpoints for registering, logging in, and logging out using ASP.NET Core Identity.
     /// </summary>
-    /// <typeparam name="TUser">The <see cref="IdentityUser"/> type describing the user. This should match the generic parameter in <see cref="UserManager{TUser}"/>.</typeparam>
+    /// <typeparam name="TUser">The type describing the user. This should match the generic parameter in <see cref="UserManager{TUser}"/>.</typeparam>
     /// <param name="endpoints">
     /// The <see cref="IEndpointRouteBuilder"/> to add the identity endpoints to.
     /// Call <see cref="EndpointRouteBuilderExtensions.MapGroup(IEndpointRouteBuilder, string)"/> to add a prefix to all the endpoints.
     /// </param>
     /// <returns></returns>
-    public static IEndpointConventionBuilder MapIdentity<TUser>(this IEndpointRouteBuilder endpoints)
-        where TUser : IdentityUser<string>, new()
+    public static IEndpointConventionBuilder MapIdentity<TUser>(this IEndpointRouteBuilder endpoints) where TUser : class, new()
     {
-        return endpoints.MapIdentity<TUser, string>();
-    }
-
-    /// <summary>
-    /// Add endpoints for registering, logging in, and logging out using ASP.NET Core Identity.
-    /// </summary>
-    /// <typeparam name="TUser">The <see cref="IdentityUser{TKey}"/> type describing the user. This should match the generic parameter in <see cref="UserManager{TUser}"/>.</typeparam>
-    /// <typeparam name="TUserKey">The type of the user's primary key. This should match the generic parameter <see cref="IdentityUser{TKey}"/>.</typeparam>
-    /// <param name="endpoints">
-    /// The <see cref="IEndpointRouteBuilder"/> to add the identity endpoints to.
-    /// Call <see cref="EndpointRouteBuilderExtensions.MapGroup(IEndpointRouteBuilder, string)"/> to add a prefix to all the endpoints.
-    /// </param>
-    /// <returns></returns>
-    public static IEndpointConventionBuilder MapIdentity<TUser, TUserKey>(this IEndpointRouteBuilder endpoints)
-        where TUser : IdentityUser<TUserKey>, new()
-        where TUserKey : IEquatable<TUserKey>
-    {
-        // Call MapGroup yourself to get a prefix.
+        // Call MapGroup yourself to get a custom prefix.
         var group = endpoints.MapGroup("/v1");
 
         // NOTE: We cannot inject UserManager<TUser> directly because the TUser generic parameter is currently unsupported by RDG.

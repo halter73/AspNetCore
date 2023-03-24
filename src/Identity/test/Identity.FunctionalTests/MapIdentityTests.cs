@@ -3,6 +3,7 @@
 
 using System.Net.Http.Json;
 using System.Security.Claims;
+using System.Text.Json;
 using Identity.DefaultUI.WebSite;
 using Identity.DefaultUI.WebSite.Data;
 using Microsoft.AspNetCore.Builder;
@@ -18,7 +19,7 @@ namespace Microsoft.AspNetCore.Identity.FunctionalTests;
 public class MapIdentityTests : LoggedTest
 {
     [Fact]
-    public async Task CanRegisterAUser()
+    public async Task CanRegisterUser()
     {
         await using var app = await CreateAppAsync<ApplicationUser, ApplicationDbContext>();
         using var client = app.GetTestClient();
@@ -32,6 +33,30 @@ public class MapIdentityTests : LoggedTest
         Assert.Equal(0, response.Content.Headers.ContentLength);
     }
 
+    [Fact]
+    public async Task CanLogin()
+    {
+        await using var app = await CreateAppAsync<ApplicationUser, ApplicationDbContext>();
+        using var client = app.GetTestClient();
+
+        var userName = $"{Guid.NewGuid()}@example.com";
+        var password = $"[PLACEHOLDER]-1a";
+
+        var registerResponse = await client.PostAsJsonAsync("/identity/v1/register", new { userName, password });
+
+        registerResponse.EnsureSuccessStatusCode();
+        Assert.Equal(0, registerResponse.Content.Headers.ContentLength);
+
+        var loginResponse = await client.PostAsJsonAsync("/identity/v1/login", new { userName, password });
+
+        loginResponse.EnsureSuccessStatusCode();
+        var loginContent = await loginResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var accessToken = loginContent.GetProperty("accessToken").ToString();
+
+        client.DefaultRequestHeaders.Authorization = new("Bearer", accessToken);
+        Assert.Equal($"Hello, {userName}!", await client.GetStringAsync("/auth/hello"));
+    }
+
     private async Task<WebApplication> CreateAppAsync<TUser, TContext>()
         where TUser : class, new()
         where TContext : DbContext
@@ -40,23 +65,27 @@ public class MapIdentityTests : LoggedTest
         builder.WebHost.UseTestServer();
         builder.Services.AddSingleton(LoggerFactory);
 
-        builder.Services.AddIdentityCore<TUser>()
-            .AddEntityFrameworkStores<TContext>();
-        //builder.Services.AddScoped<IUserClaimsPrincipalFactory<TUser>, UserClaimsPrincipalFactory<TUser>>();
+        builder.Services.AddAuthentication();
+        builder.Services.AddAuthorization();
+        builder.Services.AddIdentityCore<TUser>().AddEntityFrameworkStores<TContext>();
 
-        // Dispose SqliteConnection with host.
+        // Dispose SqliteConnection with host by registering as a singleton factory.
         var dbConnection = new SqliteConnection($"DataSource=:memory:");
-        await dbConnection.OpenAsync();
         builder.Services.AddDbContext<TContext>(options => options.UseSqlite(dbConnection));
         builder.Services.AddSingleton(() => dbConnection);
 
         var app = builder.Build();
 
+        app.UseAuthentication();
+        app.UseAuthorization();
+
         app.MapGroup("/identity").MapIdentity<TUser>();
 
         var authGroup = app.MapGroup("/auth").RequireAuthorization();
-        authGroup.MapGet("/hello", (ClaimsPrincipal principal) => $"Hello, {principal.Identity.Name}!");
+        authGroup.MapGet("/hello",
+            (ClaimsPrincipal p) => $"Hello, {p.Identity.Name}!");
 
+        await dbConnection.OpenAsync();
         await app.Services.GetRequiredService<TContext>().Database.EnsureCreatedAsync();
         await app.StartAsync();
 

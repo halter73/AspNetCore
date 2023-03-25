@@ -6,7 +6,7 @@ using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.Identity.Endpoints.DTO;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
@@ -89,7 +89,7 @@ internal sealed class IdentityBearerAuthenticationHandler : SignInAuthentication
 
         return Context.Response.WriteAsJsonAsync(
             new() { AccessToken = accessToken },
-            IdentityEndpointJsonSerializerContext.Default.AuthTokensDTO);
+            IdentityEndpointJsonSerializerContext.Default.AuthTokensResponse);
     }
 
     protected override Task HandleSignOutAsync(AuthenticationProperties? properties)

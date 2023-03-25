@@ -2,13 +2,12 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Linq;
-using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Identity.Endpoints;
+using Microsoft.AspNetCore.Identity.Endpoints.DTO;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Microsoft.AspNetCore.Routing;
@@ -33,12 +32,10 @@ public static class IdentityEndpointRouteBuilderExtensions
 
         var v1 = endpoints.MapGroup("/v1");
 
-        var authHandler = endpoints.ServiceProvider.GetRequiredService<IdentityBearerAuthenticationHandler>();
-
         // NOTE: We cannot inject UserManager<TUser> directly because the TUser generic parameter is currently unsupported by RDG.
         // https://github.com/dotnet/aspnetcore/issues/47338
         v1.MapPost("/register", async Task<Results<Ok, ValidationProblem>>
-            ([FromBody] RegisterDTO registration, [FromServices] IServiceProvider services) =>
+            ([FromBody] RegisterRequest registration, [FromServices] IServiceProvider services) =>
         {
             var userManager = services.GetRequiredService<UserManager<TUser>>();
 
@@ -56,8 +53,8 @@ public static class IdentityEndpointRouteBuilderExtensions
             return TypedResults.ValidationProblem(result.Errors.ToDictionary(e => e.Code, e => new[] { e.Description }));
         });
 
-        v1.MapPost("/login", async Task<Results<UnauthorizedHttpResult, Ok<AuthTokensDTO>, SignInHttpResult>>
-            ([FromBody] LoginDTO login, [FromServices] IServiceProvider services) =>
+        v1.MapPost("/login", async Task<Results<UnauthorizedHttpResult, Ok<AuthTokensResponse>, SignInHttpResult>>
+            ([FromBody] LoginRequest login, [FromServices] IServiceProvider services) =>
         {
             var userManager = services.GetRequiredService<UserManager<TUser>>();
             var user = await userManager.FindByNameAsync(login.Username);
@@ -95,35 +92,4 @@ public static class IdentityEndpointRouteBuilderExtensions
     private sealed class FromServicesAttribute : Attribute, IFromServiceMetadata
     {
     }
-}
-
-// TODO: Register DTOs with JsonSerializerOptions.TypeInfoResolverChain (was previously the soon-to-be-obsolete AddContext)
-internal sealed class RegisterDTO
-{
-    public required string Username { get; init; }
-    public required string Password { get; init; }
-    // TODO: public string? Email { get; set; }
-}
-
-internal sealed class LoginDTO
-{
-    public required string Username { get; init; }
-    public required string Password { get; init; }
-    public bool CookieMode { get; init; }
-    // TODO: public string? TfaCode { get; set; }
-}
-
-internal sealed class AuthTokensDTO
-{
-    [JsonPropertyName("access_token")]
-    public required string AccessToken { get; init; }
-
-    // TODO: public required string RefreshToken { get; init; }
-}
-
-[JsonSerializable(typeof(RegisterDTO))]
-[JsonSerializable(typeof(LoginDTO))]
-[JsonSerializable(typeof(AuthTokensDTO))]
-internal sealed partial class IdentityEndpointJsonSerializerContext : JsonSerializerContext
-{
 }

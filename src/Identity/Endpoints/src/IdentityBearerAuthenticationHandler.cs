@@ -15,7 +15,7 @@ namespace Microsoft.AspNetCore.Identity.Endpoints;
 
 internal sealed class IdentityBearerAuthenticationHandler : SignInAuthenticationHandler<IdentityBearerAuthenticationOptions>
 {
-    private const string AccessTokenPurpose = $"Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerAuthenticationHandler:v1:AccessToken";
+    private const string BearerTokenPurpose = $"Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerAuthenticationHandler:v1:BearerToken";
 
     private static readonly Task<AuthenticateResult> TokenMissingTask = Task.FromResult(AuthenticateResult.Fail("Token missing"));
     private static readonly Task<AuthenticateResult> FailedUnprotectingTokenTask = Task.FromResult(AuthenticateResult.Fail("Unprotect token failed"));
@@ -38,7 +38,7 @@ internal sealed class IdentityBearerAuthenticationHandler : SignInAuthentication
         => Options.DataProtectionProvider ?? _fallbackDataProtectionProvider;
 
     private ISecureDataFormat<AuthenticationTicket> BearerTokenProtector
-        => Options.BearerTokenProtector ?? new TicketDataFormat(DataProtectionProvider.CreateProtector(AccessTokenPurpose));
+        => Options.BearerTokenProtector ?? new TicketDataFormat(DataProtectionProvider.CreateProtector(BearerTokenPurpose));
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
@@ -57,7 +57,7 @@ internal sealed class IdentityBearerAuthenticationHandler : SignInAuthentication
             return FailedUnprotectingTokenTask;
         }
 
-        if (Clock.UtcNow > ticket.Properties.ExpiresUtc)
+        if (Clock.UtcNow >= ticket.Properties.ExpiresUtc)
         {
             return TokenExpiredTask;
         }
@@ -85,11 +85,13 @@ internal sealed class IdentityBearerAuthenticationHandler : SignInAuthentication
         properties.ExpiresUtc ??= Clock.UtcNow + Options.BearerTokenExpiration;
 
         var ticket = new AuthenticationTicket(user, properties, Scheme.Name);
-        var accessToken = BearerTokenProtector.Protect(ticket);
+        var accessTokenResponse = new AccessTokenResponse
+        {
+            AccessToken = BearerTokenProtector.Protect(ticket),
+            ExpiresInTotalSeconds = Options.BearerTokenExpiration.TotalSeconds,
+        };
 
-        return Context.Response.WriteAsJsonAsync(
-            new() { AccessToken = accessToken },
-            IdentityEndpointJsonSerializerContext.Default.AuthTokensResponse);
+        return Context.Response.WriteAsJsonAsync(accessTokenResponse);
     }
 
     protected override Task HandleSignOutAsync(AuthenticationProperties? properties)

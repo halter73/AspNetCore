@@ -3,12 +3,17 @@
 
 #nullable enable
 
+using System.Net;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Json;
 using Identity.DefaultUI.WebSite;
 using Identity.DefaultUI.WebSite.Data;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity.Endpoints;
+using Microsoft.AspNetCore.Identity.Test;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.AspNetCore.Testing;
@@ -48,13 +53,63 @@ public class MapIdentityTests : LoggedTest
         var loginResponse = await client.PostAsJsonAsync("/identity/v1/login", new { Username, Password });
 
         loginResponse.EnsureSuccessStatusCode();
-        Assert.False(loginResponse.Headers.TryGetValues(HeaderNames.SetCookie, out _));
+        Assert.False(loginResponse.Headers.Contains(HeaderNames.SetCookie));
 
         var loginContent = await loginResponse.Content.ReadFromJsonAsync<JsonElement>();
-        var accessToken = loginContent.GetProperty("access_token").ToString();
+        var tokenType = loginContent.GetProperty("token_type").GetString();
+        var accessToken = loginContent.GetProperty("access_token").GetString();
+        var expiresIn = loginContent.GetProperty("expires_in").GetDouble();
+
+        Assert.Equal("Bearer", tokenType);
+        Assert.Equal(3600, expiresIn);
 
         client.DefaultRequestHeaders.Authorization = new("Bearer", accessToken);
         Assert.Equal($"Hello, {Username}!", await client.GetStringAsync("/auth/hello"));
+    }
+
+    [Fact]
+    public async Task CanCustomizeBearerTokenExpiration()
+    {
+        var clock = new TestClock();
+        var expireTimeSpan = TimeSpan.FromSeconds(42);
+
+        await using var app = await CreateAppAsync(services =>
+        {
+            AddIdentityEndpoints(services);
+            services.Configure<IdentityBearerAuthenticationOptions>(IdentityConstants.BearerScheme, options =>
+            {
+                options.BearerTokenExpiration = expireTimeSpan;
+            });
+            services.AddSingleton<ISystemClock>(clock);
+        });
+
+        using var client = app.GetTestClient();
+
+        await client.PostAsJsonAsync("/identity/v1/register", new { Username, Password });
+        var loginResponse = await client.PostAsJsonAsync("/identity/v1/login", new { Username, Password });
+
+        var loginContent = await loginResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var accessToken = loginContent.GetProperty("access_token").GetString();
+        var expiresIn = loginContent.GetProperty("expires_in").GetDouble();
+
+        Assert.Equal(expireTimeSpan.TotalSeconds, expiresIn);
+
+        client.DefaultRequestHeaders.Authorization = new("Bearer", accessToken);
+
+        // Works without time passing.
+        Assert.Equal($"Hello, {Username}!", await client.GetStringAsync("/auth/hello"));
+
+        clock.Add(TimeSpan.FromSeconds(expireTimeSpan.TotalSeconds - 1));
+
+        // Still works without one second before expiration.
+        Assert.Equal($"Hello, {Username}!", await client.GetStringAsync("/auth/hello"));
+
+        clock.Add(TimeSpan.FromSeconds(1));
+        var unauthorizedResponse = await client.GetAsync("/auth/hello");
+
+        // Fails the second the BearerTokenExpiration elapses.
+        Assert.Equal(HttpStatusCode.Unauthorized, unauthorizedResponse.StatusCode);
+        Assert.Equal(0, unauthorizedResponse.Content.Headers.ContentLength);
     }
 
     [Fact]

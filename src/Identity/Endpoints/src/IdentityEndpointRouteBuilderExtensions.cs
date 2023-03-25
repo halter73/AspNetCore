@@ -53,7 +53,7 @@ public static class IdentityEndpointRouteBuilderExtensions
             return TypedResults.ValidationProblem(result.Errors.ToDictionary(e => e.Code, e => new[] { e.Description }));
         });
 
-        v1.MapPost("/login", async Task<Results<UnauthorizedHttpResult, Ok<AuthTokensResponse>, SignInHttpResult>>
+        v1.MapPost("/login", async Task<Results<UnauthorizedHttpResult, Ok<AccessTokenResponse>, SignInHttpResult>>
             ([FromBody] LoginRequest login, [FromServices] IServiceProvider services) =>
         {
             var userManager = services.GetRequiredService<UserManager<TUser>>();

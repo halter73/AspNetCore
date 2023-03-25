@@ -5,13 +5,17 @@ using System.Text.Json.Serialization;
 
 namespace Microsoft.AspNetCore.Identity.Endpoints.DTO;
 
-internal sealed class AuthTokensResponse
+internal sealed class AccessTokenResponse
 {
     [JsonPropertyName("token_type")]
-    public static string TokenType => "Bearer";
+    public string TokenType { get; } = "Bearer";
 
     [JsonPropertyName("access_token")]
     public required string AccessToken { get; init; }
 
-    // TODO: public required string RefreshToken { get; init; }
+    [JsonPropertyName("expires_in")]
+    public required double ExpiresInTotalSeconds { get; init; }
+
+    // TODO: [JsonPropertyName("refresh_token")]
+    // public required string RefreshToken { get; init; }
 }

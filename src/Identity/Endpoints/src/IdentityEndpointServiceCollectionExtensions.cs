@@ -2,9 +2,12 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Http.Json;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.Endpoints;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -87,6 +90,8 @@ public static class IdentityEndpointServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(nameof(services));
         ArgumentNullException.ThrowIfNull(nameof(configureIdentityOptions));
         ArgumentNullException.ThrowIfNull(nameof(configureIdentityBearerOptions));
+
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IPostConfigureOptions<JsonOptions>, PostConfigureIdentityEndpointJsonOptions>());
 
         var identityBuilder = services.AddIdentityCore<TUser>(o =>
         {

@@ -56,6 +56,7 @@ public static class IdentityEndpointRouteBuilderExtensions
         v1.MapPost("/login", async Task<Results<UnauthorizedHttpResult, Ok<AccessTokenResponse>, SignInHttpResult>>
             ([FromBody] LoginRequest login, [FromServices] IServiceProvider services) =>
         {
+            // TODO: Use SignInManager to checkout for email confirmation, lockout, etc...
             var userManager = services.GetRequiredService<UserManager<TUser>>();
             var user = await userManager.FindByNameAsync(login.Username);
 

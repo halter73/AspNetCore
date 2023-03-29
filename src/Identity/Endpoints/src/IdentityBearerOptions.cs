@@ -3,6 +3,7 @@
 
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 
 namespace Microsoft.AspNetCore.Identity.Endpoints;
@@ -37,13 +38,7 @@ public sealed class IdentityBearerOptions : AuthenticationSchemeOptions
     public string? BearerTokenMissingFallbackScheme { get; set; }
 
     /// <summary>
-    /// The object provided by the application to process events raised by the bearer authentication handler.
-    /// The application may implement the interface fully, or it may create an instance of <see cref="IdentityBearerEvents"/>
-    /// and assign delegates only to the events it wants to process.
+    /// If set, this provides the bearer token. If unset, the bearer token is read from the Authorization  request header with a "Bearer " prefix.
     /// </summary>
-    public new IdentityBearerEvents? Events
-    {
-        get => (IdentityBearerEvents?)base.Events;
-        set => base.Events = value;
-    }
+    public Func<HttpContext, ValueTask<string?>>? ExtractBearerToken { get; set; }
 }

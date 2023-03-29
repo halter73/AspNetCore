@@ -36,33 +36,16 @@ internal sealed class IdentityBearerAuthenticationHandler : SignInAuthentication
         _fallbackDataProtectionProvider = dataProtectionProvider;
     }
 
-    private new IdentityBearerEvents Events => (IdentityBearerEvents)base.Events!;
-
     private IDataProtectionProvider DataProtectionProvider
         => Options.DataProtectionProvider ?? _fallbackDataProtectionProvider;
 
     private ISecureDataFormat<AuthenticationTicket> BearerTokenProtector
         => Options.BearerTokenProtector ?? new TicketDataFormat(DataProtectionProvider.CreateProtector(BearerTokenPurpose));
 
-    protected override Task<object> CreateEventsAsync() => Task.FromResult<object>(new IdentityBearerEvents());
-
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
-        // Give application opportunity to find from a different location, adjust, or reject token.
-        var messageReceivedContext = new ExtractTokenContext(Context, Scheme, Options);
-
-        // event can set the token
-        await Events.ExtractToken(messageReceivedContext);
-        if (messageReceivedContext.Result != null)
-        {
-            return messageReceivedContext.Result;
-        }
-
-        // If application retrieved token from somewhere else, use that.
-        var token = messageReceivedContext.Token ?? GetBearerTokenOrNull();
-
         // If there's no bearer token, forward to cookie auth.
-        if (token is null)
+        if (await GetBearerTokenOrNullAsync() is not string token)
         {
             return Options.BearerTokenMissingFallbackScheme is string fallbackScheme
                 ? await Context.AuthenticateAsync(fallbackScheme)
@@ -84,31 +67,35 @@ internal sealed class IdentityBearerAuthenticationHandler : SignInAuthentication
         return AuthenticateResult.Success(ticket);
     }
 
-    protected override Task HandleForbiddenAsync(AuthenticationProperties properties)
+    protected override async Task HandleForbiddenAsync(AuthenticationProperties properties)
     {
         // If there's no bearer token, forward to cookie auth.
-        if (GetBearerTokenOrNull() is null)
+        if (await GetBearerTokenOrNullAsync() is null)
         {
-            return Options.BearerTokenMissingFallbackScheme is string fallbackScheme
-                ? Context.ForbidAsync(fallbackScheme)
-                : TokenMissingTask;
+            if (Options.BearerTokenMissingFallbackScheme is string fallbackScheme)
+            {
+                await Context.ForbidAsync(fallbackScheme);
+                return;
+            }
         }
 
-        return base.HandleForbiddenAsync(properties);
+        await base.HandleForbiddenAsync(properties);
     }
 
-    protected override Task HandleChallengeAsync(AuthenticationProperties properties)
+    protected override async Task HandleChallengeAsync(AuthenticationProperties properties)
     {
         // If there's no bearer token, forward to cookie auth.
-        if (GetBearerTokenOrNull() is null)
+        if (await GetBearerTokenOrNullAsync() is null)
         {
-            return Options.BearerTokenMissingFallbackScheme is string fallbackScheme
-                ? Context.AuthenticateAsync(fallbackScheme)
-                : TokenMissingTask;
+            if (Options.BearerTokenMissingFallbackScheme is string fallbackScheme)
+            {
+                await Context.ChallengeAsync(fallbackScheme);
+                return;
+            }
         }
 
         Response.Headers.Append(HeaderNames.WWWAuthenticate, "Bearer");
-        return base.HandleChallengeAsync(properties);
+        await base.HandleChallengeAsync(properties);
     }
 
     protected override Task HandleSignInAsync(ClaimsPrincipal user, AuthenticationProperties? properties)
@@ -132,12 +119,17 @@ Sign out is not currently supported by identity bearer tokens.
 If you want to delete cookies or clear a session, specify "{Options.BearerTokenMissingFallbackScheme}" as the authentication scheme.
 """);
 
-    private string? GetBearerTokenOrNull()
+    private ValueTask<string?> GetBearerTokenOrNullAsync()
     {
+        if (Options.ExtractBearerToken is not null)
+        {
+            return Options.ExtractBearerToken(Context);
+        }
+
         var authorization = Request.Headers.Authorization.ToString();
 
         return authorization.StartsWith("Bearer ", StringComparison.Ordinal)
-            ? authorization["Bearer ".Length..]
-            : null;
+            ? new(authorization["Bearer ".Length..])
+            : default;
     }
 }

@@ -16,8 +16,8 @@ Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerOptions.BearerTokenProtect
 Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerOptions.BearerTokenProtector.set -> void
 Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerOptions.DataProtectionProvider.get -> Microsoft.AspNetCore.DataProtection.IDataProtectionProvider?
 Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerOptions.DataProtectionProvider.set -> void
-Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerOptions.Events.get -> Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerEvents?
-Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerOptions.Events.set -> void
+Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerOptions.ExtractBearerToken.get -> System.Func<Microsoft.AspNetCore.Http.HttpContext!, System.Threading.Tasks.ValueTask<string?>>?
+Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerOptions.ExtractBearerToken.set -> void
 Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerOptions.IdentityBearerOptions() -> void
 Microsoft.AspNetCore.Routing.IdentityEndpointRouteBuilderExtensions
 Microsoft.Extensions.DependencyInjection.IdentityEndpointServiceCollectionExtensions

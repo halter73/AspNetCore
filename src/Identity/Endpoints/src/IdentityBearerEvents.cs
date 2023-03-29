@@ -12,14 +12,14 @@ namespace Microsoft.AspNetCore.Identity.Endpoints;
 public class IdentityBearerEvents
 {
     /// <summary>
-    /// Invoked when a protocol message is first received before authenticating the bearer token. This can provide
-    /// the bearer token from an alternate location by setting <see cref="MessageReceivedContext.Token"/>.
+    /// Invoked when the bearer token needs to be extracted from the HTTP request like during authentication.
+    /// the bearer token from an alternate location by setting <see cref="ExtractTokenContext.Token"/>.
     /// </summary>
-    public Func<MessageReceivedContext, Task> OnMessageReceived { get; set; } = context => Task.CompletedTask;
+    public Func<ExtractTokenContext, Task> OnExtractToken { get; set; } = context => Task.CompletedTask;
 
     /// <summary>
     /// Invoked when a protocol message is first received before authenticating the bearer token. This can provide
-    /// the bearer token from an alternate location by setting <see cref="MessageReceivedContext.Token"/>.
+    /// the bearer token from an alternate location by setting <see cref="ExtractTokenContext.Token"/>.
     /// </summary>
-    public virtual Task MessageReceived(MessageReceivedContext context) => OnMessageReceived(context);
+    public virtual Task ExtractToken(ExtractTokenContext context) => OnExtractToken(context);
 }

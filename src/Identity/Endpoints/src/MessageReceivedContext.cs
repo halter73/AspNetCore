@@ -7,15 +7,15 @@ using Microsoft.AspNetCore.Http;
 namespace Microsoft.AspNetCore.Identity.Endpoints;
 
 /// <summary>
-/// A context for <see cref="IdentityBearerEvents.OnMessageReceived"/>.
+/// A context for <see cref="IdentityBearerEvents.OnExtractToken"/>.
 /// </summary>
-public class MessageReceivedContext : ResultContext<IdentityBearerOptions>
+public class ExtractTokenContext : BaseContext<IdentityBearerOptions>
 {
     /// <summary>
-    /// Initializes a new instance of <see cref="MessageReceivedContext"/>.
+    /// Initializes a new instance of <see cref="ExtractTokenContext"/>.
     /// </summary>
     /// <inheritdoc />
-    public MessageReceivedContext(
+    public ExtractTokenContext(
         HttpContext context,
         AuthenticationScheme scheme,
         IdentityBearerOptions options)

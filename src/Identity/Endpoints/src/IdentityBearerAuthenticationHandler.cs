@@ -48,11 +48,11 @@ internal sealed class IdentityBearerAuthenticationHandler : SignInAuthentication
 
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
-        // Give application opportunity to find from a different location, adjust, or reject token
-        var messageReceivedContext = new MessageReceivedContext(Context, Scheme, Options);
+        // Give application opportunity to find from a different location, adjust, or reject token.
+        var messageReceivedContext = new ExtractTokenContext(Context, Scheme, Options);
 
         // event can set the token
-        await Events.MessageReceived(messageReceivedContext);
+        await Events.ExtractToken(messageReceivedContext);
         if (messageReceivedContext.Result != null)
         {
             return messageReceivedContext.Result;
@@ -82,6 +82,19 @@ internal sealed class IdentityBearerAuthenticationHandler : SignInAuthentication
         }
 
         return AuthenticateResult.Success(ticket);
+    }
+
+    protected override Task HandleForbiddenAsync(AuthenticationProperties properties)
+    {
+        // If there's no bearer token, forward to cookie auth.
+        if (GetBearerTokenOrNull() is null)
+        {
+            return Options.BearerTokenMissingFallbackScheme is string fallbackScheme
+                ? Context.ForbidAsync(fallbackScheme)
+                : TokenMissingTask;
+        }
+
+        return base.HandleForbiddenAsync(properties);
     }
 
     protected override Task HandleChallengeAsync(AuthenticationProperties properties)

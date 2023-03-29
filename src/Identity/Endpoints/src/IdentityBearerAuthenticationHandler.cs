@@ -21,8 +21,6 @@ internal sealed class IdentityBearerAuthenticationHandler : SignInAuthentication
     private static readonly AuthenticateResult FailedUnprotectingToken = AuthenticateResult.Fail("Unprotected token failed");
     private static readonly AuthenticateResult TokenExpired = AuthenticateResult.Fail("Token expired");
 
-    private static readonly Task<AuthenticateResult> TokenMissingTask = Task.FromResult(TokenMissing);
-
     private readonly IDataProtectionProvider _fallbackDataProtectionProvider;
 
     public IdentityBearerAuthenticationHandler(

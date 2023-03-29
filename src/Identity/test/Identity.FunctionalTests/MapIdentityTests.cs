@@ -140,7 +140,7 @@ public class MapIdentityTests : LoggedTest
     [Fact]
     public async Task CannotLoginWithCookiesWithOnlyCoreServices()
     {
-        await using var app = await CreateAppAsync(AddIdentityEndpointsCore);
+        await using var app = await CreateAppAsync(AddIdentityEndpointsBearerOnly);
         using var client = app.GetTestClient();
 
         await client.PostAsJsonAsync("/identity/v1/register", new { Username, Password });
@@ -188,8 +188,11 @@ public class MapIdentityTests : LoggedTest
     private static void AddIdentityEndpoints(IServiceCollection services)
         => services.AddIdentityEndpoints<ApplicationUser>().AddEntityFrameworkStores<ApplicationDbContext>();
 
-    private static void AddIdentityEndpointsCore(IServiceCollection services)
-        => services.AddIdentityEndpointsCore<ApplicationUser>(_ => { }, _ => { }).AddEntityFrameworkStores<ApplicationDbContext>();
+    private static void AddIdentityEndpointsBearerOnly(IServiceCollection services)
+    {
+        services.AddIdentityEndpointsCore<ApplicationUser>(_ => { }).AddEntityFrameworkStores<ApplicationDbContext>();
+        services.AddAuthentication(IdentityConstants.BearerScheme).AddIdentityBearer(configure: null);
+    }
 
     private Task<WebApplication> CreateAppAsync(Action<IServiceCollection>? configureServices = null)
         => CreateAppAsync<ApplicationUser, ApplicationDbContext>(configureServices);
@@ -197,7 +200,7 @@ public class MapIdentityTests : LoggedTest
     private static Dictionary<string, Action<IServiceCollection>> AddIdentityActions { get; } = new()
     {
         [nameof(AddIdentityEndpoints)] = AddIdentityEndpoints,
-        [nameof(AddIdentityEndpointsCore)] = AddIdentityEndpointsCore,
+        [nameof(AddIdentityEndpointsBearerOnly)] = AddIdentityEndpointsBearerOnly,
     };
 
     public static object[][] AddIdentityModes => AddIdentityActions.Keys.Select(key => new object[] { key }).ToArray();

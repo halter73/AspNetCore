@@ -34,7 +34,7 @@ public sealed class IdentityBearerOptions : AuthenticationSchemeOptions
 
     /// <summary>
     /// If set, authentication will be forwarded to this scheme only if the request does not contain a bearer token.
-    /// This is typically set to "Identity.Application" the <see cref="IdentityConstants.ApplicationScheme"/> for identity cookies by
+    /// This is typically set to <see cref="IdentityConstants.ApplicationScheme"/> ("Identity.Application") the for identity cookies by
     /// <see cref="IdentityEndpointsServiceCollectionExtensions.AddIdentityEndpoints{TUser}(IServiceCollection)"/>.
     /// </summary>
     public string? MissingBearerTokenFallbackScheme { get; set; }

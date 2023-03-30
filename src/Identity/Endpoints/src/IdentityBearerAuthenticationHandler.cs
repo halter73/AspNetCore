@@ -45,7 +45,7 @@ internal sealed class IdentityBearerAuthenticationHandler : SignInAuthentication
         // If there's no bearer token, forward to cookie auth.
         if (await GetBearerTokenOrNullAsync() is not string token)
         {
-            return Options.BearerTokenMissingFallbackScheme is string fallbackScheme
+            return Options.MissingBearerTokenFallbackScheme is string fallbackScheme
                 ? await Context.AuthenticateAsync(fallbackScheme)
                 : TokenMissing;
         }
@@ -70,7 +70,7 @@ internal sealed class IdentityBearerAuthenticationHandler : SignInAuthentication
         // If there's no bearer token, forward to cookie auth.
         if (await GetBearerTokenOrNullAsync() is null)
         {
-            if (Options.BearerTokenMissingFallbackScheme is string fallbackScheme)
+            if (Options.MissingBearerTokenFallbackScheme is string fallbackScheme)
             {
                 await Context.ForbidAsync(fallbackScheme);
                 return;
@@ -85,7 +85,7 @@ internal sealed class IdentityBearerAuthenticationHandler : SignInAuthentication
         // If there's no bearer token, forward to cookie auth.
         if (await GetBearerTokenOrNullAsync() is null)
         {
-            if (Options.BearerTokenMissingFallbackScheme is string fallbackScheme)
+            if (Options.MissingBearerTokenFallbackScheme is string fallbackScheme)
             {
                 await Context.ChallengeAsync(fallbackScheme);
                 return;
@@ -114,7 +114,7 @@ internal sealed class IdentityBearerAuthenticationHandler : SignInAuthentication
     protected override Task HandleSignOutAsync(AuthenticationProperties? properties)
         => throw new NotSupportedException($"""
 Sign out is not currently supported by identity bearer tokens.
-If you want to delete cookies or clear a session, specify "{Options.BearerTokenMissingFallbackScheme}" as the authentication scheme.
+If you want to delete cookies or clear a session, specify "{Options.MissingBearerTokenFallbackScheme}" as the authentication scheme.
 """);
 
     private ValueTask<string?> GetBearerTokenOrNullAsync()

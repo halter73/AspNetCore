@@ -35,7 +35,7 @@ public sealed class IdentityBearerOptions : AuthenticationSchemeOptions
     /// If set, authentication and challenges will be forwarded to this scheme only if the request does not contain a bearer token.
     /// This is typically set to Usually Identity.Application cookies <see cref="IdentityConstants.ApplicationScheme"/>
     /// </summary>
-    public string? BearerTokenMissingFallbackScheme { get; set; }
+    public string? MissingBearerTokenFallbackScheme { get; set; }
 
     /// <summary>
     /// If set, this provides the bearer token. If unset, the bearer token is read from the Authorization  request header with a "Bearer " prefix.

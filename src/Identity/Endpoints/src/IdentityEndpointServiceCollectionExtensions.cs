@@ -37,9 +37,9 @@ public static class IdentityEndpointServiceCollectionExtensions
         where TUser : class, new()
     {
         services.AddAuthentication(o => o.DefaultScheme = IdentityConstants.BearerScheme)
-            .AddIdentityBearer(options =>
+            .AddIdentityBearer(o =>
             {
-                options.BearerTokenMissingFallbackScheme = IdentityConstants.ApplicationScheme;
+                o.MissingBearerTokenFallbackScheme = IdentityConstants.ApplicationScheme;
             })
             .AddIdentityCookies();
 
@@ -61,8 +61,8 @@ public static class IdentityEndpointServiceCollectionExtensions
         Action<IdentityOptions> configureIdentityOptions)
         where TUser : class, new()
     {
-        ArgumentNullException.ThrowIfNull(nameof(services));
-        ArgumentNullException.ThrowIfNull(nameof(configureIdentityOptions));
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configureIdentityOptions);
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IConfigureOptions<JsonOptions>, IdentityEndpointJsonOptionsSetup>());
 

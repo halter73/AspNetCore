@@ -117,17 +117,5 @@ Sign out is not currently supported by identity bearer tokens.
 If you want to delete cookies or clear a session, specify "{Options.MissingBearerTokenFallbackScheme}" as the authentication scheme.
 """);
 
-    private ValueTask<string?> GetBearerTokenOrNullAsync()
-    {
-        if (Options.ExtractBearerToken is not null)
-        {
-            return Options.ExtractBearerToken(Context);
-        }
-
-        var authorization = Request.Headers.Authorization.ToString();
-
-        return authorization.StartsWith("Bearer ", StringComparison.Ordinal)
-            ? new(authorization["Bearer ".Length..])
-            : default;
-    }
+    private ValueTask<string?> GetBearerTokenOrNullAsync() => Options.ExtractBearerToken(Context);
 }

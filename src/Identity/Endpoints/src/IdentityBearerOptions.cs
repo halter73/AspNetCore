@@ -42,12 +42,6 @@ public sealed class IdentityBearerOptions : AuthenticationSchemeOptions
     /// <summary>
     /// If set, this provides the bearer token. If unset, the bearer token is read from the Authorization  request header with a "Bearer " prefix.
     /// </summary>
-    public Func<HttpContext, ValueTask<string?>> ExtractBearerToken { get; set; } = static context =>
-    {
-        var authorization = context.Request.Headers.Authorization.ToString();
-
-        return authorization.StartsWith("Bearer ", StringComparison.Ordinal)
-            ? new(authorization["Bearer ".Length..])
-            : default;
-    };
+    public Func<HttpContext, ValueTask<string?>>? ExtractBearerToken { get; set; }
 }
+

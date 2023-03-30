@@ -117,5 +117,18 @@ Sign out is not currently supported by identity bearer tokens.
 If you want to delete cookies or clear a session, specify "{IdentityConstants.ApplicationScheme}" as the authentication scheme.
 """);
 
-    private ValueTask<string?> GetBearerTokenOrNullAsync() => Options.ExtractBearerToken(Context);
+    private async ValueTask<string?> GetBearerTokenOrNullAsync()
+    {
+        if (Options.ExtractBearerToken is not null &&
+            await Options.ExtractBearerToken(Context) is string token)
+        {
+            return token;
+        }
+
+        var authorization = Request.Headers.Authorization.ToString();
+
+        return authorization.StartsWith("Bearer ", StringComparison.Ordinal)
+            ? authorization["Bearer ".Length..]
+            : null;
+    }
 }

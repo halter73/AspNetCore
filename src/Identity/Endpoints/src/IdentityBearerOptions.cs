@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Microsoft.AspNetCore.Identity.Endpoints;
 
@@ -32,8 +33,9 @@ public sealed class IdentityBearerOptions : AuthenticationSchemeOptions
     public IDataProtectionProvider? DataProtectionProvider { get; set; }
 
     /// <summary>
-    /// If set, authentication and challenges will be forwarded to this scheme only if the request does not contain a bearer token.
-    /// This is typically set to Usually Identity.Application cookies <see cref="IdentityConstants.ApplicationScheme"/>
+    /// If set, authentication will be forwarded to this scheme only if the request does not contain a bearer token.
+    /// This is typically set to "Identity.Application" the <see cref="IdentityConstants.ApplicationScheme"/> for identity cookies by
+    /// <see cref="IdentityEndpointsServiceCollectionExtensions.AddIdentityEndpoints{TUser}(IServiceCollection)"/>.
     /// </summary>
     public string? MissingBearerTokenFallbackScheme { get; set; }
 

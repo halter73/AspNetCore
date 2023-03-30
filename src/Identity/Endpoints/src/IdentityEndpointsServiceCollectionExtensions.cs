@@ -14,7 +14,7 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// <summary>
 /// Default extensions to <see cref="IServiceCollection"/> for <see cref="IdentityEndpointRouteBuilderExtensions.MapIdentity{TUser}(IEndpointRouteBuilder)"/>.
 /// </summary>
-public static class IdentityEndpointServiceCollectionExtensions
+public static class IdentityEndpointsServiceCollectionExtensions
 {
     /// <summary>
     /// Adds a set of common identity services to the application to support <see cref="IdentityEndpointRouteBuilderExtensions.MapIdentity{TUser}(IEndpointRouteBuilder)"/>
@@ -31,9 +31,9 @@ public static class IdentityEndpointServiceCollectionExtensions
     /// and configures authentication to support identity bearer tokens and cookies.
     /// </summary>
     /// <param name="services">The <see cref="IServiceCollection"/>.</param>
-    /// <param name="configureIdentityOptions">Configures the <see cref="IdentityOptions"/>.</param>
+    /// <param name="configure">Configures the <see cref="IdentityOptions"/>.</param>
     /// <returns>The <see cref="IdentityBuilder"/>.</returns>
-    public static IdentityBuilder AddIdentityEndpoints<TUser>(this IServiceCollection services, Action<IdentityOptions> configureIdentityOptions)
+    public static IdentityBuilder AddIdentityEndpoints<TUser>(this IServiceCollection services, Action<IdentityOptions> configure)
         where TUser : class, new()
     {
         services.AddAuthentication(o => o.DefaultScheme = IdentityConstants.BearerScheme)
@@ -43,7 +43,7 @@ public static class IdentityEndpointServiceCollectionExtensions
             })
             .AddIdentityCookies();
 
-        return services.AddIdentityEndpointsCore<TUser>(configureIdentityOptions)
+        return services.AddIdentityEndpointsCore<TUser>(configure)
             .AddDefaultTokenProviders()
             .AddSignInManager();
     }
@@ -54,22 +54,20 @@ public static class IdentityEndpointServiceCollectionExtensions
     /// <see cref="IdentityCookieAuthenticationBuilderExtensions.AddIdentityCookies(AuthenticationBuilder)"/> to configure authentication separately.
     /// </summary>
     /// <param name="services">The <see cref="IServiceCollection"/>.</param>
-    /// <param name="configureIdentityOptions">Configures the <see cref="IdentityOptions"/>.</param>
+    /// <param name="configure">Configures the <see cref="IdentityOptions"/>.</param>
     /// <returns>The <see cref="IdentityBuilder"/>.</returns>
-    public static IdentityBuilder AddIdentityEndpointsCore<TUser>(
-        this IServiceCollection services,
-        Action<IdentityOptions> configureIdentityOptions)
+    public static IdentityBuilder AddIdentityEndpointsCore<TUser>(this IServiceCollection services, Action<IdentityOptions> configure)
         where TUser : class, new()
     {
         ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(configureIdentityOptions);
+        ArgumentNullException.ThrowIfNull(configure);
 
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IConfigureOptions<JsonOptions>, IdentityEndpointJsonOptionsSetup>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IConfigureOptions<JsonOptions>, IdentityEndpointsJsonOptionsSetup>());
 
         var identityBuilder = services.AddIdentityCore<TUser>(o =>
         {
             o.Stores.MaxLengthForKeys = 128;
-            configureIdentityOptions(o);
+            configure(o);
         });
 
         return identityBuilder;

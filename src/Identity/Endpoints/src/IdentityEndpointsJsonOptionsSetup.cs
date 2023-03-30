@@ -7,11 +7,11 @@ using Microsoft.Extensions.Options;
 
 namespace Microsoft.AspNetCore.Identity.Endpoints;
 
-internal sealed class IdentityEndpointJsonOptionsSetup : IConfigureOptions<JsonOptions>
+internal sealed class IdentityEndpointsJsonOptionsSetup : IConfigureOptions<JsonOptions>
 {
     public void Configure(JsonOptions options)
     {
         // Put our resolver in front of the reflection-based one. See ProblemDetailsOptionsSetup for a detailed explanation.
-        options.SerializerOptions.TypeInfoResolverChain.Insert(0, IdentityEndpointJsonSerializerContext.Default);
+        options.SerializerOptions.TypeInfoResolverChain.Insert(0, IdentityEndpointsJsonSerializerContext.Default);
     }
 }

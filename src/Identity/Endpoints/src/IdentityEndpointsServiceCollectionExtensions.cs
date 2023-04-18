@@ -36,7 +36,7 @@ public static class IdentityEndpointsServiceCollectionExtensions
     public static IdentityBuilder AddIdentityEndpoints<TUser>(this IServiceCollection services, Action<IdentityOptions> configure)
         where TUser : class, new()
     {
-        services.AddAuthentication(o => o.DefaultScheme = IdentityConstants.BearerScheme)
+        services.AddAuthentication(IdentityConstants.BearerScheme)
             .AddIdentityBearer(o =>
             {
                 o.MissingBearerTokenFallbackScheme = IdentityConstants.ApplicationScheme;
@@ -44,7 +44,6 @@ public static class IdentityEndpointsServiceCollectionExtensions
             .AddIdentityCookies();
 
         return services.AddIdentityEndpointsCore<TUser>(configure)
-            .AddDefaultTokenProviders()
             .AddSignInManager();
     }
 

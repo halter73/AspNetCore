@@ -34,7 +34,7 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseCors(corsBuilder => corsBuilder
-                .WithOrigins("http://localhost:4200")
+                .WithOrigins("https://localhost:44480")
                 .AllowAnyHeader().AllowAnyMethod().AllowCredentials());
 
 app.UseHttpsRedirection();
@@ -55,13 +55,15 @@ app.MapGet("/effects", (ClaimsPrincipal user) =>
             @"for(c.width=b=1800;b;b-=20)for(d=1000;d;d-=20){x.fillStyle=R(S(b*d+t*2)*240,C(b*d+t*3)*200,S(t*4)*64+C(t*2)*64,0.2);x.fillRect(b,d,40,40);}",
              @"c.width|=0;for(i=120;i--;){p=q=1;for(j=30;j--;)p+=q,q=t/3,x.fillStyle=R(S(j)*255,C(j)*255,j*16,0.1),x.fillRect((j*p*10+i)%2e3,i+200,5,600);}",
         }
-    }).RequireAuthorization(); 
+    }).RequireAuthorization();
 
 app.MapGroup("/identity").MapIdentity<IdentityUser>();
 
 app.UseStaticFiles();
 
+
 app.Run();
+
 public class ApplicationDbContext : IdentityDbContext<IdentityUser>
 {
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)

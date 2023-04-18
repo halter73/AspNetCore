@@ -12,7 +12,6 @@ using Identity.DefaultUI.WebSite.Data;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Identity.Endpoints;
 using Microsoft.AspNetCore.Identity.Test;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;

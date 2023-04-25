@@ -7,7 +7,6 @@
 
   <ItemGroup>
     <Reference Include="Microsoft.AspNetCore" />
-    <Reference Include="Microsoft.AspNetCore.Identity.Endpoints" />
     <Reference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
     <Reference Include="Microsoft.EntityFrameworkCore.Sqlite" />
   </ItemGroup>

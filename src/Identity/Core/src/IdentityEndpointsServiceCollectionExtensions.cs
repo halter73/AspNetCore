@@ -1,10 +1,11 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.BearerToken;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Identity.Endpoints;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
@@ -22,6 +23,7 @@ public static class IdentityEndpointsServiceCollectionExtensions
     /// </summary>
     /// <param name="services">The <see cref="IServiceCollection"/>.</param>
     /// <returns>The <see cref="IdentityBuilder"/>.</returns>
+    [RequiresUnreferencedCode("Authentication middleware does not currently support native AOT.", Url = "https://aka.ms/aspnet/nativeaot")]
     public static IdentityBuilder AddIdentityEndpoints<TUser>(this IServiceCollection services)
         where TUser : class, new()
         => services.AddIdentityEndpoints<TUser>(_ => { });
@@ -33,6 +35,7 @@ public static class IdentityEndpointsServiceCollectionExtensions
     /// <param name="services">The <see cref="IServiceCollection"/>.</param>
     /// <param name="configure">Configures the <see cref="IdentityOptions"/>.</param>
     /// <returns>The <see cref="IdentityBuilder"/>.</returns>
+    [RequiresUnreferencedCode("Authentication middleware does not currently support native AOT.", Url = "https://aka.ms/aspnet/nativeaot")]
     public static IdentityBuilder AddIdentityEndpoints<TUser>(this IServiceCollection services, Action<IdentityOptions> configure)
         where TUser : class, new()
     {

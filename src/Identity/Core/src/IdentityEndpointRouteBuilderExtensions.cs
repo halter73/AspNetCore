@@ -2,12 +2,13 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Linq;
+using Microsoft.AspNetCore.Authentication.BearerToken.DTO;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Identity.Endpoints.DTO;
+using Microsoft.AspNetCore.Identity.DTO;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Microsoft.AspNetCore.Routing;

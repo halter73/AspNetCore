@@ -111,12 +111,6 @@ internal sealed class IdentityBearerAuthenticationHandler : SignInAuthentication
         return Context.Response.WriteAsJsonAsync(accessTokenResponse);
     }
 
-    protected override Task HandleSignOutAsync(AuthenticationProperties? properties)
-        => throw new NotSupportedException($"""
-Sign out is not currently supported by identity bearer tokens.
-If you want to delete cookies or clear a session, specify "{IdentityConstants.ApplicationScheme}" as the authentication scheme.
-""");
-
     private async ValueTask<string?> GetBearerTokenOrNullAsync()
     {
         if (Options.ExtractBearerToken is not null &&

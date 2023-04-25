@@ -40,7 +40,7 @@ public static class IdentityEndpointsServiceCollectionExtensions
         where TUser : class, new()
     {
         services.AddAuthentication(IdentityConstants.BearerScheme)
-            .AddBearerToken(o =>
+            .AddBearerToken(IdentityConstants.BearerScheme, o =>
             {
                 o.MissingBearerTokenFallbackScheme = IdentityConstants.ApplicationScheme;
             })

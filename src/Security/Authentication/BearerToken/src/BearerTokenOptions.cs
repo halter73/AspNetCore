@@ -1,18 +1,15 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Routing;
-using Microsoft.Extensions.DependencyInjection;
 
-namespace Microsoft.AspNetCore.Identity.Endpoints;
+namespace Microsoft.AspNetCore.Authentication.BearerToken;
 
 /// <summary>
-/// Contains the options used to authenticate using bearer tokens issued by <see cref="IdentityEndpointRouteBuilderExtensions.MapIdentity{TUser}(IEndpointRouteBuilder)"/>.
+/// Contains the options used to authenticate using opaque bearer tokens.
 /// </summary>
-public sealed class IdentityBearerOptions : AuthenticationSchemeOptions
+public sealed class BearerTokenOptions : AuthenticationSchemeOptions
 {
     /// <summary>
     /// Controls how much time the bearer token will remain valid from the point it is created.
@@ -34,8 +31,7 @@ public sealed class IdentityBearerOptions : AuthenticationSchemeOptions
 
     /// <summary>
     /// If set, authentication will be forwarded to this scheme only if the request does not contain a bearer token.
-    /// This is typically set to <see cref="IdentityConstants.ApplicationScheme"/> ("Identity.Application") the for identity cookies by
-    /// <see cref="IdentityEndpointsServiceCollectionExtensions.AddIdentityEndpoints{TUser}(IServiceCollection)"/>.
+    /// This is typically set to "Identity.Application" the for identity cookies.
     /// </summary>
     public string? MissingBearerTokenFallbackScheme { get; set; }
 

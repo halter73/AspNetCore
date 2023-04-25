@@ -37,7 +37,7 @@ public static class IdentityEndpointsServiceCollectionExtensions
         where TUser : class, new()
     {
         services.AddAuthentication(IdentityConstants.BearerScheme)
-            .AddIdentityBearer(o =>
+            .AddBearerToken(o =>
             {
                 o.MissingBearerTokenFallbackScheme = IdentityConstants.ApplicationScheme;
             })
@@ -49,7 +49,7 @@ public static class IdentityEndpointsServiceCollectionExtensions
 
     /// <summary>
     /// Adds a set of common identity services to the application to support <see cref="IdentityEndpointRouteBuilderExtensions.MapIdentity{TUser}(IEndpointRouteBuilder)"/>
-    /// but does not configure authentication. Call <see cref="IdentityBearerAuthenticationBuilderExtensions.AddIdentityBearer(AuthenticationBuilder, Action{IdentityBearerOptions}?)"/> and/or
+    /// but does not configure authentication. Call <see cref="BearerTokenExtensions.AddBearerToken(AuthenticationBuilder, Action{BearerTokenOptions}?)"/> and/or
     /// <see cref="IdentityCookieAuthenticationBuilderExtensions.AddIdentityCookies(AuthenticationBuilder)"/> to configure authentication separately.
     /// </summary>
     /// <param name="services">The <see cref="IServiceCollection"/>.</param>

@@ -3,7 +3,7 @@
 
 using System.Text.Json.Serialization;
 
-namespace Microsoft.AspNetCore.Identity.Endpoints.DTO;
+namespace Microsoft.AspNetCore.Authentication.BearerToken;
 
 internal sealed class AccessTokenResponse
 {

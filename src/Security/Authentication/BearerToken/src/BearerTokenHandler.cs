@@ -3,19 +3,17 @@
 
 using System.Security.Claims;
 using System.Text.Encodings.Web;
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Identity.Endpoints.DTO;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
 
-namespace Microsoft.AspNetCore.Identity.Endpoints;
+namespace Microsoft.AspNetCore.Authentication.BearerToken;
 
-internal sealed class IdentityBearerAuthenticationHandler : SignInAuthenticationHandler<IdentityBearerOptions>
+internal sealed class BearerTokenHandler : SignInAuthenticationHandler<BearerTokenOptions>
 {
-    private const string BearerTokenPurpose = $"Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerAuthenticationHandler:v1:BearerToken";
+    private const string BearerTokenPurpose = $"Microsoft.AspNetCore.Authentication.BearerToken:v1:BearerToken";
 
     private static readonly AuthenticateResult TokenMissing = AuthenticateResult.Fail("Token missing");
     private static readonly AuthenticateResult FailedUnprotectingToken = AuthenticateResult.Fail("Unprotected token failed");
@@ -23,8 +21,8 @@ internal sealed class IdentityBearerAuthenticationHandler : SignInAuthentication
 
     private readonly IDataProtectionProvider _fallbackDataProtectionProvider;
 
-    public IdentityBearerAuthenticationHandler(
-        IOptionsMonitor<IdentityBearerOptions> optionsMonitor,
+    public BearerTokenHandler(
+        IOptionsMonitor<BearerTokenOptions> optionsMonitor,
         ILoggerFactory loggerFactory,
         UrlEncoder urlEncoder,
         ISystemClock clock,
@@ -108,8 +106,11 @@ internal sealed class IdentityBearerAuthenticationHandler : SignInAuthentication
             ExpiresInTotalSeconds = Options.BearerTokenExpiration.TotalSeconds,
         };
 
-        return Context.Response.WriteAsJsonAsync(accessTokenResponse);
+        return Context.Response.WriteAsJsonAsync(accessTokenResponse, BearerTokenJsonSerializerContext.Default.AccessTokenResponse);
     }
+
+    // No-op to avoid interfering with any mass signout logic.
+    protected override Task HandleSignOutAsync(AuthenticationProperties? properties) => Task.CompletedTask;
 
     private async ValueTask<string?> GetBearerTokenOrNullAsync()
     {

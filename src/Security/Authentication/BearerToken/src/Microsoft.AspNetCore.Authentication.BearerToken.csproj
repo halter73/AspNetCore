@@ -3,15 +3,16 @@
   <PropertyGroup>
     <Description>ASP.NET Core Identity Endpoints defines endpoints for HTTP clients to login and interact with the ASP.NET Core Identity framework.</Description>
     <TargetFramework>$(DefaultNetCoreTargetFramework)</TargetFramework>
+    <IsAspNetCoreApp>true</IsAspNetCoreApp>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <PackageTags>aspnetcore;identity;membership</PackageTags>
+    <PackageTags>aspnetcore;authentication;security</PackageTags>
     <IsTrimmable>true</IsTrimmable>
     <EnableRequestDelegateGenerator>true</EnableRequestDelegateGenerator>
   </PropertyGroup>
 
   <ItemGroup>
     <Reference Include="Microsoft.AspNetCore.Http.Results" />
-    <Reference Include="Microsoft.AspNetCore.Identity" />
+    <Reference Include="Microsoft.AspNetCore.Authentication" />
   </ItemGroup>
 
   <ItemGroup>

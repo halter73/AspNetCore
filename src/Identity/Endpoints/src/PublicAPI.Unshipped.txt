@@ -11,11 +11,5 @@ Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerOptions.ExtractBearerToken
 Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerOptions.IdentityBearerOptions() -> void
 Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerOptions.MissingBearerTokenFallbackScheme.get -> string?
 Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerOptions.MissingBearerTokenFallbackScheme.set -> void
-Microsoft.AspNetCore.Routing.IdentityEndpointRouteBuilderExtensions
 Microsoft.Extensions.DependencyInjection.IdentityBearerAuthenticationBuilderExtensions
-Microsoft.Extensions.DependencyInjection.IdentityEndpointsServiceCollectionExtensions
-static Microsoft.AspNetCore.Routing.IdentityEndpointRouteBuilderExtensions.MapIdentity<TUser>(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints) -> Microsoft.AspNetCore.Builder.IEndpointConventionBuilder!
 static Microsoft.Extensions.DependencyInjection.IdentityBearerAuthenticationBuilderExtensions.AddIdentityBearer(this Microsoft.AspNetCore.Authentication.AuthenticationBuilder! builder, System.Action<Microsoft.AspNetCore.Identity.Endpoints.IdentityBearerOptions!>? configure) -> Microsoft.AspNetCore.Authentication.AuthenticationBuilder!
-static Microsoft.Extensions.DependencyInjection.IdentityEndpointsServiceCollectionExtensions.AddIdentityEndpoints<TUser>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.AspNetCore.Identity.IdentityBuilder!
-static Microsoft.Extensions.DependencyInjection.IdentityEndpointsServiceCollectionExtensions.AddIdentityEndpoints<TUser>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Microsoft.AspNetCore.Identity.IdentityOptions!>! configure) -> Microsoft.AspNetCore.Identity.IdentityBuilder!
-static Microsoft.Extensions.DependencyInjection.IdentityEndpointsServiceCollectionExtensions.AddIdentityEndpointsCore<TUser>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Microsoft.AspNetCore.Identity.IdentityOptions!>! configure) -> Microsoft.AspNetCore.Identity.IdentityBuilder!

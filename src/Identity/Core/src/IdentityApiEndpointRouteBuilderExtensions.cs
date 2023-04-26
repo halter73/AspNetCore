@@ -46,8 +46,6 @@ public static class IdentityApiEndpointRouteBuilderExtensions
 
             if (result.Succeeded)
             {
-                // TODO: Send email confirmation
-
                 return TypedResults.Ok();
             }
 
@@ -57,7 +55,6 @@ public static class IdentityApiEndpointRouteBuilderExtensions
         routeGroup.MapPost("/login", async Task<Results<UnauthorizedHttpResult, Ok<AccessTokenResponse>, SignInHttpResult>>
             ([FromBody] LoginRequest login, [FromQuery] bool? cookieMode, [FromServices] IServiceProvider services) =>
         {
-            // TODO: Use SignInManager to checkout for email confirmation, lockout, etc...
             var userManager = services.GetRequiredService<UserManager<TUser>>();
             var user = await userManager.FindByNameAsync(login.Username);
 
@@ -81,10 +78,12 @@ public static class IdentityApiEndpointRouteBuilderExtensions
     // Wrap RouteGroupBuilder with a non-public type to avoid a potential future behavioral breaking change.
     private sealed class IdentityEndpointsConventionBuilder(RouteGroupBuilder inner) : IEndpointConventionBuilder
     {
-        private readonly IEndpointConventionBuilder _inner = inner;
+#pragma warning disable CA1822 // Mark members as static False positive reported by https://github.com/dotnet/roslyn-analyzers/issues/6573
+        private IEndpointConventionBuilder InnerAsConventionBuilder => inner;
+#pragma warning restore CA1822 // Mark members as static
 
-        public void Add(Action<EndpointBuilder> convention) => _inner.Add(convention);
-        public void Finally(Action<EndpointBuilder> finallyConvention) => _inner.Finally(finallyConvention);
+        public void Add(Action<EndpointBuilder> convention) => InnerAsConventionBuilder.Add(convention);
+        public void Finally(Action<EndpointBuilder> finallyConvention) => InnerAsConventionBuilder.Finally(finallyConvention);
     }
 
     [AttributeUsage(AttributeTargets.Parameter)]

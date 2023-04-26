@@ -182,21 +182,11 @@ public class MapIdentityTests : LoggedTest
         Assert.Equal($"Hello, {Username}!", await client.GetStringAsync($"/auth/hello"));
     }
 
-    [Fact]
-    public async Task RedirectsToLoginPageByDefaultGivenNoBearerToken()
+    [Theory]
+    [MemberData(nameof(AddIdentityModes))]
+    public async Task Returns401UnauthorizedStatusGivenNoBearerTokenOrCookie(string addIdentityMode)
     {
-        await using var app = await CreateAppAsync();
-        using var client = app.GetTestClient();
-
-        var redirectResponse = await client.GetAsync($"/auth/hello");
-        Assert.Equal(HttpStatusCode.Found, redirectResponse.StatusCode);
-        Assert.Equal(new Uri("http://localhost/Account/Login?ReturnUrl=%2Fauth%2Fhello"), redirectResponse.Headers.Location);
-    }
-
-    [Fact]
-    public async Task Returns401UnauthorizedStatusWithOnlyCoreServicesGivenNoBearerToken()
-    {
-        await using var app = await CreateAppAsync(AddIdentityEndpointsBearerOnly);
+        await using var app = await CreateAppAsync(AddIdentityActions[addIdentityMode]);
         using var client = app.GetTestClient();
 
         var unauthorizedResponse = await client.GetAsync($"/auth/hello");

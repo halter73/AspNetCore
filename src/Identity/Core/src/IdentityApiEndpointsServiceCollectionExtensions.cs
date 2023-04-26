@@ -2,8 +2,12 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Diagnostics.CodeAnalysis;
+using System.Text.Encodings.Web;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -37,11 +41,13 @@ public static class IdentityApiEndpointsServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configure);
 
-        services.AddAuthentication(IdentityConstants.BearerScheme)
-            .AddBearerToken(IdentityConstants.BearerScheme, o =>
+        services.AddAuthentication(IdentityConstants.BearerAndApplicationScheme)
+            .AddScheme<PolicySchemeOptions, CompositeIdentityHandler>(IdentityConstants.BearerAndApplicationScheme, null, o =>
             {
-                o.MissingBearerTokenFallbackScheme = IdentityConstants.ApplicationScheme;
+                o.ForwardDefault = IdentityConstants.BearerScheme;
+                o.ForwardAuthenticate = IdentityConstants.BearerAndApplicationScheme;
             })
+            .AddBearerToken(IdentityConstants.BearerScheme)
             .AddIdentityCookies();
 
         return services.AddIdentityCore<TUser>(o =>
@@ -50,5 +56,23 @@ public static class IdentityApiEndpointsServiceCollectionExtensions
                 configure(o);
             })
             .AddApiEndpoints();
+    }
+
+    private sealed class CompositeIdentityHandler(IOptionsMonitor<PolicySchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder, ISystemClock clock)
+        : PolicySchemeHandler(options, logger, encoder, clock)
+    {
+        protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
+        {
+            var bearerResult = await Context.AuthenticateAsync(IdentityConstants.BearerScheme);
+
+            // Only try to authenticate with the application cookie if there is no bearer token.
+            if (!bearerResult.None)
+            {
+                return bearerResult;
+            }
+
+            // Cookie auth will return AuthenticateResult.NoResult() like bearer auth just did if there is no cookie.
+            return await Context.AuthenticateAsync(IdentityConstants.ApplicationScheme);
+        }
     }
 }

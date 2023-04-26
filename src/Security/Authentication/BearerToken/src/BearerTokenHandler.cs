@@ -12,41 +12,30 @@ using Microsoft.Net.Http.Headers;
 
 namespace Microsoft.AspNetCore.Authentication.BearerToken;
 
-internal sealed class BearerTokenHandler : SignInAuthenticationHandler<BearerTokenOptions>
+internal sealed class BearerTokenHandler(
+    IOptionsMonitor<BearerTokenOptions> optionsMonitor,
+    ILoggerFactory loggerFactory,
+    UrlEncoder urlEncoder,
+    ISystemClock clock,
+#pragma warning disable IDE0060 // Remove unused parameter. False positive fixed by https://github.com/dotnet/roslyn/pull/67167
+    IDataProtectionProvider dataProtectionProvider)
+#pragma warning restore IDE0060 // Remove unused parameter
+    : SignInAuthenticationHandler<BearerTokenOptions>(optionsMonitor, loggerFactory, urlEncoder, clock)
 {
     private const string BearerTokenPurpose = $"Microsoft.AspNetCore.Authentication.BearerToken:v1:BearerToken";
 
-    private static readonly AuthenticateResult TokenMissing = AuthenticateResult.Fail("Token missing");
     private static readonly AuthenticateResult FailedUnprotectingToken = AuthenticateResult.Fail("Unprotected token failed");
     private static readonly AuthenticateResult TokenExpired = AuthenticateResult.Fail("Token expired");
 
-    private readonly IDataProtectionProvider _fallbackDataProtectionProvider;
-
-    public BearerTokenHandler(
-        IOptionsMonitor<BearerTokenOptions> optionsMonitor,
-        ILoggerFactory loggerFactory,
-        UrlEncoder urlEncoder,
-        ISystemClock clock,
-        IDataProtectionProvider dataProtectionProvider)
-        : base(optionsMonitor, loggerFactory, urlEncoder, clock)
-    {
-        _fallbackDataProtectionProvider = dataProtectionProvider;
-    }
-
-    private IDataProtectionProvider DataProtectionProvider
-        => Options.DataProtectionProvider ?? _fallbackDataProtectionProvider;
-
     private ISecureDataFormat<AuthenticationTicket> BearerTokenProtector
-        => Options.BearerTokenProtector ?? new TicketDataFormat(DataProtectionProvider.CreateProtector(BearerTokenPurpose));
+        => Options.BearerTokenProtector ?? new TicketDataFormat(dataProtectionProvider.CreateProtector(BearerTokenPurpose));
 
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         // If there's no bearer token, forward to cookie auth.
         if (await GetBearerTokenOrNullAsync() is not string token)
         {
-            return Options.MissingBearerTokenFallbackScheme is string fallbackScheme
-                ? await Context.AuthenticateAsync(fallbackScheme)
-                : TokenMissing;
+            return AuthenticateResult.NoResult();
         }
 
         var ticket = BearerTokenProtector.Unprotect(token);
@@ -64,33 +53,8 @@ internal sealed class BearerTokenHandler : SignInAuthenticationHandler<BearerTok
         return AuthenticateResult.Success(ticket);
     }
 
-    protected override async Task HandleForbiddenAsync(AuthenticationProperties properties)
-    {
-        // If there's no bearer token, forward to cookie auth.
-        if (await GetBearerTokenOrNullAsync() is null)
-        {
-            if (Options.MissingBearerTokenFallbackScheme is string fallbackScheme)
-            {
-                await Context.ForbidAsync(fallbackScheme);
-                return;
-            }
-        }
-
-        await base.HandleForbiddenAsync(properties);
-    }
-
     protected override async Task HandleChallengeAsync(AuthenticationProperties properties)
     {
-        // If there's no bearer token, forward to cookie auth.
-        if (await GetBearerTokenOrNullAsync() is null)
-        {
-            if (Options.MissingBearerTokenFallbackScheme is string fallbackScheme)
-            {
-                await Context.ChallengeAsync(fallbackScheme);
-                return;
-            }
-        }
-
         Response.Headers.Append(HeaderNames.WWWAuthenticate, "Bearer");
         await base.HandleChallengeAsync(properties);
     }
@@ -110,7 +74,7 @@ internal sealed class BearerTokenHandler : SignInAuthenticationHandler<BearerTok
         return Context.Response.WriteAsJsonAsync(accessTokenResponse, BearerTokenJsonSerializerContext.Default.AccessTokenResponse);
     }
 
-    // No-op to avoid interfering with any mass signout logic.
+    // No-op to avoid interfering with any mass sign-out logic.
     protected override Task HandleSignOutAsync(AuthenticationProperties? properties) => Task.CompletedTask;
 
     private async ValueTask<string?> GetBearerTokenOrNullAsync()

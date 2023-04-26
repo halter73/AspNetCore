@@ -3,10 +3,8 @@
 
 namespace Microsoft.AspNetCore.Identity.DTO;
 
-// TODO: Register DTOs with JsonSerializerOptions.TypeInfoResolverChain (was previously the soon-to-be-obsolete AddContext)
 internal sealed class RegisterRequest
 {
     public required string Username { get; init; }
     public required string Password { get; init; }
-    // TODO: public string? Email { get; set; }
 }

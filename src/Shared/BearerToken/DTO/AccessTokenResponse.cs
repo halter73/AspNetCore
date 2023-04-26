@@ -15,7 +15,4 @@ internal sealed class AccessTokenResponse
 
     [JsonPropertyName("expires_in")]
     public required double ExpiresInTotalSeconds { get; init; }
-
-    // TODO: [JsonPropertyName("refresh_token")]
-    // public required string RefreshToken { get; init; }
 }

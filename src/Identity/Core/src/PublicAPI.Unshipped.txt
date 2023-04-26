@@ -8,7 +8,7 @@ Microsoft.AspNetCore.Identity.TwoFactorSecurityStampValidator<TUser>.TwoFactorSe
 Microsoft.AspNetCore.Routing.IdentityApiEndpointRouteBuilderExtensions
 Microsoft.Extensions.DependencyInjection.IdentityApiEndpointsServiceCollectionExtensions
 static Microsoft.AspNetCore.Identity.IdentityApiEndpointsIdentityBuilderExtensions.AddApiEndpoints(this Microsoft.AspNetCore.Identity.IdentityBuilder! builder) -> Microsoft.AspNetCore.Identity.IdentityBuilder!
-static Microsoft.AspNetCore.Routing.IdentityApiEndpointRouteBuilderExtensions.MapIdentity<TUser>(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints) -> Microsoft.AspNetCore.Builder.IEndpointConventionBuilder!
+static Microsoft.AspNetCore.Routing.IdentityApiEndpointRouteBuilderExtensions.MapIdentityApi<TUser>(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints) -> Microsoft.AspNetCore.Builder.IEndpointConventionBuilder!
 static Microsoft.Extensions.DependencyInjection.IdentityApiEndpointsServiceCollectionExtensions.AddIdentityApiEndpoints<TUser>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.AspNetCore.Identity.IdentityBuilder!
 static Microsoft.Extensions.DependencyInjection.IdentityApiEndpointsServiceCollectionExtensions.AddIdentityApiEndpoints<TUser>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Microsoft.AspNetCore.Identity.IdentityOptions!>! configure) -> Microsoft.AspNetCore.Identity.IdentityBuilder!
 static readonly Microsoft.AspNetCore.Identity.IdentityConstants.BearerScheme -> string!

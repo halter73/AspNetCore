@@ -12,12 +12,12 @@ using Microsoft.Extensions.Options;
 namespace Microsoft.AspNetCore.Identity;
 
 /// <summary>
-/// <see cref="IdentityBuilder"/> extension methods to support <see cref="IdentityApiEndpointRouteBuilderExtensions.MapIdentity{TUser}(IEndpointRouteBuilder)"/>.
+/// <see cref="IdentityBuilder"/> extension methods to support <see cref="IdentityApiEndpointRouteBuilderExtensions.MapIdentityApi{TUser}(IEndpointRouteBuilder)"/>.
 /// </summary>
 public static class IdentityApiEndpointsIdentityBuilderExtensions
 {
     /// <summary>
-    /// Adds configuration ans services needed to support <see cref="IdentityApiEndpointRouteBuilderExtensions.MapIdentity{TUser}(IEndpointRouteBuilder)"/>
+    /// Adds configuration ans services needed to support <see cref="IdentityApiEndpointRouteBuilderExtensions.MapIdentityApi{TUser}(IEndpointRouteBuilder)"/>
     /// but does not configure authentication. Call <see cref="BearerTokenExtensions.AddBearerToken(AuthenticationBuilder, Action{BearerTokenOptions}?)"/> and/or
     /// <see cref="IdentityCookieAuthenticationBuilderExtensions.AddIdentityCookies(AuthenticationBuilder)"/> to configure authentication separately.
     /// </summary>

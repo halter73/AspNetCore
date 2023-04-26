@@ -12,12 +12,12 @@ using Microsoft.Extensions.Options;
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Default extensions to <see cref="IServiceCollection"/> for <see cref="IdentityApiEndpointRouteBuilderExtensions.MapIdentity{TUser}(IEndpointRouteBuilder)"/>.
+/// Default extensions to <see cref="IServiceCollection"/> for <see cref="IdentityApiEndpointRouteBuilderExtensions.MapIdentityApi{TUser}(IEndpointRouteBuilder)"/>.
 /// </summary>
 public static class IdentityApiEndpointsServiceCollectionExtensions
 {
     /// <summary>
-    /// Adds a set of common identity services to the application to support <see cref="IdentityApiEndpointRouteBuilderExtensions.MapIdentity{TUser}(IEndpointRouteBuilder)"/>
+    /// Adds a set of common identity services to the application to support <see cref="IdentityApiEndpointRouteBuilderExtensions.MapIdentityApi{TUser}(IEndpointRouteBuilder)"/>
     /// and configures authentication to support identity bearer tokens and cookies.
     /// </summary>
     /// <param name="services">The <see cref="IServiceCollection"/>.</param>
@@ -28,7 +28,7 @@ public static class IdentityApiEndpointsServiceCollectionExtensions
         => services.AddIdentityApiEndpoints<TUser>(_ => { });
 
     /// <summary>
-    /// Adds a set of common identity services to the application to support <see cref="IdentityApiEndpointRouteBuilderExtensions.MapIdentity{TUser}(IEndpointRouteBuilder)"/>
+    /// Adds a set of common identity services to the application to support <see cref="IdentityApiEndpointRouteBuilderExtensions.MapIdentityApi{TUser}(IEndpointRouteBuilder)"/>
     /// and configures authentication to support identity bearer tokens and cookies.
     /// </summary>
     /// <param name="services">The <see cref="IServiceCollection"/>.</param>

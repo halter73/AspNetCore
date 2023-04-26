@@ -213,7 +213,7 @@ public class MapIdentityTests : LoggedTest
         app.UseAuthentication();
         app.UseAuthorization();
 
-        app.MapGroup("/identity").MapIdentity<TUser>();
+        app.MapGroup("/identity").MapIdentityApi<TUser>();
 
         var authGroup = app.MapGroup("/auth").RequireAuthorization();
         authGroup.MapGet("/hello",

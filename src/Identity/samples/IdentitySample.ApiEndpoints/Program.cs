@@ -24,7 +24,7 @@ var app = builder.Build();
 app.MapGet("/", () => "Hello, World!");
 app.MapGet("/requires-auth", (ClaimsPrincipal user) => $"Hello, {user.Identity?.Name}!").RequireAuthorization();
 
-app.MapGroup("/identity").MapIdentity<IdentityUser>();
+app.MapGroup("/identity").MapIdentityApi<IdentityUser>();
 
 app.Run();
 connection.Close();

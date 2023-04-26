@@ -55,7 +55,7 @@ public static class IdentityApiEndpointRouteBuilderExtensions
         });
 
         routeGroup.MapPost("/login", async Task<Results<UnauthorizedHttpResult, Ok<AccessTokenResponse>, SignInHttpResult>>
-            ([FromBody] LoginRequest login, [FromServices] IServiceProvider services) =>
+            ([FromBody] LoginRequest login, [FromQuery] bool? cookieMode, [FromServices] IServiceProvider services) =>
         {
             // TODO: Use SignInManager to checkout for email confirmation, lockout, etc...
             var userManager = services.GetRequiredService<UserManager<TUser>>();
@@ -66,9 +66,11 @@ public static class IdentityApiEndpointRouteBuilderExtensions
                 return TypedResults.Unauthorized();
             }
 
-            var scheme = login.CookieMode ? IdentityConstants.ApplicationScheme : IdentityConstants.BearerScheme;
             var claimsFactory = services.GetRequiredService<IUserClaimsPrincipalFactory<TUser>>();
             var claimsPrincipal = await claimsFactory.CreateAsync(user);
+
+            var useCookies = cookieMode ?? false;
+            var scheme = useCookies ? IdentityConstants.ApplicationScheme : IdentityConstants.BearerScheme;
 
             return TypedResults.SignIn(claimsPrincipal, authenticationScheme: scheme);
         });
@@ -93,5 +95,11 @@ public static class IdentityApiEndpointRouteBuilderExtensions
     [AttributeUsage(AttributeTargets.Parameter)]
     private sealed class FromServicesAttribute : Attribute, IFromServiceMetadata
     {
+    }
+
+    [AttributeUsage(AttributeTargets.Parameter)]
+    private sealed class FromQueryAttribute : Attribute, IFromQueryMetadata
+    {
+        public string? Name => null;
     }
 }

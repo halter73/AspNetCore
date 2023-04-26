@@ -7,6 +7,5 @@ internal sealed class LoginRequest
 {
     public required string Username { get; init; }
     public required string Password { get; init; }
-    public bool CookieMode { get; init; }
     // TODO: public string? TfaCode { get; set; }
 }

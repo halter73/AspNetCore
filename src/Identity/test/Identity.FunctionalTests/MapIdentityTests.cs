@@ -119,7 +119,7 @@ public class MapIdentityTests : LoggedTest
         using var client = app.GetTestClient();
 
         await client.PostAsJsonAsync("/identity/register", new { Username, Password });
-        var loginResponse = await client.PostAsJsonAsync("/identity/login", new { Username, Password, CookieMode = true });
+        var loginResponse = await client.PostAsJsonAsync("/identity/login?cookieMode=true", new { Username, Password });
 
         loginResponse.EnsureSuccessStatusCode();
         Assert.Equal(0, loginResponse.Content.Headers.ContentLength);
@@ -146,7 +146,7 @@ public class MapIdentityTests : LoggedTest
         await client.PostAsJsonAsync("/identity/register", new { Username, Password });
 
         await Assert.ThrowsAsync<InvalidOperationException>(()
-            => client.PostAsJsonAsync("/identity/login", new { Username, Password, CookieMode = true }));
+            => client.PostAsJsonAsync("/identity/login?cookieMode=true", new { Username, Password }));
     }
 
     [Fact]

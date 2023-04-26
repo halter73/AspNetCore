@@ -76,7 +76,7 @@ public class MapIdentityTests : LoggedTest
         await using var app = await CreateAppAsync(services =>
         {
             services.AddIdentityEndpointsCore<ApplicationUser>(_ => { }).AddEntityFrameworkStores<ApplicationDbContext>();
-            services.AddAuthentication(IdentityConstants.BearerScheme).AddIdentityBearer(options =>
+            services.AddAuthentication(IdentityConstants.BearerScheme).AddBearerToken(IdentityConstants.BearerScheme, options =>
             {
                 options.BearerTokenExpiration = expireTimeSpan;
             });
@@ -155,7 +155,7 @@ public class MapIdentityTests : LoggedTest
         await using var app = await CreateAppAsync(services =>
         {
             services.AddIdentityEndpointsCore<ApplicationUser>(_ => { }).AddEntityFrameworkStores<ApplicationDbContext>();
-            services.AddAuthentication(IdentityConstants.BearerScheme).AddIdentityBearer(options =>
+            services.AddAuthentication(IdentityConstants.BearerScheme).AddBearerToken(IdentityConstants.BearerScheme, options =>
             {
                 options.ExtractBearerToken = context =>
                 {
@@ -244,7 +244,7 @@ public class MapIdentityTests : LoggedTest
     private static void AddIdentityEndpointsBearerOnly(IServiceCollection services)
     {
         services.AddIdentityEndpointsCore<ApplicationUser>(_ => { }).AddEntityFrameworkStores<ApplicationDbContext>();
-        services.AddAuthentication(IdentityConstants.BearerScheme).AddIdentityBearer(configure: null);
+        services.AddAuthentication(IdentityConstants.BearerScheme).AddBearerToken(IdentityConstants.BearerScheme);
     }
 
     private Task<WebApplication> CreateAppAsync(Action<IServiceCollection>? configureServices = null)

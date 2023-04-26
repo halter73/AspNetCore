@@ -73,14 +73,26 @@ internal sealed class BearerTokenHandler(
 
     protected override Task HandleSignInAsync(ClaimsPrincipal user, AuthenticationProperties? properties)
     {
+        long expiresInTotalSeconds;
+        var utcNow = TimeProvider.GetUtcNow();
+
         properties ??= new();
-        properties.ExpiresUtc ??= TimeProvider.GetUtcNow() + Options.BearerTokenExpiration;
+
+        if (properties.ExpiresUtc is null)
+        {
+            properties.ExpiresUtc ??= utcNow + Options.BearerTokenExpiration;
+            expiresInTotalSeconds = (long)Options.BearerTokenExpiration.TotalSeconds;
+        }
+        else
+        {
+            expiresInTotalSeconds = (long)(properties.ExpiresUtc.Value - utcNow).TotalSeconds;
+        }
 
         var ticket = new AuthenticationTicket(user, properties, Scheme.Name);
         var accessTokenResponse = new AccessTokenResponse
         {
             AccessToken = BearerTokenProtector.Protect(ticket),
-            ExpiresInTotalSeconds = Options.BearerTokenExpiration.TotalSeconds,
+            ExpiresInTotalSeconds = expiresInTotalSeconds,
         };
 
         return Context.Response.WriteAsJsonAsync(accessTokenResponse, BearerTokenJsonSerializerContext.Default.AccessTokenResponse);

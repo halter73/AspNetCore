@@ -31,11 +31,11 @@ public static class IdentityApiEndpointRouteBuilderExtensions
     {
         ArgumentNullException.ThrowIfNull(endpoints);
 
-        var v1 = endpoints.MapGroup("/v1");
+        var routeGroup = endpoints.MapGroup("");
 
         // NOTE: We cannot inject UserManager<TUser> directly because the TUser generic parameter is currently unsupported by RDG.
         // https://github.com/dotnet/aspnetcore/issues/47338
-        v1.MapPost("/register", async Task<Results<Ok, ValidationProblem>>
+        routeGroup.MapPost("/register", async Task<Results<Ok, ValidationProblem>>
             ([FromBody] RegisterRequest registration, [FromServices] IServiceProvider services) =>
         {
             var userManager = services.GetRequiredService<UserManager<TUser>>();
@@ -54,7 +54,7 @@ public static class IdentityApiEndpointRouteBuilderExtensions
             return TypedResults.ValidationProblem(result.Errors.ToDictionary(e => e.Code, e => new[] { e.Description }));
         });
 
-        v1.MapPost("/login", async Task<Results<UnauthorizedHttpResult, Ok<AccessTokenResponse>, SignInHttpResult>>
+        routeGroup.MapPost("/login", async Task<Results<UnauthorizedHttpResult, Ok<AccessTokenResponse>, SignInHttpResult>>
             ([FromBody] LoginRequest login, [FromServices] IServiceProvider services) =>
         {
             // TODO: Use SignInManager to checkout for email confirmation, lockout, etc...
@@ -73,7 +73,7 @@ public static class IdentityApiEndpointRouteBuilderExtensions
             return TypedResults.SignIn(claimsPrincipal, authenticationScheme: scheme);
         });
 
-        return new IdentityEndpointsConventionBuilder(v1);
+        return new IdentityEndpointsConventionBuilder(routeGroup);
     }
 
     // Wrap RouteGroupBuilder with a non-public type to avoid a potential future behavioral breaking change.

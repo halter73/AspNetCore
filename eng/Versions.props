@@ -8,7 +8,7 @@
   <PropertyGroup Label="Version settings">
     <AspNetCoreMajorVersion>3</AspNetCoreMajorVersion>
     <AspNetCoreMinorVersion>1</AspNetCoreMinorVersion>
-    <AspNetCorePatchVersion>35</AspNetCorePatchVersion>
+    <AspNetCorePatchVersion>36</AspNetCorePatchVersion>
     <!-- This property should be 'false' between branding & code-merging, 'true' the rest of the time -->
     <ValidateBaseline>false</ValidateBaseline>
     <PreReleasePreviewNumber>0</PreReleasePreviewNumber>

@@ -27,6 +27,36 @@ public class SignInManagerTest
     }
 
     [Fact]
+    public async Task PasswordSignInReturnsLockedOutWhenLockedOut()
+    {
+        // Setup
+        var user = new PocoUser { UserName = "Foo" };
+        var manager = SetupUserManager(user);
+        manager.Setup(m => m.SupportsUserLockout).Returns(true).Verifiable();
+        manager.Setup(m => m.IsLockedOutAsync(user)).ReturnsAsync(true).Verifiable();
+
+        var context = new Mock<HttpContext>();
+        var contextAccessor = new Mock<IHttpContextAccessor>();
+        contextAccessor.Setup(a => a.HttpContext).Returns(context.Object);
+        var roleManager = MockHelpers.MockRoleManager<PocoRole>();
+        var identityOptions = new IdentityOptions();
+        var options = new Mock<IOptions<IdentityOptions>>();
+        options.Setup(a => a.Value).Returns(identityOptions);
+        var claimsFactory = new UserClaimsPrincipalFactory<PocoUser, PocoRole>(manager.Object, roleManager.Object, options.Object);
+        var logger = new TestLogger<SignInManager<PocoUser>>();
+        var helper = new SignInManager<PocoUser>(manager.Object, contextAccessor.Object, claimsFactory, options.Object, logger, new Mock<IAuthenticationSchemeProvider>().Object, new DefaultUserConfirmation<PocoUser>());
+
+        // Act
+        var result = await helper.PasswordSignInAsync(user.UserName, "[PLACEHOLDER]-bogus1", false, false);
+
+        // Assert
+        Assert.False(result.Succeeded);
+        Assert.True(result.IsLockedOut);
+        Assert.Contains($"User is currently locked out.", logger.LogMessages);
+        manager.Verify();
+    }
+
+    [Fact]
     public async Task CheckPasswordSignInReturnsLockedOutWhenLockedOut()
     {
         // Setup
@@ -956,7 +986,7 @@ public class SignInManagerTest
 
     [Theory]
     [MemberData(nameof(SignInManagerTypeNames))]
-    public async Task PasswordSignInFailsWhenResetLockoutFails(string signInManagerTypeName)
+    public async Task CheckPasswordSignInFailsWhenResetLockoutFails(string signInManagerTypeName)
     {
         // Setup
         var user = new PocoUser { UserName = "Foo" };
@@ -970,7 +1000,7 @@ public class SignInManagerTest
         var helper = SetupSignInManagerType(manager.Object, context, signInManagerTypeName);
 
         // Act
-        var result = await helper.PasswordSignInAsync(user.UserName, "[PLACEHOLDER]-1a", false, false);
+        var result = await helper.CheckPasswordSignInAsync(user, "[PLACEHOLDER]-1a", false);
 
         // Assert
         Assert.Same(SignInResult.Failed, result);
@@ -1033,7 +1063,7 @@ public class SignInManagerTest
         auth.Verify();
     }
 
-    public static object[][] ExpectedLockedOutSignInResultsForAccessFailedResults => new object[][]
+    public static object[][] ExpectedLockedOutSignInResultsGivenAccessFailedResults => new object[][]
     {
         new object[] { IdentityResult.Success, SignInResult.LockedOut },
         new object[] { null, SignInResult.LockedOut },
@@ -1041,8 +1071,8 @@ public class SignInManagerTest
     };
 
     [Theory]
-    [MemberData(nameof(ExpectedLockedOutSignInResultsForAccessFailedResults))]
-    public async Task PasswordSignInLockedOutResultIsDependentOnThenAccessFailedAsyncResult(IdentityResult accessFailedResult, SignInResult expectedSignInResult)
+    [MemberData(nameof(ExpectedLockedOutSignInResultsGivenAccessFailedResults))]
+    public async Task CheckPasswordSignInLockedOutResultIsDependentOnThenAccessFailedAsyncResult(IdentityResult accessFailedResult, SignInResult expectedSignInResult)
     {
         // Setup
         var isLockedOutCallCount = 0;
@@ -1059,7 +1089,7 @@ public class SignInManagerTest
         var helper = SetupSignInManager(manager.Object, context);
 
         // Act
-        var result = await helper.PasswordSignInAsync(user.UserName, "[PLACEHOLDER]-bogus1", false, lockoutOnFailure: true);
+        var result = await helper.CheckPasswordSignInAsync(user, "[PLACEHOLDER]-bogus1", lockoutOnFailure: true);
 
         // Assert
         Assert.Same(expectedSignInResult, result);

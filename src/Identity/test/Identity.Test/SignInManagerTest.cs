@@ -1072,7 +1072,7 @@ public class SignInManagerTest
 
     [Theory]
     [MemberData(nameof(ExpectedLockedOutSignInResultsGivenAccessFailedResults))]
-    public async Task CheckPasswordSignInLockedOutResultIsDependentOnThenAccessFailedAsyncResult(IdentityResult accessFailedResult, SignInResult expectedSignInResult)
+    public async Task CheckPasswordSignInLockedOutResultIsDependentOnTheAccessFailedAsyncResult(IdentityResult accessFailedResult, SignInResult expectedSignInResult)
     {
         // Setup
         var isLockedOutCallCount = 0;

@@ -901,7 +901,7 @@ public class SignInManager<TUser> where TUser : class
     {
         if (UserManager.SupportsUserLockout)
         {
-            // The IdentityResult should not be null according to the annotations, but our own tests return null  and I'm trying to limit breakages.
+            // The IdentityResult should not be null according to the annotations, but our own tests return null and I'm trying to limit breakages.
             var result = await UserManager.ResetAccessFailedCountAsync(user) ?? IdentityResult.Success;
 
             if (!result.Succeeded)

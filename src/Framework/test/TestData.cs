@@ -144,7 +144,6 @@ namespace Microsoft.AspNetCore
                 "System.Diagnostics.EventLog",
                 "System.Drawing.Common",
                 "System.IO.Pipelines",
-                "System.Security.Cryptography.Cng",
                 "System.Security.Cryptography.Pkcs",
                 "System.Security.Cryptography.Xml",
                 "System.Security.Permissions",

@@ -4,6 +4,7 @@
 using System.Linq;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.BearerToken;
 using Microsoft.AspNetCore.Authentication.BearerToken.DTO;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -12,6 +13,7 @@ using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.DTO;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.AspNetCore.Routing;
 
@@ -74,15 +76,44 @@ public static class IdentityApiEndpointRouteBuilderExtensions
             return TypedResults.SignIn(claimsPrincipal, authenticationScheme: scheme);
         });
 
-        routeGroup.MapPost("/refresh", Results<UnauthorizedHttpResult, Ok<AccessTokenResponse>, SignInHttpResult>
-            ([FromBody] RefreshRequest refresh, ClaimsPrincipal user) =>
+        routeGroup.MapPost("/refresh", async Task<Results<UnauthorizedHttpResult, Ok<AccessTokenResponse>, SignInHttpResult>>
+            ([FromBody] RefreshRequest refresh,
+             [FromServices] IOptionsSnapshot<BearerTokenOptions> optionsSnapshot,
+             [FromServices] TimeProvider timeProvider,
+             [FromServices] IServiceProvider services) =>
         {
-            var authProperties = new AuthenticationProperties()
-            {
-                RefreshToken = refresh.RefreshToken,
-            };
+            var identityBearerOptions = optionsSnapshot.Get(IdentityConstants.BearerScheme);
+            var tokenProtector = identityBearerOptions.TokenProtector ?? throw new InvalidOperationException("TokenProtector is not set.");
 
-            return TypedResults.SignIn(user, authProperties, IdentityConstants.BearerScheme);
+            if (refresh.RefreshToken is not { } refreshToken)
+            {
+                return TypedResults.Unauthorized();
+            }
+
+            var refreshTicket = tokenProtector.Unprotect(refresh.RefreshToken, "RefreshToken");
+
+            if (refreshTicket?.Properties?.ExpiresUtc is not { } expiration || timeProvider.GetUtcNow() >= expiration)
+            {
+                return TypedResults.Unauthorized();
+            }
+
+            if (refreshTicket?.Principal.FindFirst(ClaimTypes.NameIdentifier)?.Value is not { } id)
+            {
+                return TypedResults.Unauthorized();
+            }
+
+            var userManager = services.GetRequiredService<UserManager<TUser>>();
+            var user = await userManager.FindByIdAsync(id);
+
+            if (user is null)
+            {
+                return TypedResults.Unauthorized();
+            }
+
+            var claimsFactory = services.GetRequiredService<IUserClaimsPrincipalFactory<TUser>>();
+            var claimsPrincipal = await claimsFactory.CreateAsync(user);
+
+            return TypedResults.SignIn(claimsPrincipal, authenticationScheme: IdentityConstants.BearerScheme);
         });
 
         return new IdentityEndpointsConventionBuilder(routeGroup);

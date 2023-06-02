@@ -2,8 +2,11 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Diagnostics.CodeAnalysis;
+using System.Security.Claims;
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.BearerToken;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Logging;
@@ -41,14 +44,17 @@ public static class IdentityApiEndpointsServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configure);
 
-        services.AddAuthentication(IdentityConstants.BearerAndApplicationScheme)
-            .AddScheme<PolicySchemeOptions, CompositeIdentityHandler>(IdentityConstants.BearerAndApplicationScheme, null, o =>
+        services
+            .AddAuthentication(IdentityConstants.BearerAndApplicationScheme)
+            .AddScheme<AuthenticationSchemeOptions, CompositeIdentityHandler>(IdentityConstants.BearerAndApplicationScheme, null, compositeOptions =>
             {
-                o.ForwardDefault = IdentityConstants.BearerScheme;
-                o.ForwardAuthenticate = IdentityConstants.BearerAndApplicationScheme;
+                compositeOptions.ForwardDefault = IdentityConstants.BearerScheme;
+                compositeOptions.ForwardAuthenticate = IdentityConstants.BearerAndApplicationScheme;
             })
             .AddBearerToken(IdentityConstants.BearerScheme)
             .AddIdentityCookies();
+
+        services.AddSingleton<IConfigureNamedOptions<BearerTokenOptions>, BearerTokenOptionsSetup>();
 
         return services.AddIdentityCore<TUser>(o =>
             {
@@ -58,8 +64,23 @@ public static class IdentityApiEndpointsServiceCollectionExtensions
             .AddApiEndpoints();
     }
 
-    private sealed class CompositeIdentityHandler(IOptionsMonitor<PolicySchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder)
-        : PolicySchemeHandler(options, logger, encoder)
+    private sealed class BearerTokenOptionsSetup(IDataProtectionProvider dataProtectionProvider) : IConfigureNamedOptions<BearerTokenOptions>
+    {
+        public void Configure(string? name, BearerTokenOptions options)
+        {
+            if (name == IdentityConstants.BearerScheme)
+            {
+                options.TokenProtector ??= new TicketDataFormat(dataProtectionProvider.CreateProtector(IdentityConstants.BearerScheme));
+            }
+        }
+
+        public void Configure(BearerTokenOptions options)
+        {
+        }
+    }
+
+    private sealed class CompositeIdentityHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder)
+        : SignInAuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
     {
         protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
         {
@@ -73,6 +94,16 @@ public static class IdentityApiEndpointsServiceCollectionExtensions
 
             // Cookie auth will return AuthenticateResult.NoResult() like bearer auth just did if there is no cookie.
             return await Context.AuthenticateAsync(IdentityConstants.ApplicationScheme);
+        }
+
+        protected override Task HandleSignInAsync(ClaimsPrincipal user, AuthenticationProperties? properties)
+        {
+            throw new NotImplementedException();
+        }
+
+        protected override Task HandleSignOutAsync(AuthenticationProperties? properties)
+        {
+            throw new NotImplementedException();
         }
     }
 }

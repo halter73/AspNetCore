@@ -22,6 +22,7 @@ namespace Microsoft.AspNetCore.Routing;
 /// </summary>
 public static class IdentityApiEndpointRouteBuilderExtensions
 {
+
     /// <summary>
     /// Add endpoints for registering, logging in, and logging out using ASP.NET Core Identity.
     /// </summary>
@@ -76,44 +77,48 @@ public static class IdentityApiEndpointRouteBuilderExtensions
             return TypedResults.SignIn(claimsPrincipal, authenticationScheme: scheme);
         });
 
-        routeGroup.MapPost("/refresh", async Task<Results<UnauthorizedHttpResult, Ok<AccessTokenResponse>, SignInHttpResult>>
-            ([FromBody] RefreshRequest refresh,
-             [FromServices] IOptionsSnapshot<BearerTokenOptions> optionsSnapshot,
-             [FromServices] TimeProvider timeProvider,
-             [FromServices] IServiceProvider services) =>
+        routeGroup.MapPost("/refresh", Results<UnauthorizedHttpResult, Ok<AccessTokenResponse>, SignInHttpResult>
+            ([FromBody] RefreshRequest refreshRequest) =>
         {
-            var identityBearerOptions = optionsSnapshot.Get(IdentityConstants.BearerScheme);
-            var tokenProtector = identityBearerOptions.TokenProtector ?? throw new InvalidOperationException("TokenProtector is not set.");
+            //var identityBearerOptions = optionsSnapshot.Get(IdentityConstants.BearerScheme);
+            //var tokenProtector = identityBearerOptions.TokenProtector ?? throw new InvalidOperationException("TokenProtector is not set.");
 
-            if (refresh.RefreshToken is not { } refreshToken)
+            //if (refresh.RefreshToken is not { } refreshToken)
+            //{
+            //    return TypedResults.Unauthorized();
+            //}
+
+            //var refreshTicket = tokenProtector.Unprotect(refresh.RefreshToken, "RefreshToken");
+
+            //if (refreshTicket?.Properties?.ExpiresUtc is not { } expiration || timeProvider.GetUtcNow() >= expiration)
+            //{
+            //    return TypedResults.Unauthorized();
+            //}
+
+            //if (refreshTicket?.Principal.FindFirst(ClaimTypes.NameIdentifier)?.Value is not { } id)
+            //{
+            //    return TypedResults.Unauthorized();
+            //}
+
+            //var userManager = services.GetRequiredService<UserManager<TUser>>();
+            //var user = await userManager.FindByIdAsync(id);
+
+            //if (user is null)
+            //{
+            //    return TypedResults.Unauthorized();
+            //}
+
+            //var claimsFactory = services.GetRequiredService<IUserClaimsPrincipalFactory<TUser>>();
+            //var claimsPrincipal = await claimsFactory.CreateAsync(user);
+
+            // This is the minimal principal that IsAuthenticated. The BearerTokenHander will recreate the full principal
+            // from the refresh token if it is aple.
+            var refreshPrincipal =  new ClaimsPrincipal(new ClaimsIdentity(IdentityConstants.BearerScheme));
+            var properties = new AuthenticationProperties
             {
-                return TypedResults.Unauthorized();
-            }
-
-            var refreshTicket = tokenProtector.Unprotect(refresh.RefreshToken, "RefreshToken");
-
-            if (refreshTicket?.Properties?.ExpiresUtc is not { } expiration || timeProvider.GetUtcNow() >= expiration)
-            {
-                return TypedResults.Unauthorized();
-            }
-
-            if (refreshTicket?.Principal.FindFirst(ClaimTypes.NameIdentifier)?.Value is not { } id)
-            {
-                return TypedResults.Unauthorized();
-            }
-
-            var userManager = services.GetRequiredService<UserManager<TUser>>();
-            var user = await userManager.FindByIdAsync(id);
-
-            if (user is null)
-            {
-                return TypedResults.Unauthorized();
-            }
-
-            var claimsFactory = services.GetRequiredService<IUserClaimsPrincipalFactory<TUser>>();
-            var claimsPrincipal = await claimsFactory.CreateAsync(user);
-
-            return TypedResults.SignIn(claimsPrincipal, authenticationScheme: IdentityConstants.BearerScheme);
+                RefreshToken = refreshRequest.RefreshToken
+            };
+            return TypedResults.SignIn(refreshPrincipal, properties, IdentityConstants.BearerScheme);
         });
 
         return new IdentityEndpointsConventionBuilder(routeGroup);

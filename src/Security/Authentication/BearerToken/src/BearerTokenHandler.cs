@@ -25,6 +25,8 @@ internal sealed class BearerTokenHandler(
     private static readonly AuthenticateResult FailedUnprotectingToken = AuthenticateResult.Fail("Unprotected token failed");
     private static readonly AuthenticateResult TokenExpired = AuthenticateResult.Fail("Token expired");
 
+    private static readonly long OneSecondTicks = TimeSpan.FromSeconds(1).Ticks;
+
     private ISecureDataFormat<AuthenticationTicket> TokenProtector
         => Options.TokenProtector ?? new TicketDataFormat(dataProtectionProvider.CreateProtector("Microsoft.AspNetCore.Authentication.BearerToken", Scheme.Name));
 
@@ -72,10 +74,23 @@ internal sealed class BearerTokenHandler(
 
     protected override async Task HandleSignInAsync(ClaimsPrincipal user, AuthenticationProperties? properties)
     {
-        properties ??= new();
-
         var utcNow = TimeProvider.GetUtcNow();
+
+        properties ??= new();
         properties.ExpiresUtc ??= utcNow + Options.BearerTokenExpiration;
+
+        if (properties.RefreshToken is string refreshToken)
+        {
+            var refreshTicket = TokenProtector.Unprotect(refreshToken, RefreshTokenPurpose);
+
+            if (refreshTicket?.Properties?.ExpiresUtc is not { } expiration || TimeProvider.GetUtcNow() >= expiration)
+            {
+                await ChallengeAsync(properties);
+                return;
+            }
+
+            user = refreshTicket.Principal;
+        }
 
         var signingInContext = new SigningInContext(
             Context,
@@ -86,37 +101,23 @@ internal sealed class BearerTokenHandler(
 
         await Events.SigningInAsync(signingInContext);
 
+        if (signingInContext.Principal?.Identity?.Name is null)
+        {
+            await ChallengeAsync(properties);
+            return;
+        }
+
         var response = new AccessTokenResponse
         {
-            AccessToken = signingInContext.AccessToken
-                ?? TokenProtector.Protect(new AuthenticationTicket(user, properties, Scheme.Name), BearerTokenPurpose),
-            ExpiresInTotalSeconds = (long)Math.Round(properties.ExpiresUtc switch
-            {
-                DateTimeOffset expiration => (expiration - utcNow).TotalSeconds,
-                _ => Options.BearerTokenExpiration.TotalSeconds,
-            }),
-            RefreshToken = signingInContext.RefreshToken
-                ?? TokenProtector.Protect(CreateRefreshTicket(user, utcNow), RefreshTokenPurpose),
+            AccessToken = signingInContext.AccessToken ?? TokenProtector.Protect(CreateAccessTicket(signingInContext), BearerTokenPurpose),
+            // Properties round to the nearest second
+            ExpiresInTotalSeconds = CalculateExpiresIn(utcNow, signingInContext.Properties.ExpiresUtc),
+            RefreshToken = signingInContext.RefreshToken ?? TokenProtector.Protect(CreateRefreshTicket(user, utcNow), RefreshTokenPurpose),
         };
 
         await Context.Response.WriteAsJsonAsync(response, BearerTokenJsonSerializerContext.Default.AccessTokenResponse);
-    }
 
-    private AuthenticationTicket CreateRefreshTicket(ClaimsPrincipal user, DateTimeOffset utcNow)
-    {
-        var refreshProperties = new AuthenticationProperties
-        {
-            ExpiresUtc = utcNow + Options.RefreshTokenExpiration
-        };
-
-        var refreshPrincipal = new ClaimsPrincipal(new ClaimsIdentity(new[]
-        {
-            user.FindFirst(ClaimTypes.NameIdentifier) ?? throw new ArgumentException(null, nameof(user)),
-            // TODO: Use ClaimsIdentityOptions.SecurityStampClaimType
-            user.FindFirst("AspNet.Identity.SecurityStamp") ?? throw new ArgumentException(null, nameof(user)),
-        }));
-
-        return new AuthenticationTicket(user, refreshProperties, $"{Scheme.Name}:{RefreshTokenPurpose}");
+        Logger.AuthenticationSchemeSignedIn(Scheme.Name);
     }
 
     // No-op to avoid interfering with any mass sign-out logic.
@@ -129,5 +130,36 @@ internal sealed class BearerTokenHandler(
         return authorization.StartsWith("Bearer ", StringComparison.Ordinal)
             ? authorization["Bearer ".Length..]
             : null;
+    }
+
+    private long CalculateExpiresIn(DateTimeOffset utcNow, DateTimeOffset? expiresUtc)
+    {
+        static DateTimeOffset FloorSeconds(DateTimeOffset dateTimeOffset)
+            => new(dateTimeOffset.Ticks / OneSecondTicks * OneSecondTicks, dateTimeOffset.Offset);
+
+        // AuthenticationProperties floors ExpiresUtc. If this remains unchanged, we'll use BearerTokenExpiration directly
+        // to produce a consistent ExpiresInTotalSeconds values. If ExpiresUtc was overridden, we just calculate the
+        // the difference from utcNow and round even though this will likely result in unstable values.
+        var expiresTimeSpan = Options.BearerTokenExpiration;
+        var expectedExpiresUtc = FloorSeconds(utcNow + expiresTimeSpan);
+        return (long)(expiresUtc switch
+        {
+            DateTimeOffset d when d == expectedExpiresUtc => expiresTimeSpan.TotalSeconds,
+            DateTimeOffset d => (d - utcNow).TotalSeconds,
+            _ => expiresTimeSpan.TotalSeconds,
+        });
+    }
+
+    private static AuthenticationTicket CreateAccessTicket(SigningInContext context)
+        => new(context.Principal!, context.Properties, context.Scheme.Name);
+
+    private AuthenticationTicket CreateRefreshTicket(ClaimsPrincipal user, DateTimeOffset utcNow)
+    {
+        var refreshProperties = new AuthenticationProperties
+        {
+            ExpiresUtc = utcNow + Options.RefreshTokenExpiration
+        };
+
+        return new AuthenticationTicket(user, refreshProperties, $"{Scheme.Name}:{RefreshTokenPurpose}");
     }
 }

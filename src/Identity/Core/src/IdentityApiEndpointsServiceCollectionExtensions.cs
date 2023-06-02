@@ -54,7 +54,7 @@ public static class IdentityApiEndpointsServiceCollectionExtensions
             .AddBearerToken(IdentityConstants.BearerScheme)
             .AddIdentityCookies();
 
-        services.AddSingleton<IConfigureNamedOptions<BearerTokenOptions>, BearerTokenOptionsSetup>();
+        services.AddSingleton<IConfigureNamedOptions<BearerTokenOptions>, BearerTokenSecurityStampValidator<TUser>>();
 
         return services.AddIdentityCore<TUser>(o =>
             {
@@ -64,13 +64,24 @@ public static class IdentityApiEndpointsServiceCollectionExtensions
             .AddApiEndpoints();
     }
 
-    private sealed class BearerTokenOptionsSetup(IDataProtectionProvider dataProtectionProvider) : IConfigureNamedOptions<BearerTokenOptions>
+    private sealed class BearerTokenSecurityStampValidator<TUser>(SignInManager<TUser> signInManager)
+        : IConfigureNamedOptions<BearerTokenOptions> where TUser : class, new()
     {
         public void Configure(string? name, BearerTokenOptions options)
         {
             if (name == IdentityConstants.BearerScheme)
             {
-                options.TokenProtector ??= new TicketDataFormat(dataProtectionProvider.CreateProtector(IdentityConstants.BearerScheme));
+                options.Events.OnSigningIn = async signInContext =>
+                {
+                    if (signInManager.ValidateSecurityStampAsync(signInContext.Principal) is not TUser user)
+                    {
+                        
+                        signInContext.Principal = null;
+                        return;
+                    }
+
+                    signInContext.Principal = await signInManager.CreateUserPrincipalAsync(user);
+                };
             }
         }
 

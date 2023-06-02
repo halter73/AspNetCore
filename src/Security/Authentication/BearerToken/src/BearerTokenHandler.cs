@@ -26,7 +26,7 @@ internal sealed class BearerTokenHandler(
     private static readonly AuthenticateResult TokenExpired = AuthenticateResult.Fail("Token expired");
 
     private ISecureDataFormat<AuthenticationTicket> TokenProtector
-        => Options.TokenProtector ?? new TicketDataFormat(dataProtectionProvider.CreateProtector("Microsoft.AspNetCore.Authentication.BearerToken"));
+        => Options.TokenProtector ?? new TicketDataFormat(dataProtectionProvider.CreateProtector("Microsoft.AspNetCore.Authentication.BearerToken", Scheme.Name));
 
     private new BearerTokenEvents Events => (BearerTokenEvents)base.Events!;
 
@@ -37,7 +37,7 @@ internal sealed class BearerTokenHandler(
 
         await Events.MessageReceived(messageReceivedContext);
 
-        if (messageReceivedContext.Result != null)
+        if (messageReceivedContext.Result is not null)
         {
             return messageReceivedContext.Result;
         }
@@ -51,12 +51,12 @@ internal sealed class BearerTokenHandler(
 
         var ticket = TokenProtector.Unprotect(token, BearerTokenPurpose);
 
-        if (ticket?.Properties?.ExpiresUtc is null)
+        if (ticket?.Properties?.ExpiresUtc is not { } expiration)
         {
             return FailedUnprotectingToken;
         }
 
-        if (TimeProvider.GetUtcNow() >= ticket.Properties.ExpiresUtc)
+        if (TimeProvider.GetUtcNow() >= expiration)
         {
             return TokenExpired;
         }
@@ -76,6 +76,20 @@ internal sealed class BearerTokenHandler(
         var utcNow = TimeProvider.GetUtcNow();
 
         properties ??= new();
+
+        if (properties.RefreshToken is not null)
+        {
+            var refreshTicket = TokenProtector.Unprotect(properties.RefreshToken, RefreshTokenPurpose);
+
+            if (
+                refreshTicket?.Properties?.ExpiresUtc is not { } expiration
+                || TimeProvider.GetUtcNow() >= expiration
+                || refreshTicket?.Principal.FindFirst(ClaimTypes.NameIdentifier) is not { } idClaim
+                || idClaim.Value != user.FindFirst(ClaimTypes.NameIdentifier)?.Value)
+            {
+                return Context.ChallengeAsync();
+            }
+        }
 
         if (properties.ExpiresUtc is null)
         {

@@ -2,6 +2,8 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Linq;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.BearerToken.DTO;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -72,9 +74,15 @@ public static class IdentityApiEndpointRouteBuilderExtensions
             return TypedResults.SignIn(claimsPrincipal, authenticationScheme: scheme);
         });
 
-        routeGroup.MapPost("/refresh", async Task<Results<UnauthorizedHttpResult, Ok>> () =>
+        routeGroup.MapPost("/refresh", Results<UnauthorizedHttpResult, Ok<AccessTokenResponse>, SignInHttpResult>
+            ([FromBody] RefreshRequest refresh, ClaimsPrincipal user) =>
         {
-            return TypedResults.Ok();
+            var authProperties = new AuthenticationProperties()
+            {
+                RefreshToken = refresh.RefreshToken,
+            };
+
+            return TypedResults.SignIn(user, authProperties, IdentityConstants.BearerScheme);
         });
 
         return new IdentityEndpointsConventionBuilder(routeGroup);

@@ -16,18 +16,17 @@ internal sealed class BearerTokenHandler(
     IOptionsMonitor<BearerTokenOptions> optionsMonitor,
     ILoggerFactory loggerFactory,
     UrlEncoder urlEncoder,
-#pragma warning disable IDE0060 // Remove unused parameter. False positive fixed by https://github.com/dotnet/roslyn/pull/67167
     IDataProtectionProvider dataProtectionProvider)
-#pragma warning restore IDE0060 // Remove unused parameter
     : SignInAuthenticationHandler<BearerTokenOptions>(optionsMonitor, loggerFactory, urlEncoder)
 {
-    private const string BearerTokenPurpose = $"Microsoft.AspNetCore.Authentication.BearerToken:v1:BearerToken";
+    private const string BearerTokenPurpose = "BearerToken";
+    private const string RefreshTokenPurpose = "RefreshToken";
 
     private static readonly AuthenticateResult FailedUnprotectingToken = AuthenticateResult.Fail("Unprotected token failed");
     private static readonly AuthenticateResult TokenExpired = AuthenticateResult.Fail("Token expired");
 
-    private ISecureDataFormat<AuthenticationTicket> BearerTokenProtector
-        => Options.BearerTokenProtector ?? new TicketDataFormat(dataProtectionProvider.CreateProtector(BearerTokenPurpose));
+    private ISecureDataFormat<AuthenticationTicket> TokenProtector
+        => Options.TokenProtector ?? new TicketDataFormat(dataProtectionProvider.CreateProtector("Microsoft.AspNetCore.Authentication.BearerToken"));
 
     private new BearerTokenEvents Events => (BearerTokenEvents)base.Events!;
 
@@ -50,7 +49,7 @@ internal sealed class BearerTokenHandler(
             return AuthenticateResult.NoResult();
         }
 
-        var ticket = BearerTokenProtector.Unprotect(token);
+        var ticket = TokenProtector.Unprotect(token, BearerTokenPurpose);
 
         if (ticket?.Properties?.ExpiresUtc is null)
         {
@@ -88,14 +87,32 @@ internal sealed class BearerTokenHandler(
             expiresInTotalSeconds = (long)(properties.ExpiresUtc.Value - utcNow).TotalSeconds;
         }
 
-        var ticket = new AuthenticationTicket(user, properties, Scheme.Name);
+        var accessTicket = new AuthenticationTicket(user, properties, Scheme.Name);
         var accessTokenResponse = new AccessTokenResponse
         {
-            AccessToken = BearerTokenProtector.Protect(ticket),
+            AccessToken = TokenProtector.Protect(accessTicket, BearerTokenPurpose),
             ExpiresInTotalSeconds = expiresInTotalSeconds,
+            RefreshToken = TokenProtector.Protect(CreateRefreshTicket(user, utcNow), RefreshTokenPurpose),
         };
 
         return Context.Response.WriteAsJsonAsync(accessTokenResponse, BearerTokenJsonSerializerContext.Default.AccessTokenResponse);
+    }
+
+    private AuthenticationTicket CreateRefreshTicket(ClaimsPrincipal user, DateTimeOffset utcNow)
+    {
+        var refreshProperties = new AuthenticationProperties
+        {
+            ExpiresUtc = utcNow + Options.RefreshTokenExpiration
+        };
+
+        var refreshPrincipal = new ClaimsPrincipal(new ClaimsIdentity(new[]
+        {
+            user.FindFirst(ClaimTypes.NameIdentifier) ?? throw new ArgumentException(null, nameof(user)),
+            // TODO: Use ClaimsIdentityOptions.SecurityStampClaimType
+            user.FindFirst("AspNet.Identity.SecurityStamp") ?? throw new ArgumentException(null, nameof(user)),
+        }));
+
+        return new AuthenticationTicket(refreshPrincipal, refreshProperties, $"{Scheme.Name}:{RefreshTokenPurpose}");
     }
 
     // No-op to avoid interfering with any mass sign-out logic.

@@ -72,6 +72,11 @@ public static class IdentityApiEndpointRouteBuilderExtensions
             return TypedResults.SignIn(claimsPrincipal, authenticationScheme: scheme);
         });
 
+        routeGroup.MapPost("/refresh", async Task<Results<UnauthorizedHttpResult, Ok>> () =>
+        {
+            return TypedResults.Ok();
+        });
+
         return new IdentityEndpointsConventionBuilder(routeGroup);
     }
 

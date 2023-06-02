@@ -35,7 +35,7 @@ internal sealed class BearerTokenHandler(
         // Give application opportunity to find from a different location, adjust, or reject token
         var messageReceivedContext = new MessageReceivedContext(Context, Scheme, Options);
 
-        await Events.MessageReceived(messageReceivedContext);
+        await Events.MessageReceivedAsync(messageReceivedContext);
 
         if (messageReceivedContext.Result is not null)
         {
@@ -70,46 +70,36 @@ internal sealed class BearerTokenHandler(
         await base.HandleChallengeAsync(properties);
     }
 
-    protected override Task HandleSignInAsync(ClaimsPrincipal user, AuthenticationProperties? properties)
+    protected override async Task HandleSignInAsync(ClaimsPrincipal user, AuthenticationProperties? properties)
     {
-        long expiresInTotalSeconds;
-        var utcNow = TimeProvider.GetUtcNow();
-
         properties ??= new();
 
-        if (properties.RefreshToken is not null)
-        {
-            var refreshTicket = TokenProtector.Unprotect(properties.RefreshToken, RefreshTokenPurpose);
+        var utcNow = TimeProvider.GetUtcNow();
+        properties.ExpiresUtc ??= utcNow + Options.BearerTokenExpiration;
 
-            if (
-                refreshTicket?.Properties?.ExpiresUtc is not { } expiration
-                || TimeProvider.GetUtcNow() >= expiration
-                || refreshTicket?.Principal.FindFirst(ClaimTypes.NameIdentifier) is not { } idClaim
-                || idClaim.Value != user.FindFirst(ClaimTypes.NameIdentifier)?.Value)
+        var signingInContext = new SigningInContext(
+            Context,
+            Scheme,
+            Options,
+            user,
+            properties);
+
+        await Events.SigningInAsync(signingInContext);
+
+        var response = new AccessTokenResponse
+        {
+            AccessToken = signingInContext.AccessToken
+                ?? TokenProtector.Protect(new AuthenticationTicket(user, properties, Scheme.Name), BearerTokenPurpose),
+            ExpiresInTotalSeconds = (long)Math.Round(properties.ExpiresUtc switch
             {
-                return Context.ChallengeAsync();
-            }
-        }
-
-        if (properties.ExpiresUtc is null)
-        {
-            properties.ExpiresUtc ??= utcNow + Options.BearerTokenExpiration;
-            expiresInTotalSeconds = (long)Options.BearerTokenExpiration.TotalSeconds;
-        }
-        else
-        {
-            expiresInTotalSeconds = (long)(properties.ExpiresUtc.Value - utcNow).TotalSeconds;
-        }
-
-        var accessTicket = new AuthenticationTicket(user, properties, Scheme.Name);
-        var accessTokenResponse = new AccessTokenResponse
-        {
-            AccessToken = TokenProtector.Protect(accessTicket, BearerTokenPurpose),
-            ExpiresInTotalSeconds = expiresInTotalSeconds,
-            RefreshToken = TokenProtector.Protect(CreateRefreshTicket(user, utcNow), RefreshTokenPurpose),
+                DateTimeOffset expiration => (expiration - utcNow).TotalSeconds,
+                _ => Options.BearerTokenExpiration.TotalSeconds,
+            }),
+            RefreshToken = signingInContext.RefreshToken
+                ?? TokenProtector.Protect(CreateRefreshTicket(user, utcNow), RefreshTokenPurpose),
         };
 
-        return Context.Response.WriteAsJsonAsync(accessTokenResponse, BearerTokenJsonSerializerContext.Default.AccessTokenResponse);
+        await Context.Response.WriteAsJsonAsync(response, BearerTokenJsonSerializerContext.Default.AccessTokenResponse);
     }
 
     private AuthenticationTicket CreateRefreshTicket(ClaimsPrincipal user, DateTimeOffset utcNow)
@@ -126,7 +116,7 @@ internal sealed class BearerTokenHandler(
             user.FindFirst("AspNet.Identity.SecurityStamp") ?? throw new ArgumentException(null, nameof(user)),
         }));
 
-        return new AuthenticationTicket(refreshPrincipal, refreshProperties, $"{Scheme.Name}:{RefreshTokenPurpose}");
+        return new AuthenticationTicket(user, refreshProperties, $"{Scheme.Name}:{RefreshTokenPurpose}");
     }
 
     // No-op to avoid interfering with any mass sign-out logic.

@@ -122,8 +122,8 @@ public class AuthenticationProperties
     /// </summary>
     public string? RefreshToken
     {
-        get => GetString(RefreshTokenKey);
-        set => SetString(RefreshTokenKey, value);
+        get => GetParameter<string?>(RefreshTokenKey);
+        set => SetParameter<string?>(RefreshTokenKey, value);
     }
 
     /// <summary>

@@ -6,7 +6,6 @@ using System.Security.Claims;
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.BearerToken;
-using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Logging;
@@ -68,18 +67,18 @@ public static class IdentityApiEndpointsServiceCollectionExtensions
     private static async Task HandleSigningIn<TUser>(SigningInContext signInContext)
         where TUser : class, new()
     {
-        if (!signInContext.IsRefresh)
+        // Only validate the security stamp and refresh the user from the store during /refresh
+        // not during the initial /login when the Principal is already newly created from the store.
+        if (signInContext.Properties.RefreshToken is null)
         {
-            // Only validate the security stamp and refresh the user from the store during /refresh
-            // not during the initial /login when the Principal is already newly created from the store.
             return;
         }
 
         var signInManager = signInContext.HttpContext.RequestServices.GetRequiredService<SignInManager<TUser>>();
 
+        // Reject the /refresh attempt if the security stamp validation fails which will result in a 401 challenge.
         if (await signInManager.ValidateSecurityStampAsync(signInContext.Principal) is not TUser user)
         {
-            // Reject the /refresh attempt if the security stamp validation fails which will result in a 401 challenge.
             signInContext.Principal = null;
             return;
         }

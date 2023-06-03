@@ -91,12 +91,9 @@ internal sealed class BearerTokenHandler(
             }
 
             user = refreshTicket.Principal;
-
-            // Avoid serializing the refresh token as part of the access token.
-            properties.RefreshToken = null;
         }
 
-        var signingInContext = new SigningInContext(Context, Scheme, Options, user, isRefresh, properties);
+        var signingInContext = new SigningInContext(Context, Scheme, Options, user, properties);
 
         await Events.SigningInAsync(signingInContext);
 

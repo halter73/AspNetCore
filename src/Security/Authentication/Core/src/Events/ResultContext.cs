@@ -9,8 +9,10 @@ namespace Microsoft.AspNetCore.Authentication;
 /// <summary>
 /// Base context for events that produce AuthenticateResults.
 /// </summary>
-public abstract class ResultContext<TOptions> : PrincipalContext<TOptions> where TOptions : AuthenticationSchemeOptions
+public abstract class ResultContext<TOptions> : BaseContext<TOptions> where TOptions : AuthenticationSchemeOptions
 {
+    private AuthenticationProperties? _properties;
+
     /// <summary>
     /// Initializes a new instance of <see cref="ResultContext{TOptions}"/>.
     /// </summary>
@@ -18,7 +20,25 @@ public abstract class ResultContext<TOptions> : PrincipalContext<TOptions> where
     /// <param name="scheme">The authentication scheme.</param>
     /// <param name="options">The authentication options associated with the scheme.</param>
     protected ResultContext(HttpContext context, AuthenticationScheme scheme, TOptions options)
-        : base(context, scheme, options, properties: null) { }
+        : base(context, scheme, options) { }
+
+    /// <summary>
+    /// Gets or sets the <see cref="ClaimsPrincipal"/> containing the user claims.
+    /// </summary>
+    public ClaimsPrincipal? Principal { get; set; }
+
+    /// <summary>
+    /// Gets or sets the <see cref="AuthenticationProperties"/>.
+    /// </summary>
+    public AuthenticationProperties Properties
+    {
+        get
+        {
+            _properties ??= new AuthenticationProperties();
+            return _properties;
+        }
+        set => _properties = value;
+    }
 
     /// <summary>
     /// Gets the <see cref="AuthenticateResult"/> result.

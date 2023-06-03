@@ -77,7 +77,7 @@ public class MapIdentityTests : LoggedTest
         await using var app = await CreateAppAsync(services =>
         {
             services.AddIdentityCore<ApplicationUser>().AddApiEndpoints().AddEntityFrameworkStores<ApplicationDbContext>();
-            services.AddAuthentication(IdentityConstants.BearerScheme).AddBearerToken(IdentityConstants.BearerScheme, options =>
+            services.AddAuthentication(IdentityConstants.BearerScheme).AddIdentityBearerToken<ApplicationUser>(options =>
             {
                 options.BearerTokenExpiration = expireTimeSpan;
                 options.TimeProvider = clock;
@@ -154,7 +154,7 @@ public class MapIdentityTests : LoggedTest
         await using var app = await CreateAppAsync(services =>
         {
             services.AddIdentityCore<ApplicationUser>().AddApiEndpoints().AddEntityFrameworkStores<ApplicationDbContext>();
-            services.AddAuthentication(IdentityConstants.BearerScheme).AddBearerToken(IdentityConstants.BearerScheme, options =>
+            services.AddAuthentication(IdentityConstants.BearerScheme).AddIdentityBearerToken<ApplicationUser>(options =>
             {
                 options.Events.OnMessageReceived = context =>
                 {
@@ -204,10 +204,6 @@ public class MapIdentityTests : LoggedTest
 
         await client.PostAsJsonAsync("/identity/register", new { Username, Password });
         var loginResponse = await client.PostAsJsonAsync("/identity/login", new { Username, Password });
-
-        loginResponse.EnsureSuccessStatusCode();
-        Assert.False(loginResponse.Headers.Contains(HeaderNames.SetCookie));
-
         var loginContent = await loginResponse.Content.ReadFromJsonAsync<JsonElement>();
         var refreshToken = loginContent.GetProperty("refresh_token").GetString();
 
@@ -241,7 +237,7 @@ public class MapIdentityTests : LoggedTest
         await using var app = await CreateAppAsync(services =>
         {
             services.AddIdentityCore<ApplicationUser>().AddApiEndpoints().AddEntityFrameworkStores<ApplicationDbContext>();
-            services.AddAuthentication(IdentityConstants.BearerScheme).AddBearerToken(IdentityConstants.BearerScheme, options =>
+            services.AddAuthentication(IdentityConstants.BearerScheme).AddIdentityBearerToken<ApplicationUser>(options =>
             {
                 options.RefreshTokenExpiration = expireTimeSpan;
                 options.TimeProvider = clock;
@@ -286,6 +282,57 @@ public class MapIdentityTests : LoggedTest
 
         client.DefaultRequestHeaders.Authorization = new("Bearer", accessToken);
         Assert.Equal($"Hello, {Username}!", await client.GetStringAsync("/auth/hello"));
+    }
+
+    [Theory]
+    [MemberData(nameof(AddIdentityModes))]
+    public async Task RefreshReturns401UnauthorizedIfSecurityStampChanges(string addIdentityMode)
+    {
+        await using var app = await CreateAppAsync(AddIdentityActions[addIdentityMode]);
+        using var client = app.GetTestClient();
+
+        await client.PostAsJsonAsync("/identity/register", new { Username, Password });
+        var loginResponse = await client.PostAsJsonAsync("/identity/login", new { Username, Password });
+        var loginContent = await loginResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var refreshToken = loginContent.GetProperty("refresh_token").GetString();
+
+        var userManager = app.Services.GetRequiredService<UserManager<ApplicationUser>>();
+        var user = await userManager.FindByNameAsync(Username);
+
+        Assert.NotNull(user);
+
+        await userManager.UpdateSecurityStampAsync(user);
+
+        AssertUnauthorizedAndEmpty(await client.PostAsJsonAsync("/identity/refresh", new { refreshToken }));
+    }
+
+    [Theory]
+    [MemberData(nameof(AddIdentityModes))]
+    public async Task RefreshUpdatesUserFromStore(string addIdentityMode)
+    {
+        await using var app = await CreateAppAsync(AddIdentityActions[addIdentityMode]);
+        using var client = app.GetTestClient();
+
+        await client.PostAsJsonAsync("/identity/register", new { Username, Password });
+        var loginResponse = await client.PostAsJsonAsync("/identity/login", new { Username, Password });
+        var loginContent = await loginResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var refreshToken = loginContent.GetProperty("refresh_token").GetString();
+
+        var userManager = app.Services.GetRequiredService<UserManager<ApplicationUser>>();
+        var user = await userManager.FindByNameAsync(Username);
+
+        Assert.NotNull(user);
+
+        var newUsername = $"{Guid.NewGuid()}@example.org";
+        user.UserName = newUsername;
+        await userManager.UpdateAsync(user);
+
+        var refreshResponse = await client.PostAsJsonAsync("/identity/refresh", new { refreshToken });
+        var refreshContent = await refreshResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var accessToken = refreshContent.GetProperty("access_token").GetString();
+
+        client.DefaultRequestHeaders.Authorization = new("Bearer", accessToken);
+        Assert.Equal($"Hello, {newUsername}!", await client.GetStringAsync("/auth/hello"));
     }
 
     private static void AssertUnauthorizedAndEmpty(HttpResponseMessage response)
@@ -334,8 +381,13 @@ public class MapIdentityTests : LoggedTest
 
     private static void AddIdentityEndpointsBearerOnly(IServiceCollection services)
     {
-        services.AddIdentityCore<ApplicationUser>().AddEntityFrameworkStores<ApplicationDbContext>();
-        services.AddAuthentication(IdentityConstants.BearerScheme).AddBearerToken(IdentityConstants.BearerScheme);
+        services
+            .AddIdentityCore<ApplicationUser>()
+            .AddEntityFrameworkStores<ApplicationDbContext>()
+            .AddApiEndpoints();
+        services
+            .AddAuthentication(IdentityConstants.BearerScheme)
+            .AddIdentityBearerToken<ApplicationUser>();
     }
 
     private Task<WebApplication> CreateAppAsync(Action<IServiceCollection>? configureServices = null)

@@ -51,10 +51,11 @@ public static class IdentityApiEndpointsServiceCollectionExtensions
                 compositeOptions.ForwardDefault = IdentityConstants.BearerScheme;
                 compositeOptions.ForwardAuthenticate = IdentityConstants.BearerAndApplicationScheme;
             })
-            .AddBearerToken(IdentityConstants.BearerScheme)
+            .AddBearerToken(IdentityConstants.BearerScheme, bearerOptions =>
+            {
+                bearerOptions.Events.OnSigningIn = HandleSigningIn<TUser>;
+            })
             .AddIdentityCookies();
-
-        services.AddSingleton<IConfigureNamedOptions<BearerTokenOptions>, BearerTokenSecurityStampValidator<TUser>>();
 
         return services.AddIdentityCore<TUser>(o =>
             {
@@ -64,30 +65,26 @@ public static class IdentityApiEndpointsServiceCollectionExtensions
             .AddApiEndpoints();
     }
 
-    private sealed class BearerTokenSecurityStampValidator<TUser>(SignInManager<TUser> signInManager)
-        : IConfigureNamedOptions<BearerTokenOptions> where TUser : class, new()
+    private static async Task HandleSigningIn<TUser>(SigningInContext signInContext)
+        where TUser : class, new()
     {
-        public void Configure(string? name, BearerTokenOptions options)
+        if (signInContext.Properties.RefreshToken is null)
         {
-            if (name == IdentityConstants.BearerScheme)
-            {
-                options.Events.OnSigningIn = async signInContext =>
-                {
-                    if (signInManager.ValidateSecurityStampAsync(signInContext.Principal) is not TUser user)
-                    {
-                        
-                        signInContext.Principal = null;
-                        return;
-                    }
-
-                    signInContext.Principal = await signInManager.CreateUserPrincipalAsync(user);
-                };
-            }
+            // Only validate the security stamp and refresh the user from the store during /refresh
+            // not during the initial /login when the Principal is already newly created from the store.
+            return;
         }
 
-        public void Configure(BearerTokenOptions options)
+        var signInManager = signInContext.HttpContext.RequestServices.GetRequiredService<SignInManager<TUser>>();
+
+        if (await signInManager.ValidateSecurityStampAsync(signInContext.Principal) is not TUser user)
         {
+            // Reject the /refresh attempt if the security stamp validation fails which will result in a 401 challenge.
+            signInContext.Principal = null;
+            return;
         }
+
+        signInContext.Principal = await signInManager.CreateUserPrincipalAsync(user);
     }
 
     private sealed class CompositeIdentityHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder)

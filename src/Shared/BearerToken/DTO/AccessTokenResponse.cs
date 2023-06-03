@@ -33,10 +33,10 @@ internal sealed class AccessTokenResponse
     /// The number of seconds before the <see cref="AccessToken"/> expires.
     /// </summary>
     /// <remarks>
-    /// This is serialized as "expires_in": "{ExpiresInTotalSeconds}" using System.Text.Json.
+    /// This is serialized as "expires_in": "{ExpiresInSeconds}" using System.Text.Json.
     /// </remarks>
     [JsonPropertyName("expires_in")]
-    public required long ExpiresInTotalSeconds { get; init; }
+    public required long ExpiresInSeconds { get; init; }
 
     /// <summary>
     /// If set, this provides the ability to get a new access_token after it expires using a refresh endpoint.

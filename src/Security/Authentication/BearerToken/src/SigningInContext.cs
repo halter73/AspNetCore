@@ -18,27 +18,35 @@ public class SigningInContext : PrincipalContext<BearerTokenOptions>
     /// <param name="scheme">The scheme data</param>
     /// <param name="options">The handler options</param>
     /// <param name="principal">Initializes Principal property</param>
+    /// <param name="isRefresh">Initializes <see cref="IsRefresh"/> indicating a refresh token was used to sign in.</param>
     /// <param name="properties">The authentication properties.</param>
     public SigningInContext(
         HttpContext context,
         AuthenticationScheme scheme,
         BearerTokenOptions options,
         ClaimsPrincipal principal,
+        bool isRefresh,
         AuthenticationProperties? properties)
         : base(context, scheme, options, properties)
     {
+        IsRefresh = isRefresh;
         Principal = principal;
     }
 
     /// <summary>
-    /// The opaque bearer token written the "access_token" JSON property of the response body.
+    /// <see langword="true"/> if the sign in operation set <see cref="AuthenticationProperties.RefreshToken"/>.
+    /// </summary>
+    public bool IsRefresh { get; }
+
+    /// <summary>
+    /// The opaque bearer token to be written to the JSON response body as the "access_token".
     /// If left unset, one will be generated automatically.
     /// This should later be sent as part of the Authorization request header.
     /// </summary>
     public string? AccessToken { get; set; }
 
     /// <summary>
-    /// The opaque refresh token written the "refresh_token" JSON property of the response body.
+    /// The opaque refresh token written the to the JSON response body as the "refresh_token".
     /// If left unset, it will be generated automatically.
     /// This should later be sent as part of a request to refresh the <see cref="AccessToken"/>
     /// </summary>

@@ -53,12 +53,12 @@ internal sealed class BearerTokenHandler(
 
         var ticket = TokenProtector.Unprotect(token, BearerTokenPurpose);
 
-        if (ticket?.Properties?.ExpiresUtc is not { } expiration)
+        if (ticket?.Properties?.ExpiresUtc is not { } expiresUtc)
         {
             return FailedUnprotectingToken;
         }
 
-        if (TimeProvider.GetUtcNow() >= expiration)
+        if (TimeProvider.GetUtcNow() >= expiresUtc)
         {
             return TokenExpired;
         }
@@ -78,22 +78,25 @@ internal sealed class BearerTokenHandler(
 
         properties ??= new();
         properties.ExpiresUtc ??= utcNow + Options.BearerTokenExpiration;
-        var refreshToken = properties.RefreshToken;
+        var isRefresh = properties.RefreshToken is not null;
 
-        if (refreshToken is not null)
+        if (isRefresh)
         {
-            var refreshTicket = TokenProtector.Unprotect(refreshToken, RefreshTokenPurpose);
+            var refreshTicket = TokenProtector.Unprotect(properties.RefreshToken, RefreshTokenPurpose);
 
-            if (refreshTicket?.Properties?.ExpiresUtc is not { } expiration || TimeProvider.GetUtcNow() >= expiration)
+            if (refreshTicket?.Properties?.ExpiresUtc is not { } expiresUtc || TimeProvider.GetUtcNow() >= expiresUtc)
             {
                 await ChallengeAsync(properties);
                 return;
             }
 
             user = refreshTicket.Principal;
+
+            // Avoid serializing the refresh token as part of the access token.
+            properties.RefreshToken = null;
         }
 
-        var signingInContext = new SigningInContext(Context, Scheme, Options, user, properties);
+        var signingInContext = new SigningInContext(Context, Scheme, Options, user, isRefresh, properties);
 
         await Events.SigningInAsync(signingInContext);
 
@@ -106,20 +109,19 @@ internal sealed class BearerTokenHandler(
         var response = new AccessTokenResponse
         {
             AccessToken = signingInContext.AccessToken ?? TokenProtector.Protect(CreateAccessTicket(signingInContext), BearerTokenPurpose),
-            // Properties round to the nearest second
             ExpiresInSeconds = CalculateExpiresInSeconds(utcNow, signingInContext.Properties.ExpiresUtc),
             RefreshToken = signingInContext.RefreshToken ?? TokenProtector.Protect(CreateRefreshTicket(user, utcNow), RefreshTokenPurpose),
         };
 
         await Context.Response.WriteAsJsonAsync(response, BearerTokenJsonSerializerContext.Default.AccessTokenResponse);
 
-        if (refreshToken is null)
+        if (isRefresh)
         {
-            Logger.AuthenticationSchemeSignedIn(Scheme.Name);
+            Logger.AuthenticationSchemeSignedInWithRefreshToken(Scheme.Name);
         }
         else
         {
-            Logger.AuthenticationSchemeSignedInWithRefreshToken(Scheme.Name);
+            Logger.AuthenticationSchemeSignedIn(Scheme.Name);
         }
     }
 

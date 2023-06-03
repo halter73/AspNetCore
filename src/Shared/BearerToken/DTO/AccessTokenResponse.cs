@@ -45,6 +45,5 @@ internal sealed class AccessTokenResponse
     /// This is serialized as "refresh_token": "{RefreshToken}" using System.Text.Json.
     /// </remarks>
     [JsonPropertyName("refresh_token")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? RefreshToken { get; init; }
+    public required string RefreshToken { get; init; }
 }

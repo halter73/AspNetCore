@@ -86,7 +86,7 @@
     <SystemNetWebSocketsWebSocketProtocolPackageVersion>4.7.1</SystemNetWebSocketsWebSocketProtocolPackageVersion>
     <SystemReflectionMetadataPackageVersion>1.8.1</SystemReflectionMetadataPackageVersion>
     <SystemRuntimeCompilerServicesUnsafePackageVersion>4.7.1</SystemRuntimeCompilerServicesUnsafePackageVersion>
-    <SystemSecurityCryptographyCngPackageVersion>4.7.0</SystemSecurityCryptographyCngPackageVersion>
+    <SystemSecurityCryptographyCngPackageVersion>4.7.1</SystemSecurityCryptographyCngPackageVersion>
     <SystemSecurityCryptographyPkcsPackageVersion>4.7.1</SystemSecurityCryptographyPkcsPackageVersion>
     <SystemSecurityCryptographyXmlPackageVersion>4.7.1</SystemSecurityCryptographyXmlPackageVersion>
     <SystemSecurityPermissionsPackageVersion>4.7.0</SystemSecurityPermissionsPackageVersion>

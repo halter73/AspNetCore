@@ -210,7 +210,8 @@ This package is an internal implementation of the .NET Core SDK and is not meant
       <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)"
           Condition="'%(FileName)' == 'apphost' OR '%(FileName)' == '$(LibPrefix)hostfxr' OR
                      '%(FileName)' == '$(LibPrefix)hostpolicy' OR '%(FileName)' == 'Microsoft.Bcl.AsyncInterfaces' OR
-                     '%(FileName)' == 'System.Text.Json' "/>
+                     '%(FileName)' == 'System.Text.Json' OR
+                     '%(FileName)' == 'System.Security.Cryptography.Cng' "/>
     </ItemGroup>
   </Target>
 

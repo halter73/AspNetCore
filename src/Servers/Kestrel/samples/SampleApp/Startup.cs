@@ -5,12 +5,14 @@ using System;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.IO.Pipelines;
 using System.Net;
 using System.Net.Security;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Connections;
 using Microsoft.AspNetCore.Connections.Features;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -191,5 +193,88 @@ public class Startup
             Console.WriteLine($"{pair.Path} - {pair.Value}");
             ShowConfig(pair);
         }
+    }
+
+private class TimingPipeWriter : PipeWriter
+{
+    private readonly ConnectionContext _connection;
+    private readonly double _minBytesPerSecond;
+    private readonly PipeWriter _inner;
+
+    private DateTimeOffset? _connectionStartTime;
+    private DateTimeOffset? _windowStartTime;
+    private long _bytesSentInWindow;
+    private TimeSpan _timeSpentFlushingInWindow;
+
+    public TimingPipeWriter(ConnectionContext connection, double minBytesPerSecond)
+    {
+        _connection = connection;
+        _minBytesPerSecond = minBytesPerSecond;
+        _inner = connection.Transport.Output;
+    }
+
+    public override void Advance(int bytes)
+    {
+        _bytesSentInWindow += bytes;
+        _inner.Advance(bytes);
+    }
+
+    public override void CancelPendingFlush()
+    {
+        _inner.CancelPendingFlush();
+    }
+
+    public override void Complete(Exception exception = null)
+    {
+        _inner.Complete(exception);
+    }
+
+    public override async ValueTask<FlushResult> FlushAsync(CancellationToken cancellationToken = default)
+    {
+        var flushStartTime = DateTimeOffset.UtcNow;
+        var connectionStartTime = _connectionStartTime ??= flushStartTime;
+        var windowStartTime = _windowStartTime ??= flushStartTime;
+
+        var flushResult = await _inner.FlushAsync(cancellationToken);
+
+        var flushEndTime = DateTimeOffset.UtcNow;
+        _timeSpentFlushingInWindow += flushEndTime - flushStartTime;
+
+        if (flushEndTime - connectionStartTime > TimeSpan.FromSeconds(5) && _timeSpentFlushingInWindow > TimeSpan.FromSeconds(1))
+        {
+            if (_bytesSentInWindow / _timeSpentFlushingInWindow.TotalSeconds < _minBytesPerSecond)
+            {
+                _connection.Abort(new ConnectionAbortedException($"The response rate was not at least {_minBytesPerSecond} bytes/sec."));
+                return flushResult;
+            }
+        }
+
+        if (flushEndTime - windowStartTime > TimeSpan.FromSeconds(5))
+        {
+            // Don't start the next window until we're sure there's still something we're trying to write.
+            _windowStartTime = null;
+            _bytesSentInWindow = 0;
+            _timeSpentFlushingInWindow = TimeSpan.Zero;
+        }
+
+        return flushResult;
+    }
+
+    public override Memory<byte> GetMemory(int sizeHint = 0)
+    {
+        return _inner.GetMemory(sizeHint);
+    }
+
+    public override Span<byte> GetSpan(int sizeHint = 0)
+    {
+        return _inner.GetSpan(sizeHint);
+    }
+}
+
+    private class DuplexPipe : IDuplexPipe
+    {
+        public PipeReader Input { get; set; } = null!;
+
+        public PipeWriter Output { get; set; } = null!;
     }
 }

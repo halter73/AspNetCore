@@ -147,6 +147,73 @@ namespace Microsoft.AspNetCore.SignalR.StackExchangeRedis.Tests
             }
         }
 
+        [ConditionalTheory]
+        [SkipIfDockerNotPresent]
+        [MemberData(nameof(TransportTypesAndProtocolTypes))]
+        public async Task HubConnectionCanSendAndReceiveGroupMessagesGroupNameWithPatternIsTreatedAsLiteral(HttpTransportType transportType, string protocolName)
+        {
+            using (StartVerifiableLog())
+            {
+                var protocol = HubProtocolHelpers.GetHubProtocol(protocolName);
+
+                var connection = CreateConnection(_serverFixture.FirstServer.Url + "/echo", transportType, protocol, LoggerFactory);
+                var secondConnection = CreateConnection(_serverFixture.SecondServer.Url + "/echo", transportType, protocol, LoggerFactory);
+
+                var tcs = new TaskCompletionSource<string>();
+                connection.On<string>("Echo", message => tcs.TrySetResult(message));
+                var tcs2 = new TaskCompletionSource<string>();
+                secondConnection.On<string>("Echo", message => tcs2.TrySetResult(message));
+
+                var groupName = $"TestGroup_{transportType}_{protocolName}_{Guid.NewGuid()}";
+
+                await secondConnection.StartAsync().OrTimeout();
+                await connection.StartAsync().OrTimeout();
+                await connection.InvokeAsync("AddSelfToGroup", "*").OrTimeout();
+                await secondConnection.InvokeAsync("AddSelfToGroup", groupName).OrTimeout();
+                await connection.InvokeAsync("EchoGroup", groupName, "Hello, World!").OrTimeout();
+
+                Assert.Equal("Hello, World!", await tcs2.Task.OrTimeout());
+                Assert.False(tcs.Task.IsCompleted);
+
+                await connection.InvokeAsync("EchoGroup", "*", "Hello, World!").OrTimeout();
+                Assert.Equal("Hello, World!", await tcs.Task.OrTimeout());
+
+                await connection.DisposeAsync().OrTimeout();
+            }
+        }
+
+        [ConditionalTheory]
+        [SkipIfDockerNotPresent]
+        [MemberData(nameof(TransportTypesAndProtocolTypes))]
+        public async Task CanSendAndReceiveUserMessagesUserNameWithPatternIsTreatedAsLiteral(HttpTransportType transportType, string protocolName)
+        {
+            using (StartVerifiableLog())
+            {
+                var protocol = HubProtocolHelpers.GetHubProtocol(protocolName);
+
+                var connection = CreateConnection(_serverFixture.FirstServer.Url + "/echo", transportType, protocol, LoggerFactory, userName: "*");
+                var secondConnection = CreateConnection(_serverFixture.SecondServer.Url + "/echo", transportType, protocol, LoggerFactory, userName: "userA");
+
+                var tcs = new TaskCompletionSource<string>();
+                connection.On<string>("Echo", message => tcs.TrySetResult(message));
+                var tcs2 = new TaskCompletionSource<string>();
+                secondConnection.On<string>("Echo", message => tcs2.TrySetResult(message));
+
+                await secondConnection.StartAsync().OrTimeout();
+                await connection.StartAsync().OrTimeout();
+                await connection.InvokeAsync("EchoUser", "userA", "Hello, World!").OrTimeout();
+
+                Assert.Equal("Hello, World!", await tcs2.Task.OrTimeout());
+                Assert.False(tcs.Task.IsCompleted);
+
+                await connection.InvokeAsync("EchoUser", "*", "Hello, World!").OrTimeout();
+                Assert.Equal("Hello, World!", await tcs.Task.OrTimeout());
+
+                await connection.DisposeAsync().OrTimeout();
+                await secondConnection.DisposeAsync().OrTimeout();
+            }
+        }
+
         private static HubConnection CreateConnection(string url, HttpTransportType transportType, IHubProtocol protocol, ILoggerFactory loggerFactory, string userName = null)
         {
             var hubConnectionBuilder = new HubConnectionBuilder()

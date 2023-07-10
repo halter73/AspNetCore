@@ -8,6 +8,7 @@
     <PackageId>Microsoft.dotnet-openapi</PackageId>
     <PackAsTool>true</PackAsTool>
     <IsShippingPackage>true</IsShippingPackage>
+    <NoWarn>$(NoWarn);NU1505</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

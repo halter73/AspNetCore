@@ -5,6 +5,7 @@
   <PropertyGroup>
     <TargetFramework>$(DefaultNetCoreTargetFramework)</TargetFramework>
     <InProcessTestSite>true</InProcessTestSite>
+    <NoWarn>$(NoWarn);NU1505</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

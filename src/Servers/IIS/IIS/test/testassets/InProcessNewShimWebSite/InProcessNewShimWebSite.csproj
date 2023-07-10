@@ -7,6 +7,7 @@
     <AssemblyName>InProcessWebSite</AssemblyName>
     <TestAssetOutputName>InProcessNewShimWebSite</TestAssetOutputName>
     <DefineConstants>FORWARDCOMPAT</DefineConstants>
+    <NoWarn>$(NoWarn);NU1505</NoWarn>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(OS)' == 'Windows_NT'">

@@ -7,6 +7,7 @@
     <TargetFramework>$(DefaultNetCoreTargetFramework)</TargetFramework>
     <UserSecretsId>aspnetcore-CreateDefaultBuilder-20170424224131</UserSecretsId>
     <InProcessTestSite>true</InProcessTestSite>
+    <NoWarn>$(NoWarn);NU1505</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

@@ -81,6 +81,11 @@ public class SignInManager<TUser> where TUser : class
     public IdentityOptions Options { get; set; }
 
     /// <summary>
+    /// The authentication scheme to sign in with. Defaults to <see cref="IdentityConstants.ApplicationScheme"/>.
+    /// </summary>
+    public string AuthenticationScheme { get; set; } = IdentityConstants.ApplicationScheme;
+
+    /// <summary>
     /// The <see cref="HttpContext"/> used.
     /// </summary>
     public HttpContext Context
@@ -116,7 +121,7 @@ public class SignInManager<TUser> where TUser : class
     {
         ArgumentNullException.ThrowIfNull(principal);
         return principal.Identities != null &&
-            principal.Identities.Any(i => i.AuthenticationType == IdentityConstants.ApplicationScheme);
+            principal.Identities.Any(i => i.AuthenticationType == AuthenticationScheme);
     }
 
     /// <summary>
@@ -155,7 +160,7 @@ public class SignInManager<TUser> where TUser : class
     /// <returns>The task object representing the asynchronous operation.</returns>
     public virtual async Task RefreshSignInAsync(TUser user)
     {
-        var auth = await Context.AuthenticateAsync(IdentityConstants.ApplicationScheme);
+        var auth = await Context.AuthenticateAsync(AuthenticationScheme);
         IList<Claim> claims = Array.Empty<Claim>();
 
         var authenticationMethod = auth?.Principal?.FindFirst(ClaimTypes.AuthenticationMethod);
@@ -231,7 +236,7 @@ public class SignInManager<TUser> where TUser : class
         {
             userPrincipal.Identities.First().AddClaim(claim);
         }
-        await Context.SignInAsync(IdentityConstants.ApplicationScheme,
+        await Context.SignInAsync(AuthenticationScheme,
             userPrincipal,
             authenticationProperties ?? new AuthenticationProperties());
     }
@@ -241,7 +246,7 @@ public class SignInManager<TUser> where TUser : class
     /// </summary>
     public virtual async Task SignOutAsync()
     {
-        await Context.SignOutAsync(IdentityConstants.ApplicationScheme);
+        await Context.SignOutAsync(AuthenticationScheme);
         await Context.SignOutAsync(IdentityConstants.ExternalScheme);
         await Context.SignOutAsync(IdentityConstants.TwoFactorUserIdScheme);
     }

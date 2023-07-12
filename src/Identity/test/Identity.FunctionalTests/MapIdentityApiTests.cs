@@ -19,6 +19,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Net.Http.Headers;
+using Xunit.Sdk;
 
 namespace Microsoft.AspNetCore.Identity.FunctionalTests;
 
@@ -38,6 +39,27 @@ public class MapIdentityApiTests : LoggedTest
 
         response.EnsureSuccessStatusCode();
         Assert.Equal(0, response.Content.Headers.ContentLength);
+    }
+
+    [Theory]
+    [MemberData(nameof(AddIdentityModes))]
+    public async Task LoginFailsGivenUnregisteredUser(string addIdentityMode)
+    {
+        await using var app = await CreateAppAsync(AddIdentityActions[addIdentityMode]);
+        using var client = app.GetTestClient();
+
+        AssertUnauthorizedAndEmpty(await client.PostAsJsonAsync("/identity/login", new { Username, Password }));
+    }
+
+    [Theory]
+    [MemberData(nameof(AddIdentityModes))]
+    public async Task LoginFailsGivenWrongPassword(string addIdentityMode)
+    {
+        await using var app = await CreateAppAsync(AddIdentityActions[addIdentityMode]);
+        using var client = app.GetTestClient();
+
+        await client.PostAsJsonAsync("/identity/register", new { Username, Password });
+        AssertUnauthorizedAndEmpty(await client.PostAsJsonAsync("/identity/login", new { Username, Password = "wrong" }));
     }
 
     [Theory]
@@ -126,7 +148,7 @@ public class MapIdentityApiTests : LoggedTest
         // The compiler does not see Assert.True's DoesNotReturnIfAttribute :(
         if (setCookieHeader.Split(';', 2) is not [var cookieHeader, _])
         {
-            throw new Exception("Invalid Set-Cookie header!");
+            throw new XunitException("Invalid Set-Cookie header!");
         }
 
         client.DefaultRequestHeaders.Add(HeaderNames.Cookie, cookieHeader);
@@ -259,7 +281,7 @@ public class MapIdentityApiTests : LoggedTest
         // Still works one second before expiration.
         refreshResponse = await client.PostAsJsonAsync("/identity/refresh", new { refreshToken });
         Assert.True(refreshResponse.IsSuccessStatusCode);
-        
+
         // The bearer token stopped working 41 hours ago with the default 1 hour expiration.
         client.DefaultRequestHeaders.Authorization = new("Bearer", accessToken);
         AssertUnauthorizedAndEmpty(await client.GetAsync("/auth/hello"));
@@ -270,7 +292,7 @@ public class MapIdentityApiTests : LoggedTest
         AssertUnauthorizedAndEmpty(await client.PostAsJsonAsync("/identity/refresh", new { refreshToken }));
 
         // But the last refresh_token from the successful /refresh only a second ago has not expired.
-        var refreshContent =  await refreshResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var refreshContent = await refreshResponse.Content.ReadFromJsonAsync<JsonElement>();
         refreshToken = refreshContent.GetProperty("refresh_token").GetString();
 
         refreshResponse = await client.PostAsJsonAsync("/identity/refresh", new { refreshToken });

@@ -20,6 +20,8 @@ namespace Microsoft.AspNetCore.Routing;
 /// </summary>
 public static class IdentityApiEndpointRouteBuilderExtensions
 {
+    private static readonly NoopResult _noopResult = new NoopResult();
+
     /// <summary>
     /// Add endpoints for registering, logging in, and logging out using ASP.NET Core Identity.
     /// </summary>
@@ -54,24 +56,21 @@ public static class IdentityApiEndpointRouteBuilderExtensions
             return TypedResults.ValidationProblem(result.Errors.ToDictionary(e => e.Code, e => new[] { e.Description }));
         });
 
-        routeGroup.MapPost("/login", async Task<Results<UnauthorizedHttpResult, Ok<AccessTokenResponse>, SignInHttpResult>>
+        routeGroup.MapPost("/login", async Task<Results<UnauthorizedHttpResult, Ok<AccessTokenResponse>, IResult>>
             ([FromBody] LoginRequest login, [FromQuery] bool? cookieMode, [FromServices] IServiceProvider sp) =>
         {
-            var userManager = sp.GetRequiredService<UserManager<TUser>>();
-            var user = await userManager.FindByNameAsync(login.Username);
+            var signInManager = sp.GetRequiredService<SignInManager<TUser>>();
+            var useCookies = cookieMode ?? false;
 
-            if (user is null || !await userManager.CheckPasswordAsync(user, login.Password))
+            signInManager.AuthenticationScheme = useCookies ? IdentityConstants.ApplicationScheme : IdentityConstants.BearerScheme;
+            var result = await signInManager.PasswordSignInAsync(login.Username, login.Password, isPersistent: true, lockoutOnFailure: true);
+
+            if (!result.Succeeded)
             {
                 return TypedResults.Unauthorized();
             }
 
-            var claimsFactory = sp.GetRequiredService<IUserClaimsPrincipalFactory<TUser>>();
-            var claimsPrincipal = await claimsFactory.CreateAsync(user);
-
-            var useCookies = cookieMode ?? false;
-            var scheme = useCookies ? IdentityConstants.ApplicationScheme : IdentityConstants.BearerScheme;
-
-            return TypedResults.SignIn(claimsPrincipal, authenticationScheme: scheme);
+            return _noopResult;
         });
 
         routeGroup.MapPost("/refresh", async Task<Results<UnauthorizedHttpResult, Ok<AccessTokenResponse>, SignInHttpResult, ChallengeHttpResult>>
@@ -101,12 +100,15 @@ public static class IdentityApiEndpointRouteBuilderExtensions
     // Wrap RouteGroupBuilder with a non-public type to avoid a potential future behavioral breaking change.
     private sealed class IdentityEndpointsConventionBuilder(RouteGroupBuilder inner) : IEndpointConventionBuilder
     {
-#pragma warning disable CA1822 // Mark members as static False positive reported by https://github.com/dotnet/roslyn-analyzers/issues/6573
         private IEndpointConventionBuilder InnerAsConventionBuilder => inner;
-#pragma warning restore CA1822 // Mark members as static
 
         public void Add(Action<EndpointBuilder> convention) => InnerAsConventionBuilder.Add(convention);
         public void Finally(Action<EndpointBuilder> finallyConvention) => InnerAsConventionBuilder.Finally(finallyConvention);
+    }
+
+    private sealed class NoopResult : IResult
+    {
+        public Task ExecuteAsync(HttpContext httpContext) => Task.CompletedTask;
     }
 
     [AttributeUsage(AttributeTargets.Parameter)]

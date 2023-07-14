@@ -37,6 +37,9 @@ public static class IdentityApiEndpointRouteBuilderExtensions
 
         var routeGroup = endpoints.MapGroup("");
 
+        var timeProvider = endpoints.ServiceProvider.GetRequiredService<TimeProvider>();
+        var bearerTokenOptions = endpoints.ServiceProvider.GetRequiredService<IOptionsMonitor<BearerTokenOptions>>();
+
         // NOTE: We cannot inject UserManager<TUser> directly because the TUser generic parameter is currently unsupported by RDG.
         // https://github.com/dotnet/aspnetcore/issues/47338
         routeGroup.MapPost("/register", async Task<Results<Ok, ValidationProblem>>
@@ -60,25 +63,18 @@ public static class IdentityApiEndpointRouteBuilderExtensions
             ([FromBody] LoginRequest login, [FromQuery] bool? cookieMode, [FromServices] IServiceProvider sp) =>
         {
             var signInManager = sp.GetRequiredService<SignInManager<TUser>>();
-            var useCookies = cookieMode ?? false;
 
-            signInManager.AuthenticationScheme = useCookies ? IdentityConstants.ApplicationScheme : IdentityConstants.BearerScheme;
+            signInManager.AuthenticationScheme = cookieMode == true ? IdentityConstants.ApplicationScheme : IdentityConstants.BearerScheme;
             var result = await signInManager.PasswordSignInAsync(login.Username, login.Password, isPersistent: true, lockoutOnFailure: true);
 
-            if (!result.Succeeded)
-            {
-                return TypedResults.Unauthorized();
-            }
-
-            return _noopResult;
+            return result.Succeeded ? _noopResult : TypedResults.Unauthorized();
         });
 
         routeGroup.MapPost("/refresh", async Task<Results<UnauthorizedHttpResult, Ok<AccessTokenResponse>, SignInHttpResult, ChallengeHttpResult>>
-            ([FromBody] RefreshRequest refreshRequest, [FromServices] IOptionsMonitor<BearerTokenOptions> optionsMonitor, [FromServices] TimeProvider timeProvider, [FromServices] IServiceProvider sp) =>
+            ([FromBody] RefreshRequest refreshRequest, [FromServices] IServiceProvider sp) =>
         {
             var signInManager = sp.GetRequiredService<SignInManager<TUser>>();
-            var identityBearerOptions = optionsMonitor.Get(IdentityConstants.BearerScheme);
-            var refreshTokenProtector = identityBearerOptions.RefreshTokenProtector ?? throw new ArgumentException($"{nameof(identityBearerOptions.RefreshTokenProtector)} is null", nameof(optionsMonitor));
+            var refreshTokenProtector = bearerTokenOptions.Get(IdentityConstants.BearerScheme).RefreshTokenProtector;
             var refreshTicket = refreshTokenProtector.Unprotect(refreshRequest.RefreshToken);
 
             // Reject the /refresh attempt with a 401 if the token expired or the security stamp validation fails

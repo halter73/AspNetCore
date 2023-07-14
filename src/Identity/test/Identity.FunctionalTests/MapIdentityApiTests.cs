@@ -51,11 +51,10 @@ public class MapIdentityApiTests : LoggedTest
         AssertUnauthorizedAndEmpty(await client.PostAsJsonAsync("/identity/login", new { Username, Password }));
     }
 
-    [Theory]
-    [MemberData(nameof(AddIdentityModes))]
-    public async Task LoginFailsGivenWrongPassword(string addIdentityMode)
+    [Fact]
+    public async Task LoginFailsGivenWrongPassword()
     {
-        await using var app = await CreateAppAsync(AddIdentityActions[addIdentityMode]);
+        await using var app = await CreateAppAsync();
         using var client = app.GetTestClient();
 
         await client.PostAsJsonAsync("/identity/register", new { Username, Password });

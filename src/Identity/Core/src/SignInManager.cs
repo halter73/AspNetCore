@@ -21,6 +21,11 @@ public class SignInManager<TUser> where TUser : class
     private const string LoginProviderKey = "LoginProvider";
     private const string XsrfKey = "XsrfId";
 
+    private readonly IHttpContextAccessor _contextAccessor;
+    private readonly IAuthenticationSchemeProvider _schemes;
+    private readonly IUserConfirmation<TUser> _confirmation;
+    private HttpContext? _context;
+
     /// <summary>
     /// Creates a new instance of <see cref="SignInManager{TUser}"/>.
     /// </summary>
@@ -51,11 +56,6 @@ public class SignInManager<TUser> where TUser : class
         _schemes = schemes;
         _confirmation = confirmation;
     }
-
-    private readonly IHttpContextAccessor _contextAccessor;
-    private readonly IAuthenticationSchemeProvider _schemes;
-    private readonly IUserConfirmation<TUser> _confirmation;
-    private HttpContext? _context;
 
     /// <summary>
     /// Gets the <see cref="ILogger"/> used to log messages from the manager.

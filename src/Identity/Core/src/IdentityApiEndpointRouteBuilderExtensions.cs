@@ -2,6 +2,8 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Linq;
+using System.Text;
+using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication.BearerToken;
 using Microsoft.AspNetCore.Authentication.BearerToken.DTO;
 using Microsoft.AspNetCore.Builder;
@@ -10,6 +12,8 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.DTO;
+using Microsoft.AspNetCore.Identity.UI.Services;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -39,6 +43,7 @@ public static class IdentityApiEndpointRouteBuilderExtensions
 
         var timeProvider = endpoints.ServiceProvider.GetRequiredService<TimeProvider>();
         var bearerTokenOptions = endpoints.ServiceProvider.GetRequiredService<IOptionsMonitor<BearerTokenOptions>>();
+        var emailSender = endpoints.ServiceProvider.GetRequiredService<IEmailSender>();
 
         // NOTE: We cannot inject UserManager<TUser> directly because the TUser generic parameter is currently unsupported by RDG.
         // https://github.com/dotnet/aspnetcore/issues/47338
@@ -58,11 +63,19 @@ public static class IdentityApiEndpointRouteBuilderExtensions
             // TODO: Use store directly to save DB round trips
             await userManager.SetUserNameAsync(user, registration.Username);
             await emailStore.SetEmailAsync(user, registration.Email, CancellationToken.None);
-
             var result = await userManager.CreateAsync(user, registration.Password);
 
             if (result.Succeeded)
             {
+                var userId = await userManager.GetUserIdAsync(user);
+                var code = await userManager.GenerateEmailConfirmationTokenAsync(user);
+
+                // TODO: Use link generation.
+                var callbackUrl = $"/confirmEmail?userId={userId}&code={code}";
+
+                await emailSender.SendEmailAsync(registration.Email, "Confirm your email",
+                    $"Please confirm your account by <a href='{HtmlEncoder.Default.Encode(callbackUrl)}'>clicking here</a>.");
+
                 return TypedResults.Ok();
             }
 
@@ -99,6 +112,31 @@ public static class IdentityApiEndpointRouteBuilderExtensions
 
             var newPrincipal = await signInManager.CreateUserPrincipalAsync(user);
             return TypedResults.SignIn(newPrincipal, authenticationScheme: IdentityConstants.BearerScheme);
+        });
+
+        // TODO: Add option for redirect.
+        routeGroup.MapGet("/confirmEmail", async Task<Results<ContentHttpResult, UnauthorizedHttpResult>>
+            ([FromQuery] string userId, [FromQuery] string code, [FromServices] IServiceProvider sp) =>
+        {
+            var userManager = sp.GetRequiredService<UserManager<TUser>>();
+
+            var user = await userManager.FindByIdAsync(userId);
+            if (user is null)
+            {
+                // We could respond with a 404 instead of a 401 like Identity UI, but that feels like
+                // unnecessary information disclosure.
+                return TypedResults.Unauthorized();
+            }
+
+            code = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(code));
+            var result = await userManager.ConfirmEmailAsync(user, code);
+
+            if (!result.Succeeded)
+            {
+                return TypedResults.Unauthorized();
+            }
+
+            return TypedResults.Text("Thank you for confirming your email.");
         });
 
         return new IdentityEndpointsConventionBuilder(routeGroup);

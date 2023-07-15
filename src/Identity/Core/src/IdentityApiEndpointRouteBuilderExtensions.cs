@@ -47,8 +47,18 @@ public static class IdentityApiEndpointRouteBuilderExtensions
         {
             var userManager = sp.GetRequiredService<UserManager<TUser>>();
 
+            if (!userManager.SupportsUserLockout)
+            {
+                throw new NotSupportedException($"{nameof(MapIdentityApi)} requires a user store with email support.");
+            }
+
+            var emailStore = (IUserEmailStore<TUser>)sp.GetRequiredService<IUserStore<TUser>>();
+
             var user = new TUser();
+            // TODO: Use store directly to save DB round trips
             await userManager.SetUserNameAsync(user, registration.Username);
+            await emailStore.SetEmailAsync(user, registration.Email, CancellationToken.None);
+
             var result = await userManager.CreateAsync(user, registration.Password);
 
             if (result.Succeeded)
@@ -67,6 +77,7 @@ public static class IdentityApiEndpointRouteBuilderExtensions
             signInManager.AuthenticationScheme = cookieMode == true ? IdentityConstants.ApplicationScheme : IdentityConstants.BearerScheme;
             var result = await signInManager.PasswordSignInAsync(login.Username, login.Password, isPersistent: true, lockoutOnFailure: true);
 
+            // TODO: Use problem details for lockout.
             return result.Succeeded ? _noopResult : TypedResults.Unauthorized();
         });
 

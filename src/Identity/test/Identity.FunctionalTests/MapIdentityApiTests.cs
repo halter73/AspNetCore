@@ -36,7 +36,7 @@ public class MapIdentityApiTests : LoggedTest
         await using var app = await CreateAppAsync(AddIdentityActions[addIdentityMode]);
         using var client = app.GetTestClient();
 
-        AssertOkAndEmpty(await client.PostAsJsonAsync("/identity/register", new { Username, Password }));
+        AssertOkAndEmpty(await client.PostAsJsonAsync("/identity/register", new { Username, Password, Email = Username }));
     }
 
     [Theory]
@@ -46,7 +46,7 @@ public class MapIdentityApiTests : LoggedTest
         await using var app = await CreateAppAsync(AddIdentityActions[addIdentityMode]);
         using var client = app.GetTestClient();
 
-        AssertUnauthorizedAndEmpty(await client.PostAsJsonAsync("/identity/login", new { Username, Password }));
+        AssertUnauthorizedAndEmpty(await client.PostAsJsonAsync("/identity/login", new { Username, Password, Email = Username }));
     }
 
     [Fact]
@@ -55,8 +55,8 @@ public class MapIdentityApiTests : LoggedTest
         await using var app = await CreateAppAsync();
         using var client = app.GetTestClient();
 
-        await client.PostAsJsonAsync("/identity/register", new { Username, Password });
-        AssertUnauthorizedAndEmpty(await client.PostAsJsonAsync("/identity/login", new { Username, Password = "wrong" }));
+        await client.PostAsJsonAsync("/identity/register", new { Username, Password, Email = Username });
+        AssertUnauthorizedAndEmpty(await client.PostAsJsonAsync("/identity/login", new { Username, Password = "wrong", Email = Username }));
     }
 
     [Theory]
@@ -66,8 +66,8 @@ public class MapIdentityApiTests : LoggedTest
         await using var app = await CreateAppAsync(AddIdentityActions[addIdentityMode]);
         using var client = app.GetTestClient();
 
-        await client.PostAsJsonAsync("/identity/register", new { Username, Password });
-        var loginResponse = await client.PostAsJsonAsync("/identity/login", new { Username, Password });
+        await client.PostAsJsonAsync("/identity/register", new { Username, Password, Email = Username });
+        var loginResponse = await client.PostAsJsonAsync("/identity/login", new { Username, Password, Email = Username });
 
         loginResponse.EnsureSuccessStatusCode();
         Assert.False(loginResponse.Headers.Contains(HeaderNames.SetCookie));
@@ -102,8 +102,8 @@ public class MapIdentityApiTests : LoggedTest
 
         using var client = app.GetTestClient();
 
-        await client.PostAsJsonAsync("/identity/register", new { Username, Password });
-        var loginResponse = await client.PostAsJsonAsync("/identity/login", new { Username, Password });
+        await client.PostAsJsonAsync("/identity/register", new { Username, Password, Email = Username });
+        var loginResponse = await client.PostAsJsonAsync("/identity/login", new { Username, Password, Email = Username });
 
         var loginContent = await loginResponse.Content.ReadFromJsonAsync<JsonElement>();
         var accessToken = loginContent.GetProperty("access_token").GetString();
@@ -133,8 +133,8 @@ public class MapIdentityApiTests : LoggedTest
         await using var app = await CreateAppAsync();
         using var client = app.GetTestClient();
 
-        await client.PostAsJsonAsync("/identity/register", new { Username, Password });
-        var loginResponse = await client.PostAsJsonAsync("/identity/login?cookieMode=true", new { Username, Password });
+        await client.PostAsJsonAsync("/identity/register", new { Username, Password, Email = Username });
+        var loginResponse = await client.PostAsJsonAsync("/identity/login?cookieMode=true", new { Username, Password, Email = Username });
 
         loginResponse.EnsureSuccessStatusCode();
         Assert.Equal(0, loginResponse.Content.Headers.ContentLength);
@@ -158,10 +158,10 @@ public class MapIdentityApiTests : LoggedTest
         await using var app = await CreateAppAsync(AddIdentityApiEndpointsBearerOnly);
         using var client = app.GetTestClient();
 
-        await client.PostAsJsonAsync("/identity/register", new { Username, Password });
+        await client.PostAsJsonAsync("/identity/register", new { Username, Password, Email = Username });
 
         await Assert.ThrowsAsync<InvalidOperationException>(()
-            => client.PostAsJsonAsync("/identity/login?cookieMode=true", new { Username, Password }));
+            => client.PostAsJsonAsync("/identity/login?cookieMode=true", new { Username, Password, Email = Username }));
     }
 
     [Fact]
@@ -182,8 +182,8 @@ public class MapIdentityApiTests : LoggedTest
 
         using var client = app.GetTestClient();
 
-        await client.PostAsJsonAsync("/identity/register", new { Username, Password });
-        var loginResponse = await client.PostAsJsonAsync("/identity/login", new { Username, Password });
+        await client.PostAsJsonAsync("/identity/register", new { Username, Password, Email = Username });
+        var loginResponse = await client.PostAsJsonAsync("/identity/login", new { Username, Password, Email = Username });
 
         var loginContent = await loginResponse.Content.ReadFromJsonAsync<JsonElement>();
         var accessToken = loginContent.GetProperty("access_token").GetString();
@@ -218,8 +218,8 @@ public class MapIdentityApiTests : LoggedTest
         await using var app = await CreateAppAsync(AddIdentityActions[addIdentityMode]);
         using var client = app.GetTestClient();
 
-        await client.PostAsJsonAsync("/identity/register", new { Username, Password });
-        var loginResponse = await client.PostAsJsonAsync("/identity/login", new { Username, Password });
+        await client.PostAsJsonAsync("/identity/register", new { Username, Password, Email = Username });
+        var loginResponse = await client.PostAsJsonAsync("/identity/login", new { Username, Password, Email = Username });
         var loginContent = await loginResponse.Content.ReadFromJsonAsync<JsonElement>();
         var refreshToken = loginContent.GetProperty("refresh_token").GetString();
 
@@ -262,8 +262,8 @@ public class MapIdentityApiTests : LoggedTest
 
         using var client = app.GetTestClient();
 
-        await client.PostAsJsonAsync("/identity/register", new { Username, Password });
-        var loginResponse = await client.PostAsJsonAsync("/identity/login", new { Username, Password });
+        await client.PostAsJsonAsync("/identity/register", new { Username, Password, Email = Username });
+        var loginResponse = await client.PostAsJsonAsync("/identity/login", new { Username, Password, Email = Username });
 
         var loginContent = await loginResponse.Content.ReadFromJsonAsync<JsonElement>();
         var refreshToken = loginContent.GetProperty("refresh_token").GetString();
@@ -307,8 +307,8 @@ public class MapIdentityApiTests : LoggedTest
         await using var app = await CreateAppAsync(AddIdentityActions[addIdentityMode]);
         using var client = app.GetTestClient();
 
-        await client.PostAsJsonAsync("/identity/register", new { Username, Password });
-        var loginResponse = await client.PostAsJsonAsync("/identity/login", new { Username, Password });
+        await client.PostAsJsonAsync("/identity/register", new { Username, Password, Email = Username });
+        var loginResponse = await client.PostAsJsonAsync("/identity/login", new { Username, Password, Email = Username });
         var loginContent = await loginResponse.Content.ReadFromJsonAsync<JsonElement>();
         var refreshToken = loginContent.GetProperty("refresh_token").GetString();
 
@@ -329,8 +329,8 @@ public class MapIdentityApiTests : LoggedTest
         await using var app = await CreateAppAsync(AddIdentityActions[addIdentityMode]);
         using var client = app.GetTestClient();
 
-        await client.PostAsJsonAsync("/identity/register", new { Username, Password });
-        var loginResponse = await client.PostAsJsonAsync("/identity/login", new { Username, Password });
+        await client.PostAsJsonAsync("/identity/register", new { Username, Password, Email = Username });
+        var loginResponse = await client.PostAsJsonAsync("/identity/login", new { Username, Password, Email = Username });
         var loginContent = await loginResponse.Content.ReadFromJsonAsync<JsonElement>();
         var refreshToken = loginContent.GetProperty("refresh_token").GetString();
 
@@ -364,7 +364,7 @@ public class MapIdentityApiTests : LoggedTest
         });
         using var client = app.GetTestClient();
 
-        await client.PostAsJsonAsync("/identity/register", new { Username, Password });
+        await client.PostAsJsonAsync("/identity/register", new { Username, Password, Email = Username });
 
         AssertUnauthorizedAndEmpty(await client.PostAsJsonAsync("/identity/login", new { Username, Password = "wrong" }));
 
@@ -372,7 +372,7 @@ public class MapIdentityApiTests : LoggedTest
             w.LoggerName == "Microsoft.AspNetCore.Identity.SignInManager" &&
             w.EventId == new EventId(3, "UserLockedOut"));
 
-        AssertUnauthorizedAndEmpty(await client.PostAsJsonAsync("/identity/login", new { Username, Password }));
+        AssertUnauthorizedAndEmpty(await client.PostAsJsonAsync("/identity/login", new { Username, Password, Email = Username }));
     }
 
     [Fact]
@@ -389,7 +389,7 @@ public class MapIdentityApiTests : LoggedTest
         });
         using var client = app.GetTestClient();
 
-        await client.PostAsJsonAsync("/identity/register", new { Username, Password });
+        await client.PostAsJsonAsync("/identity/register", new { Username, Password, Email = Username });
 
         AssertUnauthorizedAndEmpty(await client.PostAsJsonAsync("/identity/login", new { Username, Password = "wrong" }));
 
@@ -397,7 +397,7 @@ public class MapIdentityApiTests : LoggedTest
             w.LoggerName == "Microsoft.AspNetCore.Identity.SignInManager" &&
             w.EventId == new EventId(3, "UserLockedOut"));
 
-        var loginResponse = await client.PostAsJsonAsync("/identity/login", new { Username, Password });
+        var loginResponse = await client.PostAsJsonAsync("/identity/login", new { Username, Password, Email = Username });
         loginResponse.EnsureSuccessStatusCode();
     }
 

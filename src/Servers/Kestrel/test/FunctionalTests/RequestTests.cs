@@ -9,6 +9,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -20,7 +21,13 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Infrastructure;
+#if LIBUV
+using Microsoft.AspNetCore.Server.Kestrel.Transport.Libuv;
+#else
+using Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets;
+#endif
 using Microsoft.AspNetCore.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
 using Moq;
@@ -33,6 +40,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.FunctionalTests
     public class RequestTests : LoggedTest
     {
         private const int _connectionStartedEventId = 1;
+        private const int _connectionReadFinEventId = 6;
         private const int _connectionResetEventId = 19;
         private static readonly int _semaphoreWaitTimeout = Debugger.IsAttached ? 10000 : 2500;
 
@@ -215,6 +223,59 @@ namespace Microsoft.AspNetCore.Server.Kestrel.FunctionalTests
         }
 
         [Fact]
+        public async Task ConnectionClosedPriorToRequestIsLoggedAsDebug()
+        {
+            var connectionStarted = new SemaphoreSlim(0);
+            var connectionReadFin = new SemaphoreSlim(0);
+            var loggedHigherThanDebug = false;
+
+            TestSink.MessageLogged += context =>
+            {
+                if (context.LoggerName != "Microsoft.AspNetCore.Server.Kestrel" &&
+                    context.LoggerName != "Microsoft.AspNetCore.Server.Kestrel.Connections" &&
+                    context.LoggerName != "Microsoft.AspNetCore.Server.Kestrel.Transport.Libuv" &&
+                    context.LoggerName != "Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets")
+                {
+                    return;
+                }
+
+                if (context.EventId.Id == _connectionStartedEventId)
+                {
+                    connectionStarted.Release();
+                }
+                else if (context.EventId.Id == _connectionReadFinEventId)
+                {
+                    connectionReadFin.Release();
+                }
+
+                if (context.LogLevel > LogLevel.Debug)
+                {
+                    loggedHigherThanDebug = true;
+                }
+            };
+
+            using (var server = new TestServer(context => Task.CompletedTask, new TestServiceContext(LoggerFactory)))
+            {
+                using (var connection = server.CreateConnection())
+                {
+                    // Wait until connection is established
+                    Assert.True(await connectionStarted.WaitAsync(TestConstants.DefaultTimeout));
+
+                    connection.ShutdownSend();
+
+                    // If the reset is correctly logged as Debug, the wait below should complete shortly.
+                    // This check MUST come before disposing the server, otherwise there's a race where the RST
+                    // is still in flight when the connection is aborted, leading to the reset never being received
+                    // and therefore not logged.
+                    Assert.True(await connectionReadFin.WaitAsync(TestConstants.DefaultTimeout));
+                    await connection.ReceiveEnd();
+                }
+            }
+
+            Assert.False(loggedHigherThanDebug);
+        }
+
+        [Fact]
         public async Task ConnectionResetPriorToRequestIsLoggedAsDebug()
         {
             var connectionStarted = new SemaphoreSlim(0);
@@ -262,6 +323,114 @@ namespace Microsoft.AspNetCore.Server.Kestrel.FunctionalTests
                 Assert.True(await connectionReset.WaitAsync(TestConstants.DefaultTimeout));
 
                 await server.StopAsync();
+            }
+
+            Assert.False(loggedHigherThanDebug);
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData(0)]
+        [InlineData(1024 * 5)]
+        public async Task ConnectionClosedBetweenRequestsIsLoggedAsDebug(int? contentLength)
+        {
+            var connectionReadFin = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var loggedHigherThanDebug = false;
+
+            TestSink.MessageLogged += context =>
+            {
+                if (context.LoggerName != "Microsoft.AspNetCore.Server.Kestrel" &&
+                    context.LoggerName != "Microsoft.AspNetCore.Server.Kestrel.Transport.Libuv" &&
+                    context.LoggerName != "Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets")
+                {
+                    return;
+                }
+
+                if (context.LogLevel > LogLevel.Debug)
+                {
+                    loggedHigherThanDebug = true;
+                }
+
+                if (context.EventId.Id == _connectionReadFinEventId)
+                {
+                    connectionReadFin.SetResult(0);
+                }
+            };
+
+            using (var server = new TestServer(
+                async context =>
+                {
+                    // Complete the response from the client's perspective, then wait for them to close the connection.
+                    context.Response.ContentLength = contentLength;
+                    if (contentLength == 0)
+                    {
+                        await context.Response.Body.FlushAsync().DefaultTimeout();
+                    }
+                    else
+                    {
+                        await context.Response.WriteAsync(new string('a', contentLength ?? 10));
+                    }
+
+                    if (contentLength != null)
+                    {
+                        // Don't delay for chunked, it doesn't write the terminator until the app finishes.
+                        await connectionReadFin.Task.DefaultTimeout();
+                    }
+                },
+                new TestServiceContext(LoggerFactory)))
+            {
+                using (var connection = server.CreateConnection())
+                {
+                    await connection.Send(
+                        "GET / HTTP/1.1",
+                        "Host:",
+                        "",
+                        "");
+
+                    // Make sure the response is fully received, so a write failure (e.g. EPIPE) doesn't cause
+                    // a more critical log message.
+                    if (contentLength == 0)
+                    {
+                        await connection.Receive(
+                            "HTTP/1.1 200 OK",
+                            $"Date: {server.Context.DateHeaderValue}",
+                            "Content-Length: 0",
+                            "",
+                            "");
+                    }
+                    else if (contentLength != null)
+                    {
+                        await connection.Receive(
+                            "HTTP/1.1 200 OK",
+                            $"Date: {server.Context.DateHeaderValue}",
+                            $"Content-Length: {contentLength}",
+                            "",
+                            new string('a', contentLength.Value));
+                    }
+                    else
+                    {
+                        await connection.Receive(
+                            "HTTP/1.1 200 OK",
+                            $"Date: {server.Context.DateHeaderValue}",
+                            $"Transfer-Encoding: chunked",
+                            "",
+                            "a",
+                            new string('a', 10),
+                            "0",
+                            "",
+                            "");
+                    }
+
+                    connection.ShutdownSend();
+
+                    // If the reset is correctly logged as Debug, the wait below should complete shortly.
+                    // This check MUST come before disposing the server, otherwise there's a race where the RST
+                    // is still in flight when the connection is aborted, leading to the reset never being received
+                    // and therefore not logged.
+                    await connectionReadFin.Task.DefaultTimeout();
+
+                    await connection.ReceiveEnd();
+                }
             }
 
             Assert.False(loggedHigherThanDebug);
@@ -327,10 +496,13 @@ namespace Microsoft.AspNetCore.Server.Kestrel.FunctionalTests
             Assert.False(loggedHigherThanDebug);
         }
 
-        [Fact]
-        public async Task ConnectionResetMidRequestIsLoggedAsDebug()
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public async Task ConnectionClosedOrResetMidRequestIsLoggedAsDebug(bool close)
         {
             var requestStarted = new SemaphoreSlim(0);
+            var connectionReadFin = new SemaphoreSlim(0);
             var connectionReset = new SemaphoreSlim(0);
             var connectionClosing = new SemaphoreSlim(0);
             var loggedHigherThanDebug = false;
@@ -347,6 +519,11 @@ namespace Microsoft.AspNetCore.Server.Kestrel.FunctionalTests
                 if (context.LogLevel > LogLevel.Debug)
                 {
                     loggedHigherThanDebug = true;
+                }
+
+                if (context.EventId.Id == _connectionReadFinEventId)
+                {
+                    connectionReadFin.Release();
                 }
 
                 if (context.EventId.Id == _connectionResetEventId)
@@ -369,15 +546,24 @@ namespace Microsoft.AspNetCore.Server.Kestrel.FunctionalTests
                     // Wait until connection is established
                     Assert.True(await requestStarted.WaitAsync(TestConstants.DefaultTimeout), "request should have started");
 
-                    connection.Reset();
+                    if (close)
+                    {
+                        connection.ShutdownSend();
+                        Assert.True(await connectionReadFin.WaitAsync(TestConstants.DefaultTimeout), "Connection close event should have been logged");
+                    }
+                    else
+                    {
+                        connection.Reset();
+
+                        // If the reset is correctly logged as Debug, the wait below should complete shortly.
+                        // This check MUST come before disposing the server, otherwise there's a race where the RST
+                        // is still in flight when the connection is aborted, leading to the reset never being received
+                        // and therefore not logged.
+                        Assert.True(await connectionReset.WaitAsync(TestConstants.DefaultTimeout), "Connection reset event should have been logged");
+                    }
+                    connectionClosing.Release();
                 }
 
-                // If the reset is correctly logged as Debug, the wait below should complete shortly.
-                // This check MUST come before disposing the server, otherwise there's a race where the RST
-                // is still in flight when the connection is aborted, leading to the reset never being received
-                // and therefore not logged.
-                Assert.True(await connectionReset.WaitAsync(TestConstants.DefaultTimeout), "Connection reset event should have been logged");
-                connectionClosing.Release();
                 await server.StopAsync();
             }
 
@@ -469,16 +655,39 @@ namespace Microsoft.AspNetCore.Server.Kestrel.FunctionalTests
             }
         }
 
-        [Fact]
-        public async Task AbortingTheConnectionSendsFIN()
+        [Theory]
+#if LIBUV
+        [InlineData(true, 1)]
+        [InlineData(false, 1)]
+        [InlineData(true, 2)]
+        [InlineData(false, 2)]
+        public async Task AbortingTheConnection(bool fin, int threadCount)
+#else
+        [InlineData(true)]
+        [InlineData(false)]
+        public async Task AbortingTheConnection(bool fin)
+#endif
         {
+            var connectionAborted = new SemaphoreSlim(0);
+
             var builder = TransportSelector.GetWebHostBuilder()
+#if LIBUV
+                .ConfigureServices(services =>
+                {
+                    services.Configure<LibuvTransportOptions>(options =>
+                    {
+                        options.ThreadCount = threadCount;
+                    });
+                })
+#endif
+                .ConfigureServices(s => SetFinOnError(s, fin))
                 .UseKestrel()
                 .UseUrls("http://127.0.0.1:0")
                 .ConfigureServices(AddTestLogging)
                 .Configure(app => app.Run(context =>
                 {
                     context.Abort();
+                    connectionAborted.Release();
                     return Task.CompletedTask;
                 }));
 
@@ -490,8 +699,23 @@ namespace Microsoft.AspNetCore.Server.Kestrel.FunctionalTests
                 {
                     socket.Connect(new IPEndPoint(IPAddress.Loopback, host.GetPort()));
                     socket.Send(Encoding.ASCII.GetBytes("GET / HTTP/1.1\r\nHost:\r\n\r\n"));
-                    int result = socket.Receive(new byte[32]);
-                    Assert.Equal(0, result);
+
+                    Assert.True(await connectionAborted.WaitAsync(_semaphoreWaitTimeout));
+
+                    if (fin
+#if LIBUV
+                        // RST is only implemented on Windows.
+                        || !RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+#endif
+                        )
+                    {
+                        int result = socket.Receive(new byte[32]);
+                        Assert.Equal(0, result);
+                    }
+                    else
+                    {
+                        Assert.Throws<SocketException>(() => socket.Receive(new byte[32]));
+                    }
                 }
 
                 await host.StopAsync();
@@ -705,16 +929,21 @@ namespace Microsoft.AspNetCore.Server.Kestrel.FunctionalTests
         }
 
         [Theory]
-        [MemberData(nameof(ConnectionMiddlewareData))]
-        public async Task ServerCanAbortConnectionAfterUnobservedClose(ListenOptions listenOptions)
+        [InlineData("Loopback", true)]
+        [InlineData("PassThrough", true)]
+        [InlineData("Loopback", false)]
+        [InlineData("PassThrough", false)]
+        public async Task ServerCanAbortConnectionAfterUnobservedClose(string listenOptionsName, bool fin)
         {
             const int connectionPausedEventId = 4;
             const int connectionFinSentEventId = 7;
+            const int connectionRstSentEventId = 8;
             const int maxRequestBufferSize = 4096;
 
             var readCallbackUnwired = new TaskCompletionSource<object>(TaskCreationOptions.RunContinuationsAsynchronously);
             var clientClosedConnection = new TaskCompletionSource<object>(TaskCreationOptions.RunContinuationsAsynchronously);
-            var serverClosedConnection = new TaskCompletionSource<object>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var serverFinConnection = new TaskCompletionSource<object>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var serverRstConnection = new TaskCompletionSource<object>(TaskCreationOptions.RunContinuationsAsynchronously);
             var appFuncCompleted = new TaskCompletionSource<object>(TaskCreationOptions.RunContinuationsAsynchronously);
 
             TestSink.MessageLogged += context =>
@@ -731,7 +960,11 @@ namespace Microsoft.AspNetCore.Server.Kestrel.FunctionalTests
                 }
                 else if (context.EventId == connectionFinSentEventId)
                 {
-                    serverClosedConnection.SetResult(null);
+                    serverFinConnection.SetResult(null);
+                }
+                else if (context.EventId == connectionRstSentEventId)
+                {
+                    serverRstConnection.SetResult(null);
                 }
             };
 
@@ -740,6 +973,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.FunctionalTests
             {
                 ServerOptions =
                 {
+                    FinOnError = fin,
                     Limits =
                     {
                         MaxRequestBufferSize = maxRequestBufferSize,
@@ -757,10 +991,24 @@ namespace Microsoft.AspNetCore.Server.Kestrel.FunctionalTests
 
                 context.Abort();
 
-                await serverClosedConnection.Task;
+                if (fin)
+                {
+                    await serverFinConnection.Task.DefaultTimeout();
+                }
+                else
+                {
+                    await serverRstConnection.Task.DefaultTimeout();
+                }
 
                 appFuncCompleted.SetResult(null);
-            }, testContext, listenOptions))
+            }, testContext, listen =>
+            {
+                if (listenOptionsName == "PassThrough")
+                {
+                    listen.UsePassThrough();
+                }
+            },
+            services => SetFinOnError(services, fin)))
             {
                 using (var connection = server.CreateConnection())
                 {
@@ -886,21 +1134,21 @@ namespace Microsoft.AspNetCore.Server.Kestrel.FunctionalTests
         private static async Task AssertStreamContains(Stream stream, string expectedSubstring)
         {
             var expectedBytes = Encoding.ASCII.GetBytes(expectedSubstring);
-            var exptectedLength = expectedBytes.Length;
-            var responseBuffer = new byte[exptectedLength];
+            var expectedLength = expectedBytes.Length;
+            var responseBuffer = new byte[expectedLength];
 
             var matchedChars = 0;
 
-            while (matchedChars < exptectedLength)
+            while (matchedChars < expectedLength)
             {
-                var count = await stream.ReadAsync(responseBuffer, 0, exptectedLength - matchedChars).DefaultTimeout();
+                var count = await stream.ReadAsync(responseBuffer, 0, expectedLength - matchedChars).DefaultTimeout();
 
                 if (count == 0)
                 {
                     Assert.True(false, "Stream completed without expected substring.");
                 }
 
-                for (var i = 0; i < count && matchedChars < exptectedLength; i++)
+                for (var i = 0; i < count && matchedChars < expectedLength; i++)
                 {
                     if (responseBuffer[i] == expectedBytes[matchedChars])
                     {
@@ -912,6 +1160,25 @@ namespace Microsoft.AspNetCore.Server.Kestrel.FunctionalTests
                     }
                 }
             }
+        }
+
+        private static void SetFinOnError(IServiceCollection services, bool finOnError)
+        {
+#if LIBUV
+            services.Configure<LibuvTransportOptions>(options =>
+            {
+                options.FinOnError = finOnError;
+            });
+#else
+            services.Configure<SocketTransportOptions>(o =>
+            {
+                o.FinOnError = finOnError;
+            });
+#endif
+            services.Configure<KestrelServerOptions>(o =>
+            {
+                o.FinOnError = finOnError;
+            });
         }
     }
 }

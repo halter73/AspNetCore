@@ -11,6 +11,17 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Libuv
     /// </summary>
     public class LibuvTransportOptions
     {
+        private const string FinOnErrorSwitch = "Microsoft.AspNetCore.Server.Kestrel.FinOnError";
+        private static readonly bool _finOnError;
+
+        static LibuvTransportOptions()
+        {
+            AppContext.TryGetSwitch(FinOnErrorSwitch, out _finOnError);
+        }
+
+        // Opt-out flag for back compat
+        internal bool FinOnError { get; set; } = _finOnError;
+
         /// <summary>
         /// The number of libuv I/O threads used to process requests.
         /// </summary>

@@ -25,12 +25,14 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
         [StackTraceHidden]
         protected void ThrowUnexpectedEndOfRequestContent()
         {
-            // OnInputOrOutputCompleted() is an idempotent method that closes the connection. Sometimes
-            // input completion is observed here before the Input.OnWriterCompleted() callback is fired,
-            // so we call OnInputOrOutputCompleted() now to prevent a race in our tests where a 400
-            // response is written after observing the unexpected end of request content instead of just
-            // closing the connection without a response as expected.
-            _context.OnInputOrOutputCompleted();
+            if (_context.ServiceContext.ServerOptions.FinOnError)
+            {
+                _context.OnInputOrOutputCompleted();
+            }
+            else
+            {
+                _context.Abort(new ConnectionAbortedException(CoreStrings.ConnectionAbortedByClient));
+            }
 
             BadHttpRequestException.Throw(RequestRejectionReason.UnexpectedEndOfRequestContent);
         }

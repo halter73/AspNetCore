@@ -89,6 +89,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets
 {
     public partial class SocketTransportOptions
     {
+        internal bool FinOnError { get { throw null; } set { throw null; } }
         internal System.Func<System.Buffers.MemoryPool<byte>> MemoryPoolFactory { [System.Runtime.CompilerServices.CompilerGeneratedAttribute]get { throw null; } [System.Runtime.CompilerServices.CompilerGeneratedAttribute]set { } }
     }
 }

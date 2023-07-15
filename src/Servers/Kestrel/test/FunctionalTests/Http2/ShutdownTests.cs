@@ -41,6 +41,59 @@ namespace Microsoft.AspNetCore.Server.Kestrel.FunctionalTests.Http2
             };
         }
 
+        [ConditionalFact]
+        public async Task ConnectionClosedWithoutActiveRequestsOrGoAwayFIN()
+        {
+            var connectionClosed = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var readFin = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var writeFin = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            TestSink.MessageLogged += context =>
+            {
+                if (context.EventId.Name == "Http2ConnectionClosed")
+                {
+                    connectionClosed.SetResult(0);
+                }
+                else if (context.EventId.Name == "ConnectionReadFin")
+                {
+                    readFin.SetResult(0);
+                }
+                else if (context.EventId.Name == "ConnectionWriteFin")
+                {
+                    writeFin.SetResult(0);
+                }
+            };
+
+            var testContext = new TestServiceContext(LoggerFactory);
+
+            testContext.InitializeHeartbeat();
+
+            using (var server = new TestServer(context =>
+            {
+                return context.Response.WriteAsync("hello world " + context.Request.Protocol);
+            },
+            testContext,
+            kestrelOptions =>
+            {
+                kestrelOptions.Listen(IPAddress.Loopback, 0, listenOptions =>
+                {
+                    listenOptions.Protocols = HttpProtocols.Http2;
+                    listenOptions.UseHttps(_x509Certificate2);
+                });
+            }))
+            {
+                var response = await Client.GetStringAsync($"https://localhost:{server.Port}/");
+                Assert.Equal("hello world HTTP/2", response);
+                Client.Dispose(); // Close the socket, no GoAway is sent.
+
+                await readFin.Task.DefaultTimeout();
+                await writeFin.Task.DefaultTimeout();
+                await connectionClosed.Task.DefaultTimeout();
+
+                await server.StopAsync();
+            }
+        }
+
         [CollectDump]
         [ConditionalFact]
         [Flaky("https://github.com/aspnet/AspNetCore/issues/9985", FlakyOn.All)]

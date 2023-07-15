@@ -12,6 +12,8 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.Internal
 
         void ConnectionWriteFin(string connectionId, string reason);
 
+        void ConnectionWriteRst(string connectionId, string reason);
+
         void ConnectionError(string connectionId, Exception ex);
 
         void ConnectionReset(string connectionId);

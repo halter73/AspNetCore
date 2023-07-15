@@ -8,6 +8,10 @@ Reference assemblies contain the public API surface of libraries and are used fo
 
 Run `dotnet msbuild /t:GenerateReferenceSource` in that project's `src` directory
 
+### When changing internal API
+
+Update `$PROJ/ref/$ASSEMLBY.Manual.cs` by hand.
+
 ### When adding a new project
 
 Run `.\eng\scripts\GenerateProjectList.ps1` from the repository root and `dotnet msbuild /t:GenerateReferenceSource` in that project's `src` directory

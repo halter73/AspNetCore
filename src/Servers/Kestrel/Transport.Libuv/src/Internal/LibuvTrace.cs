@@ -22,6 +22,9 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Libuv.Internal
         private static readonly Action<ILogger, string, string, Exception> _connectionWriteFin =
             LoggerMessage.Define<string, string>(LogLevel.Debug, new EventId(7, nameof(ConnectionWriteFin)), @"Connection id ""{ConnectionId}"" sending FIN because: ""{Reason}""");
 
+        private static readonly Action<ILogger, string, string, Exception> _connectionWriteRst =
+            LoggerMessage.Define<string, string>(LogLevel.Debug, new EventId(8, nameof(ConnectionWriteRst)), @"Connection id ""{ConnectionId}"" sending RST because: ""{Reason}""");
+
         // ConnectionWrite: Reserved: 11
 
         // ConnectionWriteCallback: Reserved: 12
@@ -53,6 +56,11 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Libuv.Internal
         public void ConnectionWriteFin(string connectionId, string reason)
         {
             _connectionWriteFin(_logger, connectionId, reason, null);
+        }
+
+        public void ConnectionWriteRst(string connectionId, string reason)
+        {
+            _connectionWriteRst(_logger, connectionId, reason, null);
         }
 
         public void ConnectionWrite(string connectionId, int count)

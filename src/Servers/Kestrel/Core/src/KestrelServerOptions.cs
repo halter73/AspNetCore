@@ -22,6 +22,17 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core
     /// </summary>
     public class KestrelServerOptions
     {
+        private const string FinOnErrorSwitch = "Microsoft.AspNetCore.Server.Kestrel.FinOnError";
+        private static readonly bool _finOnError;
+
+        static KestrelServerOptions()
+        {
+            AppContext.TryGetSwitch(FinOnErrorSwitch, out _finOnError);
+        }
+
+        // Opt-out flag for back compat. Remove in 9.0 (or make public).
+        internal bool FinOnError { get; set; } = _finOnError;
+
         /// <summary>
         /// Configures the endpoints that Kestrel should listen to.
         /// </summary>

@@ -38,6 +38,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core
     }
     public partial class KestrelServerOptions
     {
+        internal bool FinOnError { get { throw null; } set { throw null; } }
         internal System.Security.Cryptography.X509Certificates.X509Certificate2 DefaultCertificate { [System.Runtime.CompilerServices.CompilerGeneratedAttribute]get { throw null; } [System.Runtime.CompilerServices.CompilerGeneratedAttribute]set { } }
         internal bool IsDevCertLoaded { [System.Runtime.CompilerServices.CompilerGeneratedAttribute]get { throw null; } [System.Runtime.CompilerServices.CompilerGeneratedAttribute]set { } }
         internal bool Latin1RequestHeaders { [System.Runtime.CompilerServices.CompilerGeneratedAttribute]get { throw null; } [System.Runtime.CompilerServices.CompilerGeneratedAttribute]set { } }

@@ -26,6 +26,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.Internal
         private readonly SocketReceiver _receiver;
         private readonly SocketSender _sender;
         private readonly CancellationTokenSource _connectionClosedTokenSource = new CancellationTokenSource();
+        private readonly bool _finOnError;
 
         private readonly object _shutdownLock = new object();
         private volatile bool _socketDisposed;
@@ -39,7 +40,8 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.Internal
                                   PipeScheduler scheduler,
                                   ISocketsTrace trace,
                                   long? maxReadBufferSize = null,
-                                  long? maxWriteBufferSize = null)
+                                  long? maxWriteBufferSize = null,
+                                  bool finOnError = false)
         {
             Debug.Assert(socket != null);
             Debug.Assert(memoryPool != null);
@@ -48,6 +50,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.Internal
             _socket = socket;
             MemoryPool = memoryPool;
             _trace = trace;
+            _finOnError = finOnError;
 
             LocalEndPoint = _socket.LocalEndPoint;
             RemoteEndPoint = _socket.RemoteEndPoint;
@@ -336,11 +339,20 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.Internal
                 // to half close the connection which is currently unsupported.
                 _shutdownReason = shutdownReason ?? new ConnectionAbortedException("The Socket transport's send loop completed gracefully.");
 
+                // We only want to abort the connection on error.
+                if (!_finOnError && shutdownReason != null)
+                {
+                    _trace.ConnectionWriteRst(ConnectionId, _shutdownReason.Message);
+
+                    // This forces an abortive close with linger time 0 (and implies Dispose)
+                    _socket.Close(timeout: 0);
+                    return;
+                }
+
                 _trace.ConnectionWriteFin(ConnectionId, _shutdownReason.Message);
 
                 try
                 {
-                    // Try to gracefully close the socket even for aborts to match libuv behavior.
                     _socket.Shutdown(SocketShutdown.Both);
                 }
                 catch

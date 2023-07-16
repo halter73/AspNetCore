@@ -45,6 +45,9 @@ public static class IdentityApiEndpointRouteBuilderExtensions
         var timeProvider = endpoints.ServiceProvider.GetRequiredService<TimeProvider>();
         var bearerTokenOptions = endpoints.ServiceProvider.GetRequiredService<IOptionsMonitor<BearerTokenOptions>>();
         var emailSender = endpoints.ServiceProvider.GetRequiredService<IEmailSender>();
+        var linkGenerator = endpoints.ServiceProvider.GetRequiredService<LinkGenerator>();
+
+        var confirmEmailEndpointName = $"{nameof(MapIdentityApi)}-ConfirmEmail";
 
         // NOTE: We cannot inject UserManager<TUser> directly because the TUser generic parameter is currently unsupported by RDG.
         // https://github.com/dotnet/aspnetcore/issues/47338
@@ -70,12 +73,21 @@ public static class IdentityApiEndpointRouteBuilderExtensions
             {
                 var userId = await userManager.GetUserIdAsync(user);
                 var code = await userManager.GenerateEmailConfirmationTokenAsync(user);
+                code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
 
-                // TODO: Use link generation.
-                var callbackUrl = $"/confirmEmail?userId={userId}&code={code}";
+                var confirmEmailUrl = linkGenerator.GetPathByName(confirmEmailEndpointName, new()
+                {
+                    ["userId"] = userId,
+                    ["code"] = code,
+                });
+
+                if (confirmEmailUrl is null)
+                {
+                    throw new InvalidOperationException($"Could not find endpoint named '{confirmEmailEndpointName}'.");
+                }
 
                 await emailSender.SendEmailAsync(registration.Email, "Confirm your email",
-                    $"Please confirm your account by <a href='{HtmlEncoder.Default.Encode(callbackUrl)}'>clicking here</a>.");
+                    $"Please confirm your account by <a href='{HtmlEncoder.Default.Encode(confirmEmailUrl)}'>clicking here</a>.");
 
                 return TypedResults.Ok();
             }
@@ -138,7 +150,7 @@ public static class IdentityApiEndpointRouteBuilderExtensions
             }
 
             return TypedResults.Text("Thank you for confirming your email.");
-        });
+        }).WithName(confirmEmailEndpointName);
 
         return new IdentityEndpointsConventionBuilder(routeGroup);
     }

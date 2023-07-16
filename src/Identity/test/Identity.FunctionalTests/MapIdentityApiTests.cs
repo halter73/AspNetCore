@@ -8,10 +8,12 @@ using System.Net.Http;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Identity.DefaultUI.WebSite;
 using Identity.DefaultUI.WebSite.Data;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.AspNetCore.Testing;
@@ -401,6 +403,45 @@ public class MapIdentityApiTests : LoggedTest
         loginResponse.EnsureSuccessStatusCode();
     }
 
+    [Fact]
+    public async Task EmailConfirmationCanBeEnabled()
+    {
+        var emailSender = new TestEmailSender();
+
+        await using var app = await CreateAppAsync(services =>
+        {
+            AddIdentityApiEndpoints(services);
+            services.AddSingleton<IEmailSender>(emailSender);
+            services.Configure<IdentityOptions>(options =>
+            {
+                options.SignIn.RequireConfirmedAccount = true;
+            });
+        });
+        using var client = app.GetTestClient();
+
+        await client.PostAsJsonAsync("/identity/register", new { Username, Password, Email = Username });
+
+        var email = Assert.Single(emailSender.Emails);
+
+        AssertUnauthorizedAndEmpty(await client.PostAsJsonAsync("/identity/login", new { Username, Password }));
+
+        Assert.Single(TestSink.Writes, w =>
+            w.LoggerName == "Microsoft.AspNetCore.Identity.SignInManager" &&
+            w.EventId == new EventId(4, "UserCannotSignInWithoutConfirmedAccount"));
+
+        // Update if we add more links to the email
+        var confirmationMatch = Regex.Match(email.HtmlMessage, "href='(.*?)'");
+        Assert.True(confirmationMatch.Success);
+        Assert.Equal(2, confirmationMatch.Groups.Count);
+
+        var confirmEmailLink = WebUtility.HtmlDecode(confirmationMatch.Groups[1].Value);
+        var confirmEmailResponse = await client.GetAsync(confirmEmailLink);
+        confirmEmailResponse.EnsureSuccessStatusCode();
+
+        var loginResponse = await client.PostAsJsonAsync("/identity/login", new { Username, Password, Email = Username });
+        loginResponse.EnsureSuccessStatusCode();
+    }
+
     private static void AssertOkAndEmpty(HttpResponseMessage response)
     {
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -472,4 +513,17 @@ public class MapIdentityApiTests : LoggedTest
     };
 
     public static object[][] AddIdentityModes => AddIdentityActions.Keys.Select(key => new object[] { key }).ToArray();
+
+    private sealed class TestEmailSender : IEmailSender
+    {
+        public List<Email> Emails { get; set; } = new();
+
+        public Task SendEmailAsync(string email, string subject, string htmlMessage)
+        {
+            Emails.Add(new(email, subject, htmlMessage));
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed record Email(string Address, string Subject, string HtmlMessage);
 }

@@ -47,7 +47,8 @@ public static class IdentityApiEndpointRouteBuilderExtensions
         var emailSender = endpoints.ServiceProvider.GetRequiredService<IEmailSender>();
         var linkGenerator = endpoints.ServiceProvider.GetRequiredService<LinkGenerator>();
 
-        var confirmEmailEndpointName = $"{nameof(MapIdentityApi)}-ConfirmEmail";
+        // We'll figure out a unique endpoint name based on the final route pattern during endpoint generation.
+        string? confirmEmailEndpointName = null;
 
         // NOTE: We cannot inject UserManager<TUser> directly because the TUser generic parameter is currently unsupported by RDG.
         // https://github.com/dotnet/aspnetcore/issues/47338
@@ -59,6 +60,11 @@ public static class IdentityApiEndpointRouteBuilderExtensions
             if (!userManager.SupportsUserLockout)
             {
                 throw new NotSupportedException($"{nameof(MapIdentityApi)} requires a user store with email support.");
+            }
+
+            if (confirmEmailEndpointName is null)
+            {
+                throw new NotSupportedException("No email confirmation endpoint was registered!");
             }
 
             var emailStore = (IUserEmailStore<TUser>)sp.GetRequiredService<IUserStore<TUser>>();
@@ -83,7 +89,7 @@ public static class IdentityApiEndpointRouteBuilderExtensions
 
                 if (confirmEmailUrl is null)
                 {
-                    throw new InvalidOperationException($"Could not find endpoint named '{confirmEmailEndpointName}'.");
+                    throw new NotSupportedException($"Could not find endpoint named '{confirmEmailEndpointName}'.");
                 }
 
                 await emailSender.SendEmailAsync(registration.Email, "Confirm your email",
@@ -150,7 +156,14 @@ public static class IdentityApiEndpointRouteBuilderExtensions
             }
 
             return TypedResults.Text("Thank you for confirming your email.");
-        }).WithName(confirmEmailEndpointName);
+        })
+        .Add(endpointBuilder =>
+        {
+            var finalPattern = ((RouteEndpointBuilder)endpointBuilder).RoutePattern.RawText;
+            confirmEmailEndpointName = $"{nameof(MapIdentityApi)}-{finalPattern}";
+            endpointBuilder.Metadata.Add(new EndpointNameMetadata(confirmEmailEndpointName));
+            endpointBuilder.Metadata.Add(new RouteNameMetadata(confirmEmailEndpointName));
+        });
 
         return new IdentityEndpointsConventionBuilder(routeGroup);
     }

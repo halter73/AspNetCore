@@ -850,7 +850,7 @@ public class SignInManager<TUser> where TUser : class
         if (result?.Principal == null)
         {
             return null;
-        }    
+        }
 
         var userId = result.Principal.FindFirstValue(ClaimTypes.Name);
         if (userId == null)

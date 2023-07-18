@@ -429,21 +429,11 @@ public class MapIdentityApiTests : LoggedTest
         });
         using var client = app.GetTestClient();
 
-        await client.PostAsJsonAsync("/identity/register", new { Username, Password, Email = Username });
-
-        var email = Assert.Single(emailSender.Emails);
-
-        AssertUnauthorizedAndEmpty(await client.PostAsJsonAsync("/identity/login", new { Username, Password }));
+        await TestRegistrationWithAccountConfirmation(client, emailSender);
 
         Assert.Single(TestSink.Writes, w =>
             w.LoggerName == "Microsoft.AspNetCore.Identity.SignInManager" &&
             w.EventId == new EventId(4, "UserCannotSignInWithoutConfirmedAccount"));
-
-        var confirmEmailResponse = await client.GetAsync(GetEmailConfirmationLink(email));
-        confirmEmailResponse.EnsureSuccessStatusCode();
-
-        var loginResponse = await client.PostAsJsonAsync("/identity/login", new { Username, Password });
-        loginResponse.EnsureSuccessStatusCode();
     }
 
     [Fact]
@@ -462,21 +452,11 @@ public class MapIdentityApiTests : LoggedTest
         });
         using var client = app.GetTestClient();
 
-        await client.PostAsJsonAsync("/identity/register", new { Username, Password, Email = Username });
-
-        var email = Assert.Single(emailSender.Emails);
-
-        AssertUnauthorizedAndEmpty(await client.PostAsJsonAsync("/identity/login", new { Username, Password }));
+        await TestRegistrationWithAccountConfirmation(client, emailSender);
 
         Assert.Single(TestSink.Writes, w =>
             w.LoggerName == "Microsoft.AspNetCore.Identity.SignInManager" &&
             w.EventId == new EventId(0, "UserCannotSignInWithoutConfirmedEmail"));
-
-        var confirmEmailResponse = await client.GetAsync(GetEmailConfirmationLink(email));
-        confirmEmailResponse.EnsureSuccessStatusCode();
-
-        var loginResponse = await client.PostAsJsonAsync("/identity/login", new { Username, Password });
-        loginResponse.EnsureSuccessStatusCode();
     }
 
     [Fact]
@@ -546,6 +526,27 @@ public class MapIdentityApiTests : LoggedTest
         // We can use the same username twice since we're using two distinct DbContexts.
         await TestRegistrationWithAccountConfirmation(client, emailSender, "/identity", Username);
         await TestRegistrationWithAccountConfirmation(client, emailSender, "/identity2", Username);
+    }
+
+    [Fact]
+    public async Task CanEnableTwoFactor()
+    {
+        await using var app = await CreateAppAsync();
+
+        var userManager = app.Services.GetRequiredService<UserManager<ApplicationUser>>();
+        Assert.True(userManager.SupportsUserTwoFactor);
+
+        using var client = app.GetTestClient();
+
+        await client.PostAsJsonAsync("/identity/register", new { Username, Password, Email = Username });
+
+        var user = await userManager.FindByNameAsync(Username);
+        Assert.NotNull(user);
+
+        await userManager.SetTwoFactorEnabledAsync(user, enabled: true);
+
+        var loginResponse = await client.PostAsJsonAsync("/identity/login", new { Username, Password });
+        loginResponse.EnsureSuccessStatusCode(); // SHOULD FAIL!
     }
 
     private async Task<WebApplication> CreateAppAsync<TUser, TContext>(Action<IServiceCollection>? configureServices, bool autoStart = true)
@@ -650,7 +651,7 @@ public class MapIdentityApiTests : LoggedTest
 
     private async Task TestRegistrationWithAccountConfirmation(HttpClient client, TestEmailSender emailSender, string? groupPrefix = null, string? username = null)
     {
-        groupPrefix ??= "";
+        groupPrefix ??= "/identity";
         username ??= Username;
 
         await client.PostAsJsonAsync($"{groupPrefix}/register", new { username, Password, Email = username });

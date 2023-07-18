@@ -109,8 +109,13 @@ public static class IdentityApiEndpointRouteBuilderExtensions
             signInManager.TwoFactorCode = login.TwoFactorCode;
             var result = await signInManager.PasswordSignInAsync(login.Username, login.Password, isPersistent: true, lockoutOnFailure: true);
 
-            // TODO: Use problem details for lockout.
-            return result.Succeeded ? _noopResult : TypedResults.Unauthorized();
+            if (result.Succeeded)
+            {
+                // The signInManager already produced the needed response in the form of a cookie or bearer token.
+                return _noopResult;
+            }
+
+            return TypedResults.Problem(result.ToString(), statusCode: StatusCodes.Status401Unauthorized);
         });
 
         routeGroup.MapPost("/refresh", async Task<Results<UnauthorizedHttpResult, Ok<AccessTokenResponse>, SignInHttpResult, ChallengeHttpResult>>
@@ -133,7 +138,6 @@ public static class IdentityApiEndpointRouteBuilderExtensions
             return TypedResults.SignIn(newPrincipal, authenticationScheme: IdentityConstants.BearerScheme);
         });
 
-        // TODO: Add option for redirect.
         routeGroup.MapGet("/confirmEmail", async Task<Results<ContentHttpResult, UnauthorizedHttpResult>>
             ([FromQuery] string userId, [FromQuery] string code, [FromServices] IServiceProvider sp) =>
         {

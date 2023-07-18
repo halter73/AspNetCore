@@ -531,16 +531,7 @@ public class MapIdentityApiTests : LoggedTest
     [Fact]
     public async Task CanEnableTwoFactor()
     {
-        await using var app = await CreateAppAsync(services =>
-        {
-            AddIdentityApiEndpoints(services)
-                .AddTokenProvider<TestTokenProvider<ApplicationUser>>("Test");
-
-            services.Configure<IdentityOptions>(options =>
-            {
-                //options.SignIn.RequireConfirmedAccount = true;
-            });
-        });
+        await using var app = await CreateAppAsync();
 
         var userManager = app.Services.GetRequiredService<UserManager<ApplicationUser>>();
         Assert.True(userManager.SupportsUserTwoFactor);
@@ -552,10 +543,22 @@ public class MapIdentityApiTests : LoggedTest
         var user = await userManager.FindByNameAsync(Username);
         Assert.NotNull(user);
 
-        await userManager.SetTwoFactorEnabledAsync(user, enabled: true);
+        // Enable 2fa
+        AssertSuccess(await userManager.ResetAuthenticatorKeyAsync(user));
+        AssertSuccess(await userManager.SetTwoFactorEnabledAsync(user, enabled: true));
 
-        var loginResponse = await client.PostAsJsonAsync("/identity/login", new { Username, Password });
-        loginResponse.EnsureSuccessStatusCode(); // SHOULD FAIL!
+        // Generate 2fa code from key
+        var authenticatorKey = await userManager.GetAuthenticatorKeyAsync(user);
+        Assert.NotNull(authenticatorKey);
+        var keyBytes = Base32.FromBase32(authenticatorKey);
+        var unixTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var timestep = Convert.ToInt64(unixTimestamp / 30);
+        var twoFactorCode = Rfc6238AuthenticationService.ComputeTotp(keyBytes, (ulong)timestep, modifierBytes: null).ToString();
+
+        AssertUnauthorizedAndEmpty(await client.PostAsJsonAsync("/identity/login", new { Username, Password }));
+
+        var loginResponse = await client.PostAsJsonAsync("/identity/login", new { Username, Password, twoFactorCode });
+        loginResponse.EnsureSuccessStatusCode();
     }
 
     private async Task<WebApplication> CreateAppAsync<TUser, TContext>(Action<IServiceCollection>? configureServices, bool autoStart = true)
@@ -647,6 +650,11 @@ public class MapIdentityApiTests : LoggedTest
     {
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         Assert.Equal(0, response.Content.Headers.ContentLength);
+    }
+
+    private static void AssertSuccess(IdentityResult result)
+    {
+        Assert.True(result.Succeeded);
     }
 
     private static string GetEmailConfirmationLink(Email email)

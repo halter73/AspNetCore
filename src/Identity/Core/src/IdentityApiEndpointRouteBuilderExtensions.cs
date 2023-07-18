@@ -106,6 +106,7 @@ public static class IdentityApiEndpointRouteBuilderExtensions
             var signInManager = sp.GetRequiredService<SignInManager<TUser>>();
 
             signInManager.PrimaryAuthenticationScheme = cookieMode == true ? IdentityConstants.ApplicationScheme : IdentityConstants.BearerScheme;
+            signInManager.TwoFactorCode = login.TwoFactorCode;
             var result = await signInManager.PasswordSignInAsync(login.Username, login.Password, isPersistent: true, lockoutOnFailure: true);
 
             // TODO: Use problem details for lockout.

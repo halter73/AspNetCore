@@ -572,12 +572,6 @@ public class MapIdentityApiTests : LoggedTest
         loginResponse.EnsureSuccessStatusCode();
     }
 
-    [Fact]
-    public async Task CanEnableTwoFactor()
-    {
-
-    }
-
     private async Task<WebApplication> CreateAppAsync<TUser, TContext>(Action<IServiceCollection>? configureServices, bool autoStart = true)
         where TUser : class, new()
         where TContext : DbContext

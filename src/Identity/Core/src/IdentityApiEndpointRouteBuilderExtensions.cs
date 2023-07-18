@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Linq;
+using System.Security.Claims;
 using System.Text;
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication.BearerToken;
@@ -100,7 +101,7 @@ public static class IdentityApiEndpointRouteBuilderExtensions
             return TypedResults.ValidationProblem(result.Errors.ToDictionary(e => e.Code, e => new[] { e.Description }));
         });
 
-        routeGroup.MapPost("/login", async Task<Results<UnauthorizedHttpResult, Ok<AccessTokenResponse>, IResult>>
+        routeGroup.MapPost("/login", async Task<Results<Ok<AccessTokenResponse>, ProblemHttpResult, IResult>>
             ([FromBody] LoginRequest login, [FromQuery] bool? cookieMode, [FromServices] IServiceProvider sp) =>
         {
             var signInManager = sp.GetRequiredService<SignInManager<TUser>>();
@@ -118,7 +119,7 @@ public static class IdentityApiEndpointRouteBuilderExtensions
             return TypedResults.Problem(result.ToString(), statusCode: StatusCodes.Status401Unauthorized);
         });
 
-        routeGroup.MapPost("/refresh", async Task<Results<UnauthorizedHttpResult, Ok<AccessTokenResponse>, SignInHttpResult, ChallengeHttpResult>>
+        routeGroup.MapPost("/refresh", async Task<Results<Ok<AccessTokenResponse>, UnauthorizedHttpResult, SignInHttpResult, ChallengeHttpResult>>
             ([FromBody] RefreshRequest refreshRequest, [FromServices] IServiceProvider sp) =>
         {
             var signInManager = sp.GetRequiredService<SignInManager<TUser>>();
@@ -167,6 +168,67 @@ public static class IdentityApiEndpointRouteBuilderExtensions
             confirmEmailEndpointName = $"{nameof(MapIdentityApi)}-{finalPattern}";
             endpointBuilder.Metadata.Add(new EndpointNameMetadata(confirmEmailEndpointName));
             endpointBuilder.Metadata.Add(new RouteNameMetadata(confirmEmailEndpointName));
+        });
+
+        var accountGroup = routeGroup.MapGroup("/account").RequireAuthorization();
+
+        accountGroup.MapPost("/get2faKey", async Task<Results<Ok<TwoFactorKeyResponse>, NotFound>>
+            (ClaimsPrincipal claimsPrincipal, [FromServices] IServiceProvider sp) =>
+        {
+            var userManager = sp.GetRequiredService<UserManager<TUser>>();
+            var user = await userManager.GetUserAsync(claimsPrincipal);
+
+            if (user is null)
+            {
+                return TypedResults.NotFound();
+            }
+
+            var key = await userManager.GetAuthenticatorKeyAsync(user);
+            if (string.IsNullOrEmpty(key))
+            {
+                await userManager.ResetAuthenticatorKeyAsync(user);
+                key = await userManager.GetAuthenticatorKeyAsync(user);
+            }
+
+            return TypedResults.Ok(new TwoFactorKeyResponse
+            {
+                SharedKey = key!,
+            });
+        });
+
+        accountGroup.MapPost("/enable2fa", async Task<Results<Ok, ProblemHttpResult, NotFound>>
+            (ClaimsPrincipal claimsPrincipal, [FromQuery] string twoFactorCode, [FromServices] IServiceProvider sp) =>
+        {
+            var userManager = sp.GetRequiredService<UserManager<TUser>>();
+            var user = await userManager.GetUserAsync(claimsPrincipal);
+
+            if (user is null)
+            {
+                return TypedResults.NotFound();
+            }
+
+            if (!await userManager.VerifyTwoFactorTokenAsync(user, userManager.Options.Tokens.AuthenticatorTokenProvider, twoFactorCode))
+            {
+                return TypedResults.Problem("InvalidCode");
+            }
+
+            await userManager.SetTwoFactorEnabledAsync(user, true);
+            return TypedResults.Ok();
+        });
+
+        accountGroup.MapPost("/disable2fa", async Task<Results<Ok, NotFound>>
+            (ClaimsPrincipal claimsPrincipal, [FromServices] IServiceProvider sp) =>
+        {
+            var userManager = sp.GetRequiredService<UserManager<TUser>>();
+            var user = await userManager.GetUserAsync(claimsPrincipal);
+
+            if (user is null)
+            {
+                return TypedResults.NotFound();
+            }
+
+            await userManager.SetTwoFactorEnabledAsync(user, false);
+            return TypedResults.Ok();
         });
 
         return new IdentityEndpointsConventionBuilder(routeGroup);

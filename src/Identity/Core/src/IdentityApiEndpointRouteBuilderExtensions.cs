@@ -70,7 +70,6 @@ public static class IdentityApiEndpointRouteBuilderExtensions
             var emailStore = (IUserEmailStore<TUser>)sp.GetRequiredService<IUserStore<TUser>>();
 
             var user = new TUser();
-            // TODO: Use store directly to save DB round trips
             await userManager.SetUserNameAsync(user, registration.Username);
             await emailStore.SetEmailAsync(user, registration.Email, CancellationToken.None);
             var result = await userManager.CreateAsync(user, registration.Password);
@@ -106,7 +105,7 @@ public static class IdentityApiEndpointRouteBuilderExtensions
         {
             var signInManager = sp.GetRequiredService<SignInManager<TUser>>();
 
-            signInManager.AuthenticationScheme = cookieMode == true ? IdentityConstants.ApplicationScheme : IdentityConstants.BearerScheme;
+            signInManager.PrimaryAuthenticationScheme = cookieMode == true ? IdentityConstants.ApplicationScheme : IdentityConstants.BearerScheme;
             var result = await signInManager.PasswordSignInAsync(login.Username, login.Password, isPersistent: true, lockoutOnFailure: true);
 
             // TODO: Use problem details for lockout.
@@ -198,3 +197,4 @@ public static class IdentityApiEndpointRouteBuilderExtensions
         public string? Name => null;
     }
 }
+

@@ -167,7 +167,7 @@ public class MapIdentityApiTests : LoggedTest
     [Fact]
     public async Task CannotLoginWithCookiesWithOnlyCoreServices()
     {
-        await using var app = await CreateAppAsync(AddIdentityApiEndpointsBearerOnly);
+        await using var app = await CreateAppAsync(services => AddIdentityApiEndpointsBearerOnly(services));
         using var client = app.GetTestClient();
 
         await client.PostAsJsonAsync("/identity/register", new { Username, Password, Email = Username });
@@ -531,7 +531,16 @@ public class MapIdentityApiTests : LoggedTest
     [Fact]
     public async Task CanEnableTwoFactor()
     {
-        await using var app = await CreateAppAsync();
+        await using var app = await CreateAppAsync(services =>
+        {
+            AddIdentityApiEndpoints(services)
+                .AddTokenProvider<TestTokenProvider<ApplicationUser>>("Test");
+
+            services.Configure<IdentityOptions>(options =>
+            {
+                //options.SignIn.RequireConfirmedAccount = true;
+            });
+        });
 
         var userManager = app.Services.GetRequiredService<UserManager<ApplicationUser>>();
         Assert.True(userManager.SupportsUserTwoFactor);
@@ -562,7 +571,7 @@ public class MapIdentityApiTests : LoggedTest
         // Dispose SqliteConnection with host by registering as a singleton factory.
         builder.Services.AddSingleton(_ => dbConnection);
 
-        configureServices ??= AddIdentityApiEndpoints<TUser, TContext>;
+        configureServices ??= services => AddIdentityApiEndpoints<TUser, TContext>(services);
         configureServices(builder.Services);
 
         var app = builder.Build();
@@ -587,27 +596,28 @@ public class MapIdentityApiTests : LoggedTest
         return app;
     }
 
-    private static void AddIdentityApiEndpoints<TUser, TContext>(IServiceCollection services)
+    private static IdentityBuilder AddIdentityApiEndpoints<TUser, TContext>(IServiceCollection services)
         where TUser : class, new()
         where TContext : DbContext
     {
-        services.AddDbContext<TContext>((sp, options) => options.UseSqlite(sp.GetRequiredService<SqliteConnection>()))
+        return services.AddDbContext<TContext>((sp, options) => options.UseSqlite(sp.GetRequiredService<SqliteConnection>()))
             .AddIdentityApiEndpoints<TUser>().AddEntityFrameworkStores<TContext>();
     }
 
-    private static void AddIdentityApiEndpoints(IServiceCollection services)
+    private static IdentityBuilder AddIdentityApiEndpoints(IServiceCollection services)
         => AddIdentityApiEndpoints<ApplicationUser, ApplicationDbContext>(services);
 
-    private static void AddIdentityApiEndpointsBearerOnly(IServiceCollection services)
+    private static IdentityBuilder AddIdentityApiEndpointsBearerOnly(IServiceCollection services)
     {
         services
+            .AddAuthentication(IdentityConstants.BearerScheme)
+            .AddIdentityBearerToken<ApplicationUser>();
+
+        return services
             .AddDbContext<ApplicationDbContext>((sp, options) => options.UseSqlite(sp.GetRequiredService<SqliteConnection>()))
             .AddIdentityCore<ApplicationUser>()
             .AddEntityFrameworkStores<ApplicationDbContext>()
             .AddApiEndpoints();
-        services
-            .AddAuthentication(IdentityConstants.BearerScheme)
-            .AddIdentityBearerToken<ApplicationUser>();
     }
 
     private Task<WebApplication> CreateAppAsync(Action<IServiceCollection>? configureServices = null)
@@ -615,8 +625,8 @@ public class MapIdentityApiTests : LoggedTest
 
     private static Dictionary<string, Action<IServiceCollection>> AddIdentityActions { get; } = new()
     {
-        [nameof(AddIdentityApiEndpoints)] = AddIdentityApiEndpoints,
-        [nameof(AddIdentityApiEndpointsBearerOnly)] = AddIdentityApiEndpointsBearerOnly,
+        [nameof(AddIdentityApiEndpoints)] = services => AddIdentityApiEndpoints(services),
+        [nameof(AddIdentityApiEndpointsBearerOnly)] = services => AddIdentityApiEndpointsBearerOnly(services),
     };
 
     public static object[][] AddIdentityModes => AddIdentityActions.Keys.Select(key => new object[] { key }).ToArray();
@@ -665,6 +675,30 @@ public class MapIdentityApiTests : LoggedTest
 
         var loginResponse = await client.PostAsJsonAsync($"{groupPrefix}/login", new { username, Password });
         loginResponse.EnsureSuccessStatusCode();
+    }
+
+    private sealed class TestTokenProvider<TUser> : IUserTwoFactorTokenProvider<TUser>
+        where TUser : class
+    {
+        public async Task<string> GenerateAsync(string purpose, UserManager<TUser> manager, TUser user)
+        {
+            return MakeToken(purpose, await manager.GetUserIdAsync(user));
+        }
+
+        public async Task<bool> ValidateAsync(string purpose, string token, UserManager<TUser> manager, TUser user)
+        {
+            return token == MakeToken(purpose, await manager.GetUserIdAsync(user));
+        }
+
+        public Task<bool> CanGenerateTwoFactorTokenAsync(UserManager<TUser> manager, TUser user)
+        {
+            return Task.FromResult(true);
+        }
+
+        private static string MakeToken(string purpose, string userId)
+        {
+            return string.Join(":", userId, purpose, "ImmaToken");
+        }
     }
 
     private sealed class TestEmailSender : IEmailSender

@@ -528,10 +528,11 @@ public class MapIdentityApiTests : LoggedTest
         await TestRegistrationWithAccountConfirmation(client, emailSender, "/identity2", Username);
     }
 
-    [Fact]
-    public async Task CanEnableTwoFactor()
+    [Theory]
+    [MemberData(nameof(AddIdentityModes))]
+    public async Task CanUseTwoFactors(string addIdentityMode)
     {
-        await using var app = await CreateAppAsync();
+        await using var app = await CreateAppAsync(AddIdentityActions[addIdentityMode]);
 
         var userManager = app.Services.GetRequiredService<UserManager<ApplicationUser>>();
         Assert.True(userManager.SupportsUserTwoFactor);

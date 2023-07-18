@@ -425,6 +425,11 @@ public class SignInManager<TUser> where TUser : class
     /// </returns>
     public virtual async Task<bool> IsTwoFactorClientRememberedAsync(TUser user)
     {
+        if (await _schemes.GetSchemeAsync(IdentityConstants.TwoFactorUserIdScheme) == null)
+        {
+            return false;
+        }
+
         var userId = await UserManager.GetUserIdAsync(user);
         var result = await Context.AuthenticateAsync(IdentityConstants.TwoFactorRememberMeScheme);
         return (result?.Principal != null && result.Principal.FindFirstValue(ClaimTypes.Name) == userId);
@@ -497,10 +502,13 @@ public class SignInManager<TUser> where TUser : class
             await Context.SignOutAsync(IdentityConstants.ExternalScheme);
         }
         // Cleanup two factor user id cookie
-        await Context.SignOutAsync(IdentityConstants.TwoFactorUserIdScheme);
-        if (rememberClient)
+        if (await _schemes.GetSchemeAsync(IdentityConstants.TwoFactorUserIdScheme) != null)
         {
-            await RememberTwoFactorClientAsync(user);
+            await Context.SignOutAsync(IdentityConstants.TwoFactorUserIdScheme);
+            if (rememberClient)
+            {
+                await RememberTwoFactorClientAsync(user);
+            }
         }
         await SignInWithClaimsAsync(user, isPersistent, claims);
         return SignInResult.Success;

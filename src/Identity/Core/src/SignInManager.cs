@@ -25,7 +25,7 @@ public class SignInManager<TUser> where TUser : class
     private readonly IAuthenticationSchemeProvider _schemes;
     private readonly IUserConfirmation<TUser> _confirmation;
     private HttpContext? _context;
-    private TUser? _twoFactorUser;
+    private TwoFactorAuthenticationInfo? _twoFactorInfo;
 
     /// <summary>
     /// Creates a new instance of <see cref="SignInManager{TUser}"/>.
@@ -253,8 +253,15 @@ public class SignInManager<TUser> where TUser : class
     public virtual async Task SignOutAsync()
     {
         await Context.SignOutAsync(PrimaryAuthenticationScheme);
-        await Context.SignOutAsync(IdentityConstants.ExternalScheme);
-        await Context.SignOutAsync(IdentityConstants.TwoFactorUserIdScheme);
+
+        if (await _schemes.GetSchemeAsync(IdentityConstants.ExternalScheme) != null)
+        {
+            await Context.SignOutAsync(IdentityConstants.ExternalScheme);
+        }
+        if (await _schemes.GetSchemeAsync(IdentityConstants.TwoFactorUserIdScheme) != null)
+        {
+            await Context.SignOutAsync(IdentityConstants.TwoFactorUserIdScheme);
+        }
     }
 
     /// <summary>
@@ -495,10 +502,13 @@ public class SignInManager<TUser> where TUser : class
         var claims = new List<Claim>();
         claims.Add(new Claim("amr", "mfa"));
 
-        // Cleanup external cookie
         if (twoFactorInfo.LoginProvider != null)
         {
             claims.Add(new Claim(ClaimTypes.AuthenticationMethod, twoFactorInfo.LoginProvider));
+        }
+        // Cleanup external cookie
+        if (await _schemes.GetSchemeAsync(IdentityConstants.ExternalScheme) != null)
+        {
             await Context.SignOutAsync(IdentityConstants.ExternalScheme);
         }
         // Cleanup two factor user id cookie
@@ -804,7 +814,11 @@ public class SignInManager<TUser> where TUser : class
         {
             if (TwoFactorCode != null)
             {
-                _twoFactorUser = user;
+                _twoFactorInfo = new()
+                {
+                    User = user,
+                    LoginProvider = loginProvider,
+                };
                 // isPersistent and rememberClient affect the application and 2fa cookies respectively if used.
                 return await TwoFactorAuthenticatorSignInAsync(TwoFactorCode, isPersistent, rememberClient: isPersistent);
             }
@@ -838,12 +852,9 @@ public class SignInManager<TUser> where TUser : class
 
     private async Task<TwoFactorAuthenticationInfo?> RetrieveTwoFactorInfoAsync()
     {
-        if (_twoFactorUser != null)
+        if (_twoFactorInfo != null)
         {
-            return new TwoFactorAuthenticationInfo
-            {
-                User = _twoFactorUser,
-            };
+            return _twoFactorInfo;
         }
 
         var result = await Context.AuthenticateAsync(IdentityConstants.TwoFactorUserIdScheme);

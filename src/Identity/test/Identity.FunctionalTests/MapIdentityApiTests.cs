@@ -537,41 +537,6 @@ public class MapIdentityApiTests : LoggedTest
         await TestRegistrationWithAccountConfirmationAsync(client, emailSender, "/identity2", Username);
     }
 
-    [Theory]
-    [MemberData(nameof(AddIdentityModes))]
-    public async Task CanUseTwoFactor(string addIdentityMode)
-    {
-        await using var app = await CreateAppAsync(AddIdentityActions[addIdentityMode]);
-
-        var userManager = app.Services.GetRequiredService<UserManager<ApplicationUser>>();
-        Assert.True(userManager.SupportsUserTwoFactor);
-
-        using var client = app.GetTestClient();
-
-        await client.PostAsJsonAsync("/identity/register", new { Username, Password, Email = Username });
-
-        var user = await userManager.FindByNameAsync(Username);
-        Assert.NotNull(user);
-
-        // Enable 2fa
-        AssertSuccess(await userManager.ResetAuthenticatorKeyAsync(user));
-        AssertSuccess(await userManager.SetTwoFactorEnabledAsync(user, enabled: true));
-
-        // Generate 2fa code from key
-        var authenticatorKey = await userManager.GetAuthenticatorKeyAsync(user);
-        Assert.NotNull(authenticatorKey);
-        var keyBytes = Base32.FromBase32(authenticatorKey);
-        var unixTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        var timestep = Convert.ToInt64(unixTimestamp / 30);
-        var twoFactorCode = Rfc6238AuthenticationService.ComputeTotp(keyBytes, (ulong)timestep, modifierBytes: null).ToString();
-
-        await AssertUnauthorizedAndProblemAsync(await client.PostAsJsonAsync("/identity/login", new { Username, Password }),
-            "RequiresTwoFactor");
-
-        var loginResponse = await client.PostAsJsonAsync("/identity/login", new { Username, Password, twoFactorCode });
-        loginResponse.EnsureSuccessStatusCode();
-    }
-
     [Fact]
     public async Task CanEnableTwoFactor()
     {

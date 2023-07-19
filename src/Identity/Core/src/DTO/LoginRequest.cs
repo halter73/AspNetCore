@@ -8,4 +8,5 @@ internal sealed class LoginRequest
     public required string Username { get; init; }
     public required string Password { get; init; }
     public string? TwoFactorCode { get; init; }
+    public string? RecoveryCode { get; init; }
 }

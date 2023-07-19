@@ -190,13 +190,41 @@ public static class IdentityApiEndpointRouteBuilderExtensions
                 key = await userManager.GetAuthenticatorKeyAsync(user);
             }
 
+            IEnumerable<string>? recoveryCodes = null;
+
+            if (await userManager.CountRecoveryCodesAsync(user) == 0)
+            {
+                recoveryCodes = await userManager.GenerateNewTwoFactorRecoveryCodesAsync(user, 10);
+            }
+
             return TypedResults.Ok(new AuthenticatorKeyResponse
             {
                 SharedKey = key!,
+                RecoveryCodes = recoveryCodes?.ToArray(),
             });
         });
 
         accountGroup.MapPost("/configure2fa", async Task<Results<Ok, ProblemHttpResult, NotFound>>
+            (ClaimsPrincipal claimsPrincipal, [FromBody] ConfigureTwoFactorRequest request, [FromServices] IServiceProvider sp) =>
+        {
+            var userManager = sp.GetRequiredService<UserManager<TUser>>();
+            var user = await userManager.GetUserAsync(claimsPrincipal);
+
+            if (user is null)
+            {
+                return TypedResults.NotFound();
+            }
+
+            if (!await userManager.VerifyTwoFactorTokenAsync(user, userManager.Options.Tokens.AuthenticatorTokenProvider, request.TwoFactorCode))
+            {
+                return TypedResults.Problem("InvalidCode");
+            }
+
+            await userManager.SetTwoFactorEnabledAsync(user, request.Enable);
+            return TypedResults.Ok();
+        });
+
+        accountGroup.MapPost("/resetPassword", async Task<Results<Ok, ProblemHttpResult, NotFound>>
             (ClaimsPrincipal claimsPrincipal, [FromBody] ConfigureTwoFactorRequest request, [FromServices] IServiceProvider sp) =>
         {
             var userManager = sp.GetRequiredService<UserManager<TUser>>();

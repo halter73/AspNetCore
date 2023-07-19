@@ -6,4 +6,5 @@ namespace Microsoft.AspNetCore.Identity.DTO;
 internal sealed class AuthenticatorKeyResponse
 {
     public required string SharedKey { get; init; }
+    public string[]? RecoveryCodes { get; init; }
 }

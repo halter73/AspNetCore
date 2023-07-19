@@ -7,4 +7,5 @@ internal sealed class ConfigureTwoFactorRequest
 {
     public required string TwoFactorCode { get; init; }
     public required bool Enable { get; set; }
+    public bool Reset { get; set; }
 }

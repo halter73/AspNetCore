@@ -58,7 +58,7 @@ public static class IdentityApiEndpointRouteBuilderExtensions
         {
             var userManager = sp.GetRequiredService<UserManager<TUser>>();
 
-            if (!userManager.SupportsUserLockout)
+            if (!userManager.SupportsUserEmail)
             {
                 throw new NotSupportedException($"{nameof(MapIdentityApi)} requires a user store with email support.");
             }
@@ -172,7 +172,7 @@ public static class IdentityApiEndpointRouteBuilderExtensions
 
         var accountGroup = routeGroup.MapGroup("/account").RequireAuthorization();
 
-        accountGroup.MapPost("/get2faKey", async Task<Results<Ok<TwoFactorKeyResponse>, NotFound>>
+        accountGroup.MapGet("/2faKey", async Task<Results<Ok<AuthenticatorKeyResponse>, NotFound>>
             (ClaimsPrincipal claimsPrincipal, [FromServices] IServiceProvider sp) =>
         {
             var userManager = sp.GetRequiredService<UserManager<TUser>>();
@@ -190,14 +190,14 @@ public static class IdentityApiEndpointRouteBuilderExtensions
                 key = await userManager.GetAuthenticatorKeyAsync(user);
             }
 
-            return TypedResults.Ok(new TwoFactorKeyResponse
+            return TypedResults.Ok(new AuthenticatorKeyResponse
             {
                 SharedKey = key!,
             });
         });
 
-        accountGroup.MapPost("/enable2fa", async Task<Results<Ok, ProblemHttpResult, NotFound>>
-            (ClaimsPrincipal claimsPrincipal, [FromQuery] string twoFactorCode, [FromServices] IServiceProvider sp) =>
+        accountGroup.MapPost("/configure2fa", async Task<Results<Ok, ProblemHttpResult, NotFound>>
+            (ClaimsPrincipal claimsPrincipal, [FromBody] ConfigureTwoFactorRequest request, [FromServices] IServiceProvider sp) =>
         {
             var userManager = sp.GetRequiredService<UserManager<TUser>>();
             var user = await userManager.GetUserAsync(claimsPrincipal);
@@ -207,27 +207,12 @@ public static class IdentityApiEndpointRouteBuilderExtensions
                 return TypedResults.NotFound();
             }
 
-            if (!await userManager.VerifyTwoFactorTokenAsync(user, userManager.Options.Tokens.AuthenticatorTokenProvider, twoFactorCode))
+            if (!await userManager.VerifyTwoFactorTokenAsync(user, userManager.Options.Tokens.AuthenticatorTokenProvider, request.TwoFactorCode))
             {
                 return TypedResults.Problem("InvalidCode");
             }
 
-            await userManager.SetTwoFactorEnabledAsync(user, true);
-            return TypedResults.Ok();
-        });
-
-        accountGroup.MapPost("/disable2fa", async Task<Results<Ok, NotFound>>
-            (ClaimsPrincipal claimsPrincipal, [FromServices] IServiceProvider sp) =>
-        {
-            var userManager = sp.GetRequiredService<UserManager<TUser>>();
-            var user = await userManager.GetUserAsync(claimsPrincipal);
-
-            if (user is null)
-            {
-                return TypedResults.NotFound();
-            }
-
-            await userManager.SetTwoFactorEnabledAsync(user, false);
+            await userManager.SetTwoFactorEnabledAsync(user, request.Enable);
             return TypedResults.Ok();
         });
 

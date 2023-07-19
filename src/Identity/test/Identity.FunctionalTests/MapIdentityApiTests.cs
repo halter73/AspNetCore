@@ -438,7 +438,7 @@ public class MapIdentityApiTests : LoggedTest
         });
         using var client = app.GetTestClient();
 
-        await TestRegistrationWithAccountConfirmation(client, emailSender);
+        await TestRegistrationWithAccountConfirmationAsync(client, emailSender);
 
         Assert.Single(TestSink.Writes, w =>
             w.LoggerName == "Microsoft.AspNetCore.Identity.SignInManager" &&
@@ -461,7 +461,7 @@ public class MapIdentityApiTests : LoggedTest
         });
         using var client = app.GetTestClient();
 
-        await TestRegistrationWithAccountConfirmation(client, emailSender);
+        await TestRegistrationWithAccountConfirmationAsync(client, emailSender);
 
         Assert.Single(TestSink.Writes, w =>
             w.LoggerName == "Microsoft.AspNetCore.Identity.SignInManager" &&
@@ -489,8 +489,8 @@ public class MapIdentityApiTests : LoggedTest
         await app.StartAsync();
         using var client = app.GetTestClient();
 
-        await TestRegistrationWithAccountConfirmation(client, emailSender, "/identity", "a@example.com");
-        await TestRegistrationWithAccountConfirmation(client, emailSender, "/identity2", "b@example.com");
+        await TestRegistrationWithAccountConfirmationAsync(client, emailSender, "/identity", "a@example.com");
+        await TestRegistrationWithAccountConfirmationAsync(client, emailSender, "/identity2", "b@example.com");
     }
 
     [Fact]
@@ -533,8 +533,8 @@ public class MapIdentityApiTests : LoggedTest
         using var client = app.GetTestClient();
 
         // We can use the same username twice since we're using two distinct DbContexts.
-        await TestRegistrationWithAccountConfirmation(client, emailSender, "/identity", Username);
-        await TestRegistrationWithAccountConfirmation(client, emailSender, "/identity2", Username);
+        await TestRegistrationWithAccountConfirmationAsync(client, emailSender, "/identity", Username);
+        await TestRegistrationWithAccountConfirmationAsync(client, emailSender, "/identity2", Username);
     }
 
     [Theory]
@@ -569,6 +569,51 @@ public class MapIdentityApiTests : LoggedTest
             "RequiresTwoFactor");
 
         var loginResponse = await client.PostAsJsonAsync("/identity/login", new { Username, Password, twoFactorCode });
+        loginResponse.EnsureSuccessStatusCode();
+    }
+
+    [Fact]
+    public async Task CanEnableTwoFactor()
+    {
+        await using var app = await CreateAppAsync();
+
+        using var client = app.GetTestClient();
+
+        await client.PostAsJsonAsync("/identity/register", new { Username, Password, Email = Username });
+        var loginResponse = await client.PostAsJsonAsync("/identity/login", new { Username, Password });
+
+        var loginContent = await loginResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var accessToken = loginContent.GetProperty("access_token").GetString();
+        Assert.NotNull(accessToken);
+
+        AssertUnauthorizedAndEmpty(await client.GetAsync("/identity/account/2faKey"));
+
+        client.DefaultRequestHeaders.Authorization = new("Bearer", accessToken);
+
+        var twoFactorKeyResponse = await client.GetFromJsonAsync<JsonElement>("/identity/account/2faKey");
+        var sharedKey = twoFactorKeyResponse.GetProperty("sharedKey").GetString();
+        Assert.NotNull(accessToken);
+
+        var keyBytes = Base32.FromBase32(sharedKey);
+        var unixTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var timestep = Convert.ToInt64(unixTimestamp / 30);
+        var twoFactorCode = Rfc6238AuthenticationService.ComputeTotp(keyBytes, (ulong)timestep, modifierBytes: null).ToString();
+
+        AssertOkAndEmpty(await client.PostAsJsonAsync("/identity/account/configure2fa", new { twoFactorCode, Enable = true }));
+
+        // We can still access auth'd endpoints with old access token.
+        Assert.Equal($"Hello, {Username}!", await client.GetStringAsync("/auth/hello"));
+
+        // But the refresh token is invalidated by the security stamp.
+        var refreshToken = loginContent.GetProperty("refresh_token").GetString();
+        AssertUnauthorizedAndEmpty(await client.PostAsJsonAsync("/identity/refresh", new { refreshToken }));
+
+        client.DefaultRequestHeaders.Authorization = null;
+
+        await AssertUnauthorizedAndProblemAsync(await client.PostAsJsonAsync("/identity/login", new { Username, Password }),
+            "RequiresTwoFactor");
+
+        var twoFactorLoginResponse = await client.PostAsJsonAsync("/identity/login", new { Username, Password, twoFactorCode });
         loginResponse.EnsureSuccessStatusCode();
     }
 
@@ -645,6 +690,35 @@ public class MapIdentityApiTests : LoggedTest
 
     public static object[][] AddIdentityModes => AddIdentityActions.Keys.Select(key => new object[] { key }).ToArray();
 
+    private static string GetEmailConfirmationLink(Email email)
+    {
+        // Update if we add more links to the email.
+        var confirmationMatch = Regex.Match(email.HtmlMessage, "href='(.*?)'");
+        Assert.True(confirmationMatch.Success);
+        Assert.Equal(2, confirmationMatch.Groups.Count);
+
+        return WebUtility.HtmlDecode(confirmationMatch.Groups[1].Value);
+    }
+
+    private async Task TestRegistrationWithAccountConfirmationAsync(HttpClient client, TestEmailSender emailSender, string? groupPrefix = null, string? username = null)
+    {
+        groupPrefix ??= "/identity";
+        username ??= Username;
+
+        await client.PostAsJsonAsync($"{groupPrefix}/register", new { username, Password, Email = username });
+
+        var email = emailSender.Emails.Last();
+
+        await AssertUnauthorizedAndProblemAsync(await client.PostAsJsonAsync($"{groupPrefix}/login", new { username, Password }),
+            "NotAllowed");
+
+        var confirmEmailResponse = await client.GetAsync(GetEmailConfirmationLink(email));
+        confirmEmailResponse.EnsureSuccessStatusCode();
+
+        var loginResponse = await client.PostAsJsonAsync($"{groupPrefix}/login", new { username, Password });
+        loginResponse.EnsureSuccessStatusCode();
+    }
+
     private static void AssertOkAndEmpty(HttpResponseMessage response)
     {
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -675,35 +749,6 @@ public class MapIdentityApiTests : LoggedTest
     private static void AssertSuccess(IdentityResult result)
     {
         Assert.True(result.Succeeded);
-    }
-
-    private static string GetEmailConfirmationLink(Email email)
-    {
-        // Update if we add more links to the email.
-        var confirmationMatch = Regex.Match(email.HtmlMessage, "href='(.*?)'");
-        Assert.True(confirmationMatch.Success);
-        Assert.Equal(2, confirmationMatch.Groups.Count);
-
-        return WebUtility.HtmlDecode(confirmationMatch.Groups[1].Value);
-    }
-
-    private async Task TestRegistrationWithAccountConfirmation(HttpClient client, TestEmailSender emailSender, string? groupPrefix = null, string? username = null)
-    {
-        groupPrefix ??= "/identity";
-        username ??= Username;
-
-        await client.PostAsJsonAsync($"{groupPrefix}/register", new { username, Password, Email = username });
-
-        var email = emailSender.Emails.Last();
-
-        await AssertUnauthorizedAndProblemAsync(await client.PostAsJsonAsync($"{groupPrefix}/login", new { username, Password }),
-            "NotAllowed");
-
-        var confirmEmailResponse = await client.GetAsync(GetEmailConfirmationLink(email));
-        confirmEmailResponse.EnsureSuccessStatusCode();
-
-        var loginResponse = await client.PostAsJsonAsync($"{groupPrefix}/login", new { username, Password });
-        loginResponse.EnsureSuccessStatusCode();
     }
 
     private sealed class TestTokenProvider<TUser> : IUserTwoFactorTokenProvider<TUser>

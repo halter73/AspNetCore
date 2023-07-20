@@ -32,7 +32,7 @@ namespace Microsoft.AspNetCore.Identity.FunctionalTests;
 public class MapIdentityApiTests : LoggedTest
 {
     private string Username { get; } = $"{Guid.NewGuid()}@example.com";
-    private string Password { get; } = $"[PLACEHOLDER]-1a";
+    private string Password { get; } = "[PLACEHOLDER]-1a";
 
     [Theory]
     [MemberData(nameof(AddIdentityModes))]
@@ -439,6 +439,7 @@ public class MapIdentityApiTests : LoggedTest
 
         await TestRegistrationWithAccountConfirmationAsync(client, emailSender);
 
+        Assert.Single(emailSender.Emails);
         Assert.Single(TestSink.Writes, w =>
             w.LoggerName == "Microsoft.AspNetCore.Identity.SignInManager" &&
             w.EventId == new EventId(4, "UserCannotSignInWithoutConfirmedAccount"));
@@ -462,6 +463,7 @@ public class MapIdentityApiTests : LoggedTest
 
         await TestRegistrationWithAccountConfirmationAsync(client, emailSender);
 
+        Assert.Single(emailSender.Emails);
         Assert.Single(TestSink.Writes, w =>
             w.LoggerName == "Microsoft.AspNetCore.Identity.SignInManager" &&
             w.EventId == new EventId(0, "UserCannotSignInWithoutConfirmedEmail"));
@@ -541,7 +543,6 @@ public class MapIdentityApiTests : LoggedTest
     public async Task CanEnableAndLoginWithTwoFactor(string addIdentityMode)
     {
         await using var app = await CreateAppAsync(AddIdentityActions[addIdentityMode]);
-
         using var client = app.GetTestClient();
 
         await client.PostAsJsonAsync("/identity/register", new { Username, Password, Email = Username });
@@ -556,9 +557,9 @@ public class MapIdentityApiTests : LoggedTest
         client.DefaultRequestHeaders.Authorization = new("Bearer", accessToken);
 
         // We cannot enable 2fa without verifying we can produce a valid
-        await AssertProblemAsync(await client.PostAsJsonAsync("/identity/account/2fa", new { Enable = true }),
+        await AssertValidationProblemAsync(await client.PostAsJsonAsync("/identity/account/2fa", new { Enable = true }),
             "RequiresTwoFactor");
-        await AssertProblemAsync(await client.PostAsJsonAsync("/identity/account/2fa", new { Enable = true, TwoFactorCode = "wrong" }),
+        await AssertValidationProblemAsync(await client.PostAsJsonAsync("/identity/account/2fa", new { Enable = true, TwoFactorCode = "wrong" }),
             "InvalidTwoFactorCode");
 
         var twoFactorKeyResponse = await client.GetFromJsonAsync<JsonElement>("/identity/account/2fa");
@@ -595,7 +596,6 @@ public class MapIdentityApiTests : LoggedTest
     public async Task CanLoginWithRecoveryCodeAndDisableTwoFactor()
     {
         await using var app = await CreateAppAsync();
-
         using var client = app.GetTestClient();
 
         await client.PostAsJsonAsync("/identity/register", new { Username, Password, Email = Username });
@@ -646,7 +646,6 @@ public class MapIdentityApiTests : LoggedTest
     public async Task CanResetSharedKey()
     {
         await using var app = await CreateAppAsync();
-
         using var client = app.GetTestClient();
 
         await client.PostAsJsonAsync("/identity/register", new { Username, Password, Email = Username });
@@ -664,8 +663,8 @@ public class MapIdentityApiTests : LoggedTest
         var timestep = Convert.ToInt64(unixTimestamp / 30);
         var twoFactorCode = Rfc6238AuthenticationService.ComputeTotp(keyBytes, (ulong)timestep, modifierBytes: null).ToString();
 
-        await AssertProblemAsync(await client.PostAsJsonAsync("/identity/account/2fa", new { twoFactorCode, Enable = true, ResetSharedKey = true }),
-            "CannotResetSharedKeyAndEnable", HttpStatusCode.BadRequest);
+        await AssertValidationProblemAsync(await client.PostAsJsonAsync("/identity/account/2fa", new { twoFactorCode, Enable = true, ResetSharedKey = true }),
+            "CannotResetSharedKeyAndEnable");
 
         var enable2faResponse = await client.PostAsJsonAsync("/identity/account/2fa", new { twoFactorCode, Enable = true });
         var enable2faContent = await enable2faResponse.Content.ReadFromJsonAsync<JsonElement>();
@@ -681,7 +680,7 @@ public class MapIdentityApiTests : LoggedTest
         var resetTwoFactorCode = Rfc6238AuthenticationService.ComputeTotp(keyBytes, (ulong)timestep, modifierBytes: null).ToString();
 
         // The old 2fa code no longer works
-        await AssertProblemAsync(await client.PostAsJsonAsync("/identity/account/2fa", new { twoFactorCode, Enable = true }),
+        await AssertValidationProblemAsync(await client.PostAsJsonAsync("/identity/account/2fa", new { twoFactorCode, Enable = true }),
             "InvalidTwoFactorCode");
 
         var reenable2faResponse = await client.PostAsJsonAsync("/identity/account/2fa", new { TwoFactorCode = resetTwoFactorCode, Enable = true });
@@ -693,7 +692,6 @@ public class MapIdentityApiTests : LoggedTest
     public async Task CanResetRecoveryCodes()
     {
         await using var app = await CreateAppAsync();
-
         using var client = app.GetTestClient();
 
         await client.PostAsJsonAsync("/identity/register", new { Username, Password, Email = Username });
@@ -738,6 +736,9 @@ public class MapIdentityApiTests : LoggedTest
         Assert.Equal(8, updated2faContent.GetProperty("recoveryCodesLeft").GetInt32());
         Assert.Null(updated2faContent.GetProperty("recoveryCodes").GetString());
 
+        await AssertValidationProblemAsync(await client.PostAsJsonAsync("/identity/account/2fa", new { twoFactorCode, Enable = true, ResetSharedKey = true }),
+            "CannotResetSharedKeyAndEnable");
+
         var resetRecoveryResponse = await client.PostAsJsonAsync("/identity/account/2fa", new { ResetRecoveryCodes = true });
         var resetRecoveryContent = await resetRecoveryResponse.Content.ReadFromJsonAsync<JsonElement>();
         var resetRecoveryCodes = resetRecoveryContent.GetProperty("recoveryCodes").EnumerateArray().Select(e => e.GetString()).ToArray();
@@ -758,7 +759,6 @@ public class MapIdentityApiTests : LoggedTest
     public async Task CanUsePersistentTwoFactorCookies()
     {
         await using var app = await CreateAppAsync();
-
         using var client = app.GetTestClient();
 
         await client.PostAsJsonAsync("/identity/register", new { Username, Password, Email = Username });
@@ -801,6 +801,66 @@ public class MapIdentityApiTests : LoggedTest
         var persistent2faResponse = await client.GetFromJsonAsync<JsonElement>("/identity/account/2fa");
         Assert.True(persistent2faResponse.GetProperty("isTwoFactorEnabled").GetBoolean());
         Assert.True(persistent2faResponse.GetProperty("isMachineRemembered").GetBoolean());
+    }
+
+    [Fact]
+    public async Task CanResetPassword()
+    {
+        var emailSender = new TestEmailSender();
+
+        await using var app = await CreateAppAsync(services =>
+        {
+            AddIdentityApiEndpoints(services);
+            services.AddSingleton<IEmailSender>(emailSender);
+            services.Configure<IdentityOptions>(options =>
+            {
+                options.SignIn.RequireConfirmedAccount = true;
+            });
+        });
+        using var client = app.GetTestClient();
+
+        AssertOkAndEmpty(await client.PostAsJsonAsync("/identity/register",
+            new { Username = "unconfirmed@example.com", Password, Email = "unconfirmed@example.com" }));
+
+        var accessToken = await TestRegistrationWithAccountConfirmationAsync(client, emailSender);
+
+        // Two emails were sent, but only one was confirmed
+        Assert.Equal(2, emailSender.Emails.Count);
+
+        // Returns 200 status for invalid email addresses
+        AssertOkAndEmpty(await client.PostAsJsonAsync("/identity/resetPassword", new { Email = "unconfirmed@example.com" }));
+        AssertOkAndEmpty(await client.PostAsJsonAsync("/identity/resetPassword", new { Email = "wrong" }));
+        AssertOkAndEmpty(await client.PostAsJsonAsync("/identity/resetPassword", new { Email = Username }));
+
+        // But only one email was sent for the confirmed address
+        Assert.Equal(3, emailSender.Emails.Count);
+        var resetEmail = emailSender.Emails[2];
+
+        Assert.Equal("Reset your password", resetEmail.Subject);
+        Assert.Equal(Username, resetEmail.Address);
+
+        var resetCode = GetPasswordResetCode(resetEmail);
+        var newPassword = Password + "!";
+
+        // The same validation errors are returned even for invalid emails
+        await AssertValidationProblemAsync(await client.PostAsJsonAsync("/identity/resetPassword", new { Email = Username, resetCode }),
+            "MissingNewPassword");
+        await AssertValidationProblemAsync(await client.PostAsJsonAsync("/identity/resetPassword", new { Email = "wrong", resetCode }),
+            "MissingNewPassword");
+
+        await AssertValidationProblemAsync(await client.PostAsJsonAsync("/identity/resetPassword", new { Email = Username, ResetCode = "wrong", newPassword }),
+            "InvalidToken");
+        await AssertValidationProblemAsync(await client.PostAsJsonAsync("/identity/resetPassword", new { Email = "wrong", resetCode, newPassword }),
+            "InvalidToken");
+
+        AssertOkAndEmpty(await client.PostAsJsonAsync("/identity/resetPassword", new { Email = Username, resetCode, newPassword }));
+
+        // The old password is no longer valid
+        await AssertProblemAsync(await client.PostAsJsonAsync("/identity/login", new { Username, Password }),
+            "Failed");
+
+        // But the new password is
+        AssertOk(await client.PostAsJsonAsync("/identity/login", new { Username, Password = newPassword }));
     }
 
     private async Task<WebApplication> CreateAppAsync<TUser, TContext>(Action<IServiceCollection>? configureServices, bool autoStart = true)
@@ -886,7 +946,17 @@ public class MapIdentityApiTests : LoggedTest
         return WebUtility.HtmlDecode(confirmationMatch.Groups[1].Value);
     }
 
-    private async Task TestRegistrationWithAccountConfirmationAsync(HttpClient client, TestEmailSender emailSender, string? groupPrefix = null, string? username = null)
+    private static string GetPasswordResetCode(Email email)
+    {
+        // Update if we add more links to the email.
+        var confirmationMatch = Regex.Match(email.HtmlMessage, "code: (.*?)$");
+        Assert.True(confirmationMatch.Success);
+        Assert.Equal(2, confirmationMatch.Groups.Count);
+
+        return WebUtility.HtmlDecode(confirmationMatch.Groups[1].Value);
+    }
+
+    private async Task<string> TestRegistrationWithAccountConfirmationAsync(HttpClient client, TestEmailSender emailSender, string? groupPrefix = null, string? username = null)
     {
         groupPrefix ??= "/identity";
         username ??= Username;
@@ -894,6 +964,9 @@ public class MapIdentityApiTests : LoggedTest
         await client.PostAsJsonAsync($"{groupPrefix}/register", new { username, Password, Email = username });
 
         var email = emailSender.Emails.Last();
+
+        Assert.Equal("Confirm your email", email.Subject);
+        Assert.Equal(username, email.Address);
 
         await AssertProblemAsync(await client.PostAsJsonAsync($"{groupPrefix}/login", new { username, Password }),
             "NotAllowed");
@@ -903,6 +976,12 @@ public class MapIdentityApiTests : LoggedTest
 
         var loginResponse = await client.PostAsJsonAsync($"{groupPrefix}/login", new { username, Password });
         loginResponse.EnsureSuccessStatusCode();
+
+        var loginContent = await loginResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var accessToken = loginContent.GetProperty("access_token").GetString();
+        Assert.NotNull(accessToken);
+
+        return accessToken;
     }
 
     private static void AssertOk(HttpResponseMessage response)
@@ -928,13 +1007,22 @@ public class MapIdentityApiTests : LoggedTest
         Assert.Equal(0, response.Content.Headers.ContentLength);
     }
 
-    private static async Task AssertProblemAsync(HttpResponseMessage response, string title, HttpStatusCode status = HttpStatusCode.Unauthorized)
+    private static async Task AssertProblemAsync(HttpResponseMessage response, string detail, HttpStatusCode status = HttpStatusCode.Unauthorized)
     {
         Assert.Equal(status, response.StatusCode);
         var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
         Assert.NotNull(problem);
         Assert.Equal(ReasonPhrases.GetReasonPhrase((int)status), problem.Title);
-        Assert.Equal(title, problem.Detail);
+        Assert.Equal(detail, problem.Detail);
+    }
+
+    private static async Task AssertValidationProblemAsync(HttpResponseMessage response, string error)
+    {
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
+        Assert.NotNull(problem);
+        var errorEntry = Assert.Single(problem.Errors);
+        Assert.Equal(error, errorEntry.Key);
     }
 
     private static void ApplyCookies(HttpClient client, HttpResponseMessage response)

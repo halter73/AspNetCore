@@ -152,19 +152,17 @@ public class MapIdentityApiTests : LoggedTest
         await client.PostAsJsonAsync("/identity/register", new { Username, Password, Email = Username });
         var loginResponse = await client.PostAsJsonAsync("/identity/login?cookieMode=true", new { Username, Password });
 
-        loginResponse.EnsureSuccessStatusCode();
-        Assert.Equal(0, loginResponse.Content.Headers.ContentLength);
-
+        AssertOkAndEmpty(loginResponse);
         Assert.True(loginResponse.Headers.TryGetValues(HeaderNames.SetCookie, out var setCookieHeaders));
         var setCookieHeader = Assert.Single(setCookieHeaders);
 
         // The compiler does not see Assert.True's DoesNotReturnIfAttribute :(
-        if (setCookieHeader.Split(';', 2) is not [var cookieHeader, _])
+        if (setCookieHeader.Split(';', 2) is not [var cookie, _])
         {
             throw new XunitException("Invalid Set-Cookie header!");
         }
 
-        client.DefaultRequestHeaders.Add(HeaderNames.Cookie, cookieHeader);
+        client.DefaultRequestHeaders.Add(HeaderNames.Cookie, cookie);
         Assert.Equal($"Hello, {Username}!", await client.GetStringAsync("/auth/hello"));
     }
 
@@ -538,10 +536,11 @@ public class MapIdentityApiTests : LoggedTest
         await TestRegistrationWithAccountConfirmationAsync(client, emailSender, "/identity2", Username);
     }
 
-    [Fact]
-    public async Task CanEnableAndLoginWithTwoFactor()
+    [Theory]
+    [MemberData(nameof(AddIdentityModes))]
+    public async Task CanEnableAndLoginWithTwoFactor(string addIdentityMode)
     {
-        await using var app = await CreateAppAsync();
+        await using var app = await CreateAppAsync(AddIdentityActions[addIdentityMode]);
 
         using var client = app.GetTestClient();
 
@@ -573,8 +572,8 @@ public class MapIdentityApiTests : LoggedTest
         var timestep = Convert.ToInt64(unixTimestamp / 30);
         var twoFactorCode = Rfc6238AuthenticationService.ComputeTotp(keyBytes, (ulong)timestep, modifierBytes: null).ToString();
 
-        var enableTwoFactorResponse = await client.PostAsJsonAsync("/identity/account/2fa", new { twoFactorCode, Enable = true });
-        var enable2faContent = await enableTwoFactorResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var enable2faResponse = await client.PostAsJsonAsync("/identity/account/2fa", new { twoFactorCode, Enable = true });
+        var enable2faContent = await enable2faResponse.Content.ReadFromJsonAsync<JsonElement>();
         Assert.True(enable2faContent.GetProperty("isTwoFactorEnabled").GetBoolean());
         Assert.False(enable2faContent.GetProperty("isMachineRemembered").GetBoolean());
 
@@ -584,13 +583,12 @@ public class MapIdentityApiTests : LoggedTest
         // But the refresh token is invalidated by the security stamp.
         AssertUnauthorizedAndEmpty(await client.PostAsJsonAsync("/identity/refresh", new { refreshToken }));
 
-        client.DefaultRequestHeaders.Authorization = null;
+        client.DefaultRequestHeaders.Clear();
 
         await AssertProblemAsync(await client.PostAsJsonAsync("/identity/login", new { Username, Password }),
             "RequiresTwoFactor");
 
-        var twoFactorLoginResponse = await client.PostAsJsonAsync("/identity/login", new { Username, Password, twoFactorCode });
-        twoFactorLoginResponse.EnsureSuccessStatusCode();
+        AssertOk(await client.PostAsJsonAsync("/identity/login", new { Username, Password, twoFactorCode }));
     }
 
     [Fact]
@@ -605,9 +603,6 @@ public class MapIdentityApiTests : LoggedTest
 
         var loginContent = await loginResponse.Content.ReadFromJsonAsync<JsonElement>();
         var accessToken = loginContent.GetProperty("access_token").GetString();
-
-        AssertUnauthorizedAndEmpty(await client.GetAsync("/identity/account/2fa"));
-
         client.DefaultRequestHeaders.Authorization = new("Bearer", accessToken);
 
         var twoFactorKeyResponse = await client.GetFromJsonAsync<JsonElement>("/identity/account/2fa");
@@ -625,7 +620,7 @@ public class MapIdentityApiTests : LoggedTest
         var recoveryCodes = enable2faContent.GetProperty("recoveryCodes").EnumerateArray().Select(e => e.GetString()).ToArray();
         Assert.Equal(10, recoveryCodes.Length);
 
-        client.DefaultRequestHeaders.Authorization = null;
+        client.DefaultRequestHeaders.Clear();
 
         await AssertProblemAsync(await client.PostAsJsonAsync("/identity/login", new { Username, Password }),
             "RequiresTwoFactor");
@@ -642,7 +637,7 @@ public class MapIdentityApiTests : LoggedTest
         var disable2faContent = await disable2faResponse.Content.ReadFromJsonAsync<JsonElement>();
         Assert.False(disable2faContent.GetProperty("isTwoFactorEnabled").GetBoolean());
 
-        client.DefaultRequestHeaders.Authorization = null;
+        client.DefaultRequestHeaders.Clear();
 
         AssertOk(await client.PostAsJsonAsync("/identity/login", new { Username, Password }));
     }
@@ -659,9 +654,6 @@ public class MapIdentityApiTests : LoggedTest
 
         var loginContent = await loginResponse.Content.ReadFromJsonAsync<JsonElement>();
         var accessToken = loginContent.GetProperty("access_token").GetString();
-
-        AssertUnauthorizedAndEmpty(await client.GetAsync("/identity/account/2fa"));
-
         client.DefaultRequestHeaders.Authorization = new("Bearer", accessToken);
 
         var twoFactorKeyResponse = await client.GetFromJsonAsync<JsonElement>("/identity/account/2fa");
@@ -709,9 +701,6 @@ public class MapIdentityApiTests : LoggedTest
 
         var loginContent = await loginResponse.Content.ReadFromJsonAsync<JsonElement>();
         var accessToken = loginContent.GetProperty("access_token").GetString();
-
-        AssertUnauthorizedAndEmpty(await client.GetAsync("/identity/account/2fa"));
-
         client.DefaultRequestHeaders.Authorization = new("Bearer", accessToken);
 
         var twoFactorKeyResponse = await client.GetFromJsonAsync<JsonElement>("/identity/account/2fa");
@@ -728,7 +717,7 @@ public class MapIdentityApiTests : LoggedTest
         Assert.Equal(10, enable2faContent.GetProperty("recoveryCodesLeft").GetInt32());
         Assert.Equal(10, recoveryCodes.Length);
 
-        client.DefaultRequestHeaders.Authorization = null;
+        client.DefaultRequestHeaders.Clear();
 
         await AssertProblemAsync(await client.PostAsJsonAsync("/identity/login", new { Username, Password }),
             "RequiresTwoFactor");
@@ -756,13 +745,62 @@ public class MapIdentityApiTests : LoggedTest
         Assert.Equal(10, resetRecoveryCodes.Length);
         Assert.Empty(recoveryCodes.Intersect(resetRecoveryCodes));
 
-        client.DefaultRequestHeaders.Authorization = null;
+        client.DefaultRequestHeaders.Clear();
 
         AssertOk(await client.PostAsJsonAsync("/identity/login", new { Username, Password, TwoFactorRecoveryCode = resetRecoveryCodes[0] }));
 
         // Even unused codes from before the reset now fail.
         await AssertProblemAsync(await client.PostAsJsonAsync("/identity/login", new { Username, Password, TwoFactorRecoveryCode = recoveryCodes[2] }),
             "Failed");
+    }
+
+    [Fact]
+    public async Task CanUsePersistentTwoFactorCookies()
+    {
+        await using var app = await CreateAppAsync();
+
+        using var client = app.GetTestClient();
+
+        await client.PostAsJsonAsync("/identity/register", new { Username, Password, Email = Username });
+        var loginResponse = await client.PostAsJsonAsync("/identity/login?cookieMode=true", new { Username, Password });
+        ApplyCookies(client, loginResponse);
+
+        var twoFactorKeyResponse = await client.GetFromJsonAsync<JsonElement>("/identity/account/2fa");
+        Assert.False(twoFactorKeyResponse.GetProperty("isTwoFactorEnabled").GetBoolean());
+        Assert.False(twoFactorKeyResponse.GetProperty("isMachineRemembered").GetBoolean());
+
+        var sharedKey = twoFactorKeyResponse.GetProperty("sharedKey").GetString();
+
+        var keyBytes = Base32.FromBase32(sharedKey);
+        var unixTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var timestep = Convert.ToInt64(unixTimestamp / 30);
+        var twoFactorCode = Rfc6238AuthenticationService.ComputeTotp(keyBytes, (ulong)timestep, modifierBytes: null).ToString();
+
+        var enable2faResponse = await client.PostAsJsonAsync("/identity/account/2fa", new { twoFactorCode, Enable = true });
+        var enable2faContent = await enable2faResponse.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(enable2faContent.GetProperty("isTwoFactorEnabled").GetBoolean());
+        Assert.False(enable2faContent.GetProperty("isMachineRemembered").GetBoolean());
+
+        client.DefaultRequestHeaders.Clear();
+
+        await AssertProblemAsync(await client.PostAsJsonAsync("/identity/login", new { Username, Password }),
+            "RequiresTwoFactor");
+
+        var twoFactorLoginResponse = await client.PostAsJsonAsync("/identity/login?cookieMode=true", new { Username, Password, twoFactorCode });
+        ApplyCookies(client, twoFactorLoginResponse);
+
+        var cookie2faResponse = await client.GetFromJsonAsync<JsonElement>("/identity/account/2fa");
+        Assert.True(cookie2faResponse.GetProperty("isTwoFactorEnabled").GetBoolean());
+        Assert.False(enable2faContent.GetProperty("isMachineRemembered").GetBoolean());
+
+        client.DefaultRequestHeaders.Clear();
+
+        var persistentLoginResponse = await client.PostAsJsonAsync("/identity/login?cookieMode=true&persistCookies=true", new { Username, Password, twoFactorCode });
+        ApplyCookies(client, persistentLoginResponse);
+
+        var persistent2faResponse = await client.GetFromJsonAsync<JsonElement>("/identity/account/2fa");
+        Assert.True(persistent2faResponse.GetProperty("isTwoFactorEnabled").GetBoolean());
+        Assert.True(persistent2faResponse.GetProperty("isMachineRemembered").GetBoolean());
     }
 
     private async Task<WebApplication> CreateAppAsync<TUser, TContext>(Action<IServiceCollection>? configureServices, bool autoStart = true)
@@ -899,9 +937,24 @@ public class MapIdentityApiTests : LoggedTest
         Assert.Equal(title, problem.Detail);
     }
 
-    private static void AssertSuccess(IdentityResult result)
+    private static void ApplyCookies(HttpClient client, HttpResponseMessage response)
     {
-        Assert.True(result.Succeeded);
+        AssertOkAndEmpty(response);
+
+        Assert.True(response.Headers.TryGetValues(HeaderNames.SetCookie, out var setCookieHeaders));
+        foreach (var setCookieHeader in setCookieHeaders)
+        {
+            if (setCookieHeader.Split(';', 2) is not [var cookie, _])
+            {
+                throw new XunitException("Invalid Set-Cookie header!");
+            }
+
+            // Cookies starting with "CookieName=;" are being deleted
+            if (!cookie.EndsWith("=", StringComparison.Ordinal))
+            {
+                client.DefaultRequestHeaders.Add(HeaderNames.Cookie, cookie);
+            }
+        }
     }
 
     private sealed class TestTokenProvider<TUser> : IUserTwoFactorTokenProvider<TUser>

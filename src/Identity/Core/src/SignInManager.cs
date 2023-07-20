@@ -240,6 +240,9 @@ public class SignInManager<TUser> where TUser : class
         await Context.SignInAsync(PrimaryAuthenticationScheme,
             userPrincipal,
             authenticationProperties ?? new AuthenticationProperties());
+
+        // This is useful for updating claims immediately when hitting MapIdentityApi's /account/info endpoint with cookies.
+        Context.User = userPrincipal;
     }
 
     /// <summary>

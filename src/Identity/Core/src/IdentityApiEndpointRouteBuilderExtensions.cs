@@ -381,7 +381,8 @@ public static class IdentityApiEndpointRouteBuilderExtensions
                 }
             }
 
-            // Update cookie if the user was authenticated that way. The user will have to manually refresh any bearer tokens.
+            // Update cookie if the user is authenticated that way.
+            // Currently, the user will have to log in again with bearer tokens to see updated claims.
             var authFeature = httpContext.Features.GetRequiredFeature<IAuthenticateResultFeature>();
             if (authFeature.AuthenticateResult?.Ticket?.AuthenticationScheme == IdentityConstants.ApplicationScheme)
             {

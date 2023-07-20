@@ -87,11 +87,6 @@ public class SignInManager<TUser> where TUser : class
     public string PrimaryAuthenticationScheme { get; set; } = IdentityConstants.ApplicationScheme;
 
     /// <summary>
-    /// The two-factor code used to immediately complete password sign in if required.
-    /// </summary>
-    public string? TwoFactorCode { get; set; }
-
-    /// <summary>
     /// The <see cref="HttpContext"/> used.
     /// </summary>
     public HttpContext Context
@@ -432,7 +427,7 @@ public class SignInManager<TUser> where TUser : class
     /// </returns>
     public virtual async Task<bool> IsTwoFactorClientRememberedAsync(TUser user)
     {
-        if (await _schemes.GetSchemeAsync(IdentityConstants.TwoFactorUserIdScheme) == null)
+        if (await _schemes.GetSchemeAsync(IdentityConstants.TwoFactorRememberMeScheme) == null)
         {
             return false;
         }
@@ -812,18 +807,16 @@ public class SignInManager<TUser> where TUser : class
     {
         if (!bypassTwoFactor && await IsTwoFactorEnabledAsync(user))
         {
-            if (TwoFactorCode != null)
+            if (!await IsTwoFactorClientRememberedAsync(user))
             {
+                // Allow the two-factor flow to continue later within the same request with or without a TwoFactorUserIdScheme in
+                // the event that the two-factor code or recovery code has already been provided as is the case for MapIdentityApi.
                 _twoFactorInfo = new()
                 {
                     User = user,
                     LoginProvider = loginProvider,
                 };
-                // isPersistent and rememberClient affect the application and 2fa cookies respectively if used.
-                return await TwoFactorAuthenticatorSignInAsync(TwoFactorCode, isPersistent, rememberClient: isPersistent);
-            }
-            else if (!await IsTwoFactorClientRememberedAsync(user))
-            {
+
                 if (await _schemes.GetSchemeAsync(IdentityConstants.TwoFactorUserIdScheme) != null)
                 {
                     // Store the userId for use after two factor check

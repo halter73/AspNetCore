@@ -8,8 +8,8 @@ namespace Microsoft.AspNetCore.Identity.DTO;
 [JsonSerializable(typeof(RegisterRequest))]
 [JsonSerializable(typeof(LoginRequest))]
 [JsonSerializable(typeof(RefreshRequest))]
-[JsonSerializable(typeof(ConfigureTwoFactorRequest))]
-[JsonSerializable(typeof(AuthenticatorKeyResponse))]
+[JsonSerializable(typeof(TwoFactorRequest))]
+[JsonSerializable(typeof(TwoFactorResponse))]
 internal sealed partial class IdentityEndpointsJsonSerializerContext : JsonSerializerContext
 {
 }

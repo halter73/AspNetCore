@@ -3,9 +3,12 @@
 
 namespace Microsoft.AspNetCore.Identity.DTO;
 
-internal sealed class ConfigureTwoFactorRequest
+internal sealed class TwoFactorRequest
 {
-    public required string TwoFactorCode { get; init; }
-    public required bool Enable { get; set; }
-    public bool Reset { get; set; }
+    public bool? Enable { get; init; }
+    public string? TwoFactorCode { get; init; }
+
+    public bool ResetSharedKey { get; init; }
+    public bool ResetRecoveryCodes { get; init; }
+    public bool ForgetMachine { get; init; }
 }

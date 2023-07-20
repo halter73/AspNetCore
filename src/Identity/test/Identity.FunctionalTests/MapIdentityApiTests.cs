@@ -19,6 +19,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.AspNetCore.Testing;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -58,7 +59,7 @@ public class MapIdentityApiTests : LoggedTest
         await using var app = await CreateAppAsync();
         using var client = app.GetTestClient();
 
-        await AssertUnauthorizedAndProblemAsync(await client.PostAsJsonAsync("/identity/login", new { Username, Password }),
+        await AssertProblemAsync(await client.PostAsJsonAsync("/identity/login", new { Username, Password }),
             "Failed");
     }
 
@@ -69,7 +70,7 @@ public class MapIdentityApiTests : LoggedTest
         using var client = app.GetTestClient();
 
         await client.PostAsJsonAsync("/identity/register", new { Username, Password, Email = Username });
-        await AssertUnauthorizedAndProblemAsync(await client.PostAsJsonAsync("/identity/login", new { Username, Password = "wrong" }),
+        await AssertProblemAsync(await client.PostAsJsonAsync("/identity/login", new { Username, Password = "wrong" }),
             "Failed");
     }
 
@@ -381,17 +382,17 @@ public class MapIdentityApiTests : LoggedTest
 
         await client.PostAsJsonAsync("/identity/register", new { Username, Password, Email = Username });
 
-        await AssertUnauthorizedAndProblemAsync(await client.PostAsJsonAsync("/identity/login", new { Username, Password = "wrong" }),
+        await AssertProblemAsync(await client.PostAsJsonAsync("/identity/login", new { Username, Password = "wrong" }),
             "Failed");
 
-        await AssertUnauthorizedAndProblemAsync(await client.PostAsJsonAsync("/identity/login", new { Username, Password = "wrong" }),
+        await AssertProblemAsync(await client.PostAsJsonAsync("/identity/login", new { Username, Password = "wrong" }),
             "LockedOut");
 
         Assert.Single(TestSink.Writes, w =>
             w.LoggerName == "Microsoft.AspNetCore.Identity.SignInManager" &&
             w.EventId == new EventId(3, "UserLockedOut"));
 
-        await AssertUnauthorizedAndProblemAsync(await client.PostAsJsonAsync("/identity/login", new { Username, Password }),
+        await AssertProblemAsync(await client.PostAsJsonAsync("/identity/login", new { Username, Password }),
             "LockedOut");
     }
 
@@ -411,7 +412,7 @@ public class MapIdentityApiTests : LoggedTest
 
         await client.PostAsJsonAsync("/identity/register", new { Username, Password, Email = Username });
 
-        await AssertUnauthorizedAndProblemAsync(await client.PostAsJsonAsync("/identity/login", new { Username, Password = "wrong" }),
+        await AssertProblemAsync(await client.PostAsJsonAsync("/identity/login", new { Username, Password = "wrong" }),
             "Failed");
 
         Assert.DoesNotContain(TestSink.Writes, w =>
@@ -538,7 +539,7 @@ public class MapIdentityApiTests : LoggedTest
     }
 
     [Fact]
-    public async Task CanEnableTwoFactor()
+    public async Task CanEnableAndLoginWithTwoFactor()
     {
         await using var app = await CreateAppAsync();
 
@@ -549,37 +550,219 @@ public class MapIdentityApiTests : LoggedTest
 
         var loginContent = await loginResponse.Content.ReadFromJsonAsync<JsonElement>();
         var accessToken = loginContent.GetProperty("access_token").GetString();
-        Assert.NotNull(accessToken);
+        var refreshToken = loginContent.GetProperty("refresh_token").GetString();
 
-        AssertUnauthorizedAndEmpty(await client.GetAsync("/identity/account/2faKey"));
+        AssertUnauthorizedAndEmpty(await client.GetAsync("/identity/account/2fa"));
 
         client.DefaultRequestHeaders.Authorization = new("Bearer", accessToken);
 
-        var twoFactorKeyResponse = await client.GetFromJsonAsync<JsonElement>("/identity/account/2faKey");
+        // We cannot enable 2fa without verifying we can produce a valid
+        await AssertProblemAsync(await client.PostAsJsonAsync("/identity/account/2fa", new { Enable = true }),
+            "RequiresTwoFactor");
+        await AssertProblemAsync(await client.PostAsJsonAsync("/identity/account/2fa", new { Enable = true, TwoFactorCode = "wrong" }),
+            "InvalidTwoFactorCode");
+
+        var twoFactorKeyResponse = await client.GetFromJsonAsync<JsonElement>("/identity/account/2fa");
+        Assert.False(twoFactorKeyResponse.GetProperty("isTwoFactorEnabled").GetBoolean());
+        Assert.False(twoFactorKeyResponse.GetProperty("isMachineRemembered").GetBoolean());
+
         var sharedKey = twoFactorKeyResponse.GetProperty("sharedKey").GetString();
-        Assert.NotNull(accessToken);
 
         var keyBytes = Base32.FromBase32(sharedKey);
         var unixTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         var timestep = Convert.ToInt64(unixTimestamp / 30);
         var twoFactorCode = Rfc6238AuthenticationService.ComputeTotp(keyBytes, (ulong)timestep, modifierBytes: null).ToString();
 
-        AssertOkAndEmpty(await client.PostAsJsonAsync("/identity/account/configure2fa", new { twoFactorCode, Enable = true }));
+        var enableTwoFactorResponse = await client.PostAsJsonAsync("/identity/account/2fa", new { twoFactorCode, Enable = true });
+        var enable2faContent = await enableTwoFactorResponse.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(enable2faContent.GetProperty("isTwoFactorEnabled").GetBoolean());
+        Assert.False(enable2faContent.GetProperty("isMachineRemembered").GetBoolean());
 
         // We can still access auth'd endpoints with old access token.
         Assert.Equal($"Hello, {Username}!", await client.GetStringAsync("/auth/hello"));
 
         // But the refresh token is invalidated by the security stamp.
-        var refreshToken = loginContent.GetProperty("refresh_token").GetString();
         AssertUnauthorizedAndEmpty(await client.PostAsJsonAsync("/identity/refresh", new { refreshToken }));
 
         client.DefaultRequestHeaders.Authorization = null;
 
-        await AssertUnauthorizedAndProblemAsync(await client.PostAsJsonAsync("/identity/login", new { Username, Password }),
+        await AssertProblemAsync(await client.PostAsJsonAsync("/identity/login", new { Username, Password }),
             "RequiresTwoFactor");
 
         var twoFactorLoginResponse = await client.PostAsJsonAsync("/identity/login", new { Username, Password, twoFactorCode });
-        loginResponse.EnsureSuccessStatusCode();
+        twoFactorLoginResponse.EnsureSuccessStatusCode();
+    }
+
+    [Fact]
+    public async Task CanLoginWithRecoveryCodeAndDisableTwoFactor()
+    {
+        await using var app = await CreateAppAsync();
+
+        using var client = app.GetTestClient();
+
+        await client.PostAsJsonAsync("/identity/register", new { Username, Password, Email = Username });
+        var loginResponse = await client.PostAsJsonAsync("/identity/login", new { Username, Password });
+
+        var loginContent = await loginResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var accessToken = loginContent.GetProperty("access_token").GetString();
+
+        AssertUnauthorizedAndEmpty(await client.GetAsync("/identity/account/2fa"));
+
+        client.DefaultRequestHeaders.Authorization = new("Bearer", accessToken);
+
+        var twoFactorKeyResponse = await client.GetFromJsonAsync<JsonElement>("/identity/account/2fa");
+        var sharedKey = twoFactorKeyResponse.GetProperty("sharedKey").GetString();
+
+        var keyBytes = Base32.FromBase32(sharedKey);
+        var unixTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var timestep = Convert.ToInt64(unixTimestamp / 30);
+        var twoFactorCode = Rfc6238AuthenticationService.ComputeTotp(keyBytes, (ulong)timestep, modifierBytes: null).ToString();
+
+        var enable2faResponse = await client.PostAsJsonAsync("/identity/account/2fa", new { twoFactorCode, Enable = true });
+        var enable2faContent = await enable2faResponse.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(enable2faContent.GetProperty("isTwoFactorEnabled").GetBoolean());
+
+        var recoveryCodes = enable2faContent.GetProperty("recoveryCodes").EnumerateArray().Select(e => e.GetString()).ToArray();
+        Assert.Equal(10, recoveryCodes.Length);
+
+        client.DefaultRequestHeaders.Authorization = null;
+
+        await AssertProblemAsync(await client.PostAsJsonAsync("/identity/login", new { Username, Password }),
+            "RequiresTwoFactor");
+
+        var recoveryLoginResponse = await client.PostAsJsonAsync("/identity/login", new { Username, Password, TwoFactorRecoveryCode = recoveryCodes[0] });
+
+        var recoveryLoginContent = await recoveryLoginResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var recoveryAccessToken = recoveryLoginContent.GetProperty("access_token").GetString();
+        Assert.NotEqual(accessToken, recoveryAccessToken);
+
+        client.DefaultRequestHeaders.Authorization = new("Bearer", recoveryAccessToken);
+
+        var disable2faResponse = await client.PostAsJsonAsync("/identity/account/2fa", new { Enable = false });
+        var disable2faContent = await disable2faResponse.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.False(disable2faContent.GetProperty("isTwoFactorEnabled").GetBoolean());
+
+        client.DefaultRequestHeaders.Authorization = null;
+
+        AssertOk(await client.PostAsJsonAsync("/identity/login", new { Username, Password }));
+    }
+
+    [Fact]
+    public async Task CanResetSharedKey()
+    {
+        await using var app = await CreateAppAsync();
+
+        using var client = app.GetTestClient();
+
+        await client.PostAsJsonAsync("/identity/register", new { Username, Password, Email = Username });
+        var loginResponse = await client.PostAsJsonAsync("/identity/login", new { Username, Password });
+
+        var loginContent = await loginResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var accessToken = loginContent.GetProperty("access_token").GetString();
+
+        AssertUnauthorizedAndEmpty(await client.GetAsync("/identity/account/2fa"));
+
+        client.DefaultRequestHeaders.Authorization = new("Bearer", accessToken);
+
+        var twoFactorKeyResponse = await client.GetFromJsonAsync<JsonElement>("/identity/account/2fa");
+        var sharedKey = twoFactorKeyResponse.GetProperty("sharedKey").GetString();
+
+        var keyBytes = Base32.FromBase32(sharedKey);
+        var unixTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var timestep = Convert.ToInt64(unixTimestamp / 30);
+        var twoFactorCode = Rfc6238AuthenticationService.ComputeTotp(keyBytes, (ulong)timestep, modifierBytes: null).ToString();
+
+        await AssertProblemAsync(await client.PostAsJsonAsync("/identity/account/2fa", new { twoFactorCode, Enable = true, ResetSharedKey = true }),
+            "CannotResetSharedKeyAndEnable", HttpStatusCode.BadRequest);
+
+        var enable2faResponse = await client.PostAsJsonAsync("/identity/account/2fa", new { twoFactorCode, Enable = true });
+        var enable2faContent = await enable2faResponse.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(enable2faContent.GetProperty("isTwoFactorEnabled").GetBoolean());
+
+        var resetKeyResponse = await client.PostAsJsonAsync("/identity/account/2fa", new { ResetSharedKey = true });
+        var resetKeyContent = await resetKeyResponse.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.False(resetKeyContent.GetProperty("isTwoFactorEnabled").GetBoolean());
+
+        var resetSharedKey = resetKeyContent.GetProperty("sharedKey").GetString();
+
+        var resetKeyBytes = Base32.FromBase32(sharedKey);
+        var resetTwoFactorCode = Rfc6238AuthenticationService.ComputeTotp(keyBytes, (ulong)timestep, modifierBytes: null).ToString();
+
+        // The old 2fa code no longer works
+        await AssertProblemAsync(await client.PostAsJsonAsync("/identity/account/2fa", new { twoFactorCode, Enable = true }),
+            "InvalidTwoFactorCode");
+
+        var reenable2faResponse = await client.PostAsJsonAsync("/identity/account/2fa", new { TwoFactorCode = resetTwoFactorCode, Enable = true });
+        var reenable2faContent = await reenable2faResponse.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(enable2faContent.GetProperty("isTwoFactorEnabled").GetBoolean());
+    }
+
+    [Fact]
+    public async Task CanResetRecoveryCodes()
+    {
+        await using var app = await CreateAppAsync();
+
+        using var client = app.GetTestClient();
+
+        await client.PostAsJsonAsync("/identity/register", new { Username, Password, Email = Username });
+        var loginResponse = await client.PostAsJsonAsync("/identity/login", new { Username, Password });
+
+        var loginContent = await loginResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var accessToken = loginContent.GetProperty("access_token").GetString();
+
+        AssertUnauthorizedAndEmpty(await client.GetAsync("/identity/account/2fa"));
+
+        client.DefaultRequestHeaders.Authorization = new("Bearer", accessToken);
+
+        var twoFactorKeyResponse = await client.GetFromJsonAsync<JsonElement>("/identity/account/2fa");
+        var sharedKey = twoFactorKeyResponse.GetProperty("sharedKey").GetString();
+
+        var keyBytes = Base32.FromBase32(sharedKey);
+        var unixTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var timestep = Convert.ToInt64(unixTimestamp / 30);
+        var twoFactorCode = Rfc6238AuthenticationService.ComputeTotp(keyBytes, (ulong)timestep, modifierBytes: null).ToString();
+
+        var enable2faResponse = await client.PostAsJsonAsync("/identity/account/2fa", new { twoFactorCode, Enable = true });
+        var enable2faContent = await enable2faResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var recoveryCodes = enable2faContent.GetProperty("recoveryCodes").EnumerateArray().Select(e => e.GetString()).ToArray();
+        Assert.Equal(10, enable2faContent.GetProperty("recoveryCodesLeft").GetInt32());
+        Assert.Equal(10, recoveryCodes.Length);
+
+        client.DefaultRequestHeaders.Authorization = null;
+
+        await AssertProblemAsync(await client.PostAsJsonAsync("/identity/login", new { Username, Password }),
+            "RequiresTwoFactor");
+
+        AssertOk(await client.PostAsJsonAsync("/identity/login", new { Username, Password, TwoFactorRecoveryCode = recoveryCodes[0] }));
+        // Cannot reuse codes
+        await AssertProblemAsync(await client.PostAsJsonAsync("/identity/login", new { Username, Password, TwoFactorRecoveryCode = recoveryCodes[0] }),
+            "Failed");
+
+        var recoveryLoginResponse = await client.PostAsJsonAsync("/identity/login", new { Username, Password, TwoFactorRecoveryCode = recoveryCodes[1] });
+        var recoveryLoginContent = await recoveryLoginResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var recoveryAccessToken = recoveryLoginContent.GetProperty("access_token").GetString();
+        Assert.NotEqual(accessToken, recoveryAccessToken);
+
+        client.DefaultRequestHeaders.Authorization = new("Bearer", recoveryAccessToken);
+
+        var updated2faContent = await client.GetFromJsonAsync<JsonElement>("/identity/account/2fa");
+        Assert.Equal(8, updated2faContent.GetProperty("recoveryCodesLeft").GetInt32());
+        Assert.Null(updated2faContent.GetProperty("recoveryCodes").GetString());
+
+        var resetRecoveryResponse = await client.PostAsJsonAsync("/identity/account/2fa", new { ResetRecoveryCodes = true });
+        var resetRecoveryContent = await resetRecoveryResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var resetRecoveryCodes = resetRecoveryContent.GetProperty("recoveryCodes").EnumerateArray().Select(e => e.GetString()).ToArray();
+        Assert.Equal(10, resetRecoveryContent.GetProperty("recoveryCodesLeft").GetInt32());
+        Assert.Equal(10, resetRecoveryCodes.Length);
+        Assert.Empty(recoveryCodes.Intersect(resetRecoveryCodes));
+
+        client.DefaultRequestHeaders.Authorization = null;
+
+        AssertOk(await client.PostAsJsonAsync("/identity/login", new { Username, Password, TwoFactorRecoveryCode = resetRecoveryCodes[0] }));
+
+        // Even unused codes from before the reset now fail.
+        await AssertProblemAsync(await client.PostAsJsonAsync("/identity/login", new { Username, Password, TwoFactorRecoveryCode = recoveryCodes[2] }),
+            "Failed");
     }
 
     private async Task<WebApplication> CreateAppAsync<TUser, TContext>(Action<IServiceCollection>? configureServices, bool autoStart = true)
@@ -674,7 +857,7 @@ public class MapIdentityApiTests : LoggedTest
 
         var email = emailSender.Emails.Last();
 
-        await AssertUnauthorizedAndProblemAsync(await client.PostAsJsonAsync($"{groupPrefix}/login", new { username, Password }),
+        await AssertProblemAsync(await client.PostAsJsonAsync($"{groupPrefix}/login", new { username, Password }),
             "NotAllowed");
 
         var confirmEmailResponse = await client.GetAsync(GetEmailConfirmationLink(email));
@@ -682,6 +865,11 @@ public class MapIdentityApiTests : LoggedTest
 
         var loginResponse = await client.PostAsJsonAsync($"{groupPrefix}/login", new { username, Password });
         loginResponse.EnsureSuccessStatusCode();
+    }
+
+    private static void AssertOk(HttpResponseMessage response)
+    {
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     private static void AssertOkAndEmpty(HttpResponseMessage response)
@@ -702,12 +890,12 @@ public class MapIdentityApiTests : LoggedTest
         Assert.Equal(0, response.Content.Headers.ContentLength);
     }
 
-    private static async Task AssertUnauthorizedAndProblemAsync(HttpResponseMessage response, string title)
+    private static async Task AssertProblemAsync(HttpResponseMessage response, string title, HttpStatusCode status = HttpStatusCode.Unauthorized)
     {
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal(status, response.StatusCode);
         var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
         Assert.NotNull(problem);
-        Assert.Equal("Unauthorized", problem.Title);
+        Assert.Equal(ReasonPhrases.GetReasonPhrase((int)status), problem.Title);
         Assert.Equal(title, problem.Detail);
     }
 

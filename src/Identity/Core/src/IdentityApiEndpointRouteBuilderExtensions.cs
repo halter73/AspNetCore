@@ -102,13 +102,26 @@ public static class IdentityApiEndpointRouteBuilderExtensions
         });
 
         routeGroup.MapPost("/login", async Task<Results<Ok<AccessTokenResponse>, ProblemHttpResult, IResult>>
-            ([FromBody] LoginRequest login, [FromQuery] bool? cookieMode, [FromServices] IServiceProvider sp) =>
+            ([FromBody] LoginRequest login, [FromQuery] bool? cookieMode, [FromQuery] bool? persistCookies, [FromServices] IServiceProvider sp) =>
         {
             var signInManager = sp.GetRequiredService<SignInManager<TUser>>();
 
             signInManager.PrimaryAuthenticationScheme = cookieMode == true ? IdentityConstants.ApplicationScheme : IdentityConstants.BearerScheme;
-            signInManager.TwoFactorCode = login.TwoFactorCode;
-            var result = await signInManager.PasswordSignInAsync(login.Username, login.Password, isPersistent: true, lockoutOnFailure: true);
+            var isPersistent = persistCookies ?? true;
+
+            var result = await signInManager.PasswordSignInAsync(login.Username, login.Password, isPersistent, lockoutOnFailure: true);
+
+            if (result.RequiresTwoFactor)
+            {
+                if (!string.IsNullOrEmpty(login.TwoFactorCode))
+                {
+                    result = await signInManager.TwoFactorAuthenticatorSignInAsync(login.TwoFactorCode, isPersistent, rememberClient: isPersistent);
+                }
+                else if (!string.IsNullOrEmpty(login.TwoFactorRecoveryCode))
+                {
+                    result = await signInManager.TwoFactorRecoveryCodeSignInAsync(login.TwoFactorRecoveryCode);
+                }
+            }
 
             if (result.Succeeded)
             {
@@ -142,13 +155,13 @@ public static class IdentityApiEndpointRouteBuilderExtensions
         routeGroup.MapGet("/confirmEmail", async Task<Results<ContentHttpResult, UnauthorizedHttpResult>>
             ([FromQuery] string userId, [FromQuery] string code, [FromServices] IServiceProvider sp) =>
         {
-            var userManager = sp.GetRequiredService<UserManager<TUser>>();
+            var signInManager = sp.GetRequiredService<SignInManager<TUser>>();
+            var userManager = signInManager.UserManager;
 
             var user = await userManager.FindByIdAsync(userId);
             if (user is null)
             {
-                // We could respond with a 404 instead of a 401 like Identity UI, but that feels like
-                // unnecessary information disclosure.
+                // We could respond with a 404 instead of a 401 like Identity UI, but that feels like unnecessary information.
                 return TypedResults.Unauthorized();
             }
 
@@ -172,10 +185,11 @@ public static class IdentityApiEndpointRouteBuilderExtensions
 
         var accountGroup = routeGroup.MapGroup("/account").RequireAuthorization();
 
-        accountGroup.MapGet("/2faKey", async Task<Results<Ok<AuthenticatorKeyResponse>, NotFound>>
+        accountGroup.MapGet("/2fa", async Task<Results<Ok<TwoFactorResponse>, NotFound>>
             (ClaimsPrincipal claimsPrincipal, [FromServices] IServiceProvider sp) =>
         {
-            var userManager = sp.GetRequiredService<UserManager<TUser>>();
+            var signInManager = sp.GetRequiredService<SignInManager<TUser>>();
+            var userManager = signInManager.UserManager;
             var user = await userManager.GetUserAsync(claimsPrincipal);
 
             if (user is null)
@@ -183,68 +197,86 @@ public static class IdentityApiEndpointRouteBuilderExtensions
                 return TypedResults.NotFound();
             }
 
-            var key = await userManager.GetAuthenticatorKeyAsync(user);
-            if (string.IsNullOrEmpty(key))
+            return TypedResults.Ok(await CreateTwoFactorResponseAsync(user, signInManager));
+        });
+
+        accountGroup.MapPost("/2fa", async Task<Results<Ok<TwoFactorResponse>, ProblemHttpResult, NotFound>>
+            (ClaimsPrincipal claimsPrincipal, [FromBody] TwoFactorRequest request, [FromServices] IServiceProvider sp) =>
+        {
+            var signInManager = sp.GetRequiredService<SignInManager<TUser>>();
+            var userManager = signInManager.UserManager;
+            var user = await userManager.GetUserAsync(claimsPrincipal);
+
+            if (user is null)
+            {
+                return TypedResults.NotFound();
+            }
+
+            if (request.Enable == true)
+            {
+                if (request.ResetSharedKey)
+                {
+                    return TypedResults.Problem("CannotResetSharedKeyAndEnable", statusCode: StatusCodes.Status400BadRequest);
+                }
+                else if (request.TwoFactorCode is null)
+                {
+                    return TypedResults.Problem("RequiresTwoFactor", statusCode: StatusCodes.Status401Unauthorized);
+                }
+                else if (!await userManager.VerifyTwoFactorTokenAsync(user, userManager.Options.Tokens.AuthenticatorTokenProvider, request.TwoFactorCode))
+                {
+                    return TypedResults.Problem("InvalidTwoFactorCode", statusCode: StatusCodes.Status401Unauthorized);
+                }
+
+                await userManager.SetTwoFactorEnabledAsync(user, true);
+            }
+            else if (request.Enable == false || request.ResetSharedKey)
+            {
+                await userManager.SetTwoFactorEnabledAsync(user, false);
+            }
+
+            if (request.ResetSharedKey)
             {
                 await userManager.ResetAuthenticatorKeyAsync(user);
-                key = await userManager.GetAuthenticatorKeyAsync(user);
             }
 
-            IEnumerable<string>? recoveryCodes = null;
-
-            if (await userManager.CountRecoveryCodesAsync(user) == 0)
+            string[]? recoveryCodes = null;
+            if (request.ResetRecoveryCodes || (request.Enable == true && await userManager.CountRecoveryCodesAsync(user) == 0))
             {
-                recoveryCodes = await userManager.GenerateNewTwoFactorRecoveryCodesAsync(user, 10);
+                var recoveryCodesEnumerable = await userManager.GenerateNewTwoFactorRecoveryCodesAsync(user, 10);
+                recoveryCodes = recoveryCodesEnumerable?.ToArray();
             }
 
-            return TypedResults.Ok(new AuthenticatorKeyResponse
+            if (request.ForgetMachine)
             {
-                SharedKey = key!,
-                RecoveryCodes = recoveryCodes?.ToArray(),
-            });
-        });
-
-        accountGroup.MapPost("/configure2fa", async Task<Results<Ok, ProblemHttpResult, NotFound>>
-            (ClaimsPrincipal claimsPrincipal, [FromBody] ConfigureTwoFactorRequest request, [FromServices] IServiceProvider sp) =>
-        {
-            var userManager = sp.GetRequiredService<UserManager<TUser>>();
-            var user = await userManager.GetUserAsync(claimsPrincipal);
-
-            if (user is null)
-            {
-                return TypedResults.NotFound();
+                await signInManager.ForgetTwoFactorClientAsync();
             }
 
-            if (!await userManager.VerifyTwoFactorTokenAsync(user, userManager.Options.Tokens.AuthenticatorTokenProvider, request.TwoFactorCode))
-            {
-                return TypedResults.Problem("InvalidCode");
-            }
-
-            await userManager.SetTwoFactorEnabledAsync(user, request.Enable);
-            return TypedResults.Ok();
-        });
-
-        accountGroup.MapPost("/resetPassword", async Task<Results<Ok, ProblemHttpResult, NotFound>>
-            (ClaimsPrincipal claimsPrincipal, [FromBody] ConfigureTwoFactorRequest request, [FromServices] IServiceProvider sp) =>
-        {
-            var userManager = sp.GetRequiredService<UserManager<TUser>>();
-            var user = await userManager.GetUserAsync(claimsPrincipal);
-
-            if (user is null)
-            {
-                return TypedResults.NotFound();
-            }
-
-            if (!await userManager.VerifyTwoFactorTokenAsync(user, userManager.Options.Tokens.AuthenticatorTokenProvider, request.TwoFactorCode))
-            {
-                return TypedResults.Problem("InvalidCode");
-            }
-
-            await userManager.SetTwoFactorEnabledAsync(user, request.Enable);
-            return TypedResults.Ok();
+            return TypedResults.Ok(await CreateTwoFactorResponseAsync(user, signInManager, recoveryCodes));
         });
 
         return new IdentityEndpointsConventionBuilder(routeGroup);
+    }
+
+    private static async Task<TwoFactorResponse> CreateTwoFactorResponseAsync<TUser>(TUser user, SignInManager<TUser> signInManager, string[]? recoveryCodes = null)
+        where TUser : class
+    {
+        var userManager = signInManager.UserManager;
+
+        var key = await userManager.GetAuthenticatorKeyAsync(user);
+        if (string.IsNullOrEmpty(key))
+        {
+            await userManager.ResetAuthenticatorKeyAsync(user);
+            key = await userManager.GetAuthenticatorKeyAsync(user);
+        }
+
+        return new TwoFactorResponse
+        {
+            SharedKey = key!,
+            RecoveryCodes = recoveryCodes,
+            RecoveryCodesLeft = recoveryCodes?.Length ?? await userManager.CountRecoveryCodesAsync(user),
+            IsTwoFactorEnabled = await userManager.GetTwoFactorEnabledAsync(user),
+            IsMachineRemembered = await signInManager.IsTwoFactorClientRememberedAsync(user),
+        };
     }
 
     // Wrap RouteGroupBuilder with a non-public type to avoid a potential future behavioral breaking change.

@@ -6,10 +6,12 @@ using System.Linq;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Encodings.Web;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.BearerToken;
 using Microsoft.AspNetCore.Authentication.BearerToken.DTO;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Identity;
@@ -318,14 +320,15 @@ public static class IdentityApiEndpointRouteBuilderExtensions
                 return TypedResults.NotFound();
             }
 
-            return TypedResults.Ok(await CreateInfoResponseAsync(user, userManager));
+            return TypedResults.Ok(await CreateInfoResponseAsync(user, claimsPrincipal, userManager));
         });
 
         accountGroup.MapPost("/info", async Task<Results<Ok<InfoResponse>, ValidationProblem, NotFound>>
-            (ClaimsPrincipal claimsPrincipal, [FromBody] InfoRequest infoRequest, [FromServices] IServiceProvider sp) =>
+            (HttpContext httpContext, [FromBody] InfoRequest infoRequest, [FromServices] IServiceProvider sp) =>
         {
-            var userManager = sp.GetRequiredService<UserManager<TUser>>();
-            if (await userManager.GetUserAsync(claimsPrincipal) is not { } user)
+            var signInManager = sp.GetRequiredService<SignInManager<TUser>>();
+            var userManager = signInManager.UserManager;
+            if (await userManager.GetUserAsync(httpContext.User) is not { } user)
             {
                 return TypedResults.NotFound();
             }
@@ -378,13 +381,20 @@ public static class IdentityApiEndpointRouteBuilderExtensions
                 }
             }
 
+            // Update cookie if the user was authenticated that way. The user will have to manually refresh any bearer tokens.
+            var authFeature = httpContext.Features.GetRequiredFeature<IAuthenticateResultFeature>();
+            if (authFeature.AuthenticateResult?.Ticket?.AuthenticationScheme == IdentityConstants.ApplicationScheme)
+            {
+                await signInManager.RefreshSignInAsync(user);
+            }
+
             if (failedIdentityResults.Count > 0)
             {
                 return CreateValidationProblem(failedIdentityResults.ToArray());
             }
             else
             {
-                return TypedResults.Ok(await CreateInfoResponseAsync(user, userManager));
+                return TypedResults.Ok(await CreateInfoResponseAsync(user, httpContext.User, userManager));
             }
         });
 
@@ -434,7 +444,7 @@ public static class IdentityApiEndpointRouteBuilderExtensions
 
     private static ValidationProblem CreateValidationProblem(params IdentityResult[] results)
     {
-        var errorDictionary = new Dictionary<string, string[]>();
+        var errorDictionary = new Dictionary<string, string[]>(results.Length);
 
         foreach (var result in results)
         {
@@ -483,13 +493,22 @@ public static class IdentityApiEndpointRouteBuilderExtensions
         };
     }
 
-    private static async Task<InfoResponse> CreateInfoResponseAsync<TUser>(TUser user, UserManager<TUser> userManager)
+    private static async Task<InfoResponse> CreateInfoResponseAsync<TUser>(TUser user, ClaimsPrincipal claimsPrincipal, UserManager<TUser> userManager)
         where TUser : class
     {
+        var claimsArray = claimsPrincipal.Claims.ToArray();
+        var claimsDictionary = new Dictionary<string, string>(claimsArray.Length);
+
+        foreach (var claim in claimsArray)
+        {
+            claimsDictionary.Add(claim.Type, claim.Value);
+        }
+
         return new()
         {
             Username = await userManager.GetUserNameAsync(user) ?? throw new NotSupportedException("Users must have a user name."),
             Email = await userManager.GetEmailAsync(user) ?? throw new NotSupportedException("Users must have an email."),
+            Claims = claimsDictionary,
         };
     }
 

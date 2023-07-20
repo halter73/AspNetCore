@@ -417,8 +417,7 @@ public class MapIdentityApiTests : LoggedTest
             w.LoggerName == "Microsoft.AspNetCore.Identity.SignInManager" &&
             w.EventId == new EventId(3, "UserLockedOut"));
 
-        var loginResponse = await client.PostAsJsonAsync("/identity/login", new { Username, Password });
-        loginResponse.EnsureSuccessStatusCode();
+        AssertOk(await client.PostAsJsonAsync("/identity/login", new { Username, Password }));
     }
 
     [Fact]
@@ -467,6 +466,44 @@ public class MapIdentityApiTests : LoggedTest
         Assert.Single(TestSink.Writes, w =>
             w.LoggerName == "Microsoft.AspNetCore.Identity.SignInManager" &&
             w.EventId == new EventId(0, "UserCannotSignInWithoutConfirmedEmail"));
+    }
+
+    [Fact]
+    public async Task EmailConfirmationCanBeResent()
+    {
+        var emailSender = new TestEmailSender();
+
+        await using var app = await CreateAppAsync(services =>
+        {
+            AddIdentityApiEndpoints(services);
+            services.AddSingleton<IEmailSender>(emailSender);
+            services.Configure<IdentityOptions>(options =>
+            {
+                options.SignIn.RequireConfirmedEmail = true;
+            });
+        });
+        using var client = app.GetTestClient();
+
+        await client.PostAsJsonAsync("/identity/register", new { Username, Password, Email = Username });
+
+        var firstEmail = Assert.Single(emailSender.Emails);
+        Assert.Equal("Confirm your email", firstEmail.Subject);
+        Assert.Equal(Username, firstEmail.Address);
+
+        await AssertProblemAsync(await client.PostAsJsonAsync("/identity/login", new { Username, Password }),
+            "NotAllowed");
+
+        AssertOk(await client.PostAsJsonAsync("/identity/resendConfirmationEmail", new { Email = "wrong" }));
+        AssertOk(await client.PostAsJsonAsync("/identity/resendConfirmationEmail", new { Email = Username }));
+
+        // Even though both resendConfirmationEmail requests returned a 200, only one for a valid registration was sent
+        Assert.Equal(2, emailSender.Emails.Count);
+        var resentEmail = emailSender.Emails[1];
+        Assert.Equal("Confirm your email", resentEmail.Subject);
+        Assert.Equal(Username, resentEmail.Address);
+
+        AssertOk(await client.GetAsync(GetEmailConfirmationLink(resentEmail)));
+        AssertOk(await client.PostAsJsonAsync("/identity/login", new { Username, Password }));
     }
 
     [Fact]
@@ -822,7 +859,7 @@ public class MapIdentityApiTests : LoggedTest
         AssertOkAndEmpty(await client.PostAsJsonAsync("/identity/register",
             new { Username = "unconfirmed@example.com", Password, Email = "unconfirmed@example.com" }));
 
-        var accessToken = await TestRegistrationWithAccountConfirmationAsync(client, emailSender);
+        await TestRegistrationWithAccountConfirmationAsync(client, emailSender);
 
         // Two emails were sent, but only one was confirmed
         Assert.Equal(2, emailSender.Emails.Count);
@@ -840,7 +877,7 @@ public class MapIdentityApiTests : LoggedTest
         Assert.Equal(Username, resetEmail.Address);
 
         var resetCode = GetPasswordResetCode(resetEmail);
-        var newPassword = Password + "!";
+        var newPassword = $"{Password}!";
 
         // The same validation errors are returned even for invalid emails
         await AssertValidationProblemAsync(await client.PostAsJsonAsync("/identity/resetPassword", new { Email = Username, resetCode }),
@@ -861,6 +898,85 @@ public class MapIdentityApiTests : LoggedTest
 
         // But the new password is
         AssertOk(await client.PostAsJsonAsync("/identity/login", new { Username, Password = newPassword }));
+    }
+
+    [Fact]
+    public async Task CanChangeEmail()
+    {
+        var emailSender = new TestEmailSender();
+
+        await using var app = await CreateAppAsync(services =>
+        {
+            AddIdentityApiEndpoints(services);
+            services.AddSingleton<IEmailSender>(emailSender);
+            services.Configure<IdentityOptions>(options =>
+            {
+                options.SignIn.RequireConfirmedAccount = true;
+            });
+        });
+        using var client = app.GetTestClient();
+
+        var accessToken = await TestRegistrationWithAccountConfirmationAsync(client, emailSender);
+
+        AssertUnauthorizedAndEmpty(await client.GetAsync("/identity/account/info"));
+
+        client.DefaultRequestHeaders.Authorization = new("Bearer", accessToken);
+
+        var infoResponse = await client.GetFromJsonAsync<JsonElement>("/identity/account/info");
+        Assert.Equal(Username, infoResponse.GetProperty("username").GetString());
+        Assert.Equal(Username, infoResponse.GetProperty("email").GetString());
+
+        var newUsername = $"UsernamePrefix-{Username}";
+        var newEmail = $"EmailPrefixed-{Username}";
+
+        var infoPostResponse = await client.PostAsJsonAsync("/identity/account/info", new { newUsername, newEmail });
+        var infoPostContent = await infoPostResponse.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(newUsername, infoPostContent.GetProperty("username").GetString());
+        // The email isn't updated until the email is confirmed
+        Assert.Equal(Username, infoPostContent.GetProperty("email").GetString());
+
+        // But we can immediately log in with the new username
+        AssertOk(await client.PostAsJsonAsync($"/identity/login", new { Username = newUsername, Password }));
+
+        // We confirmed the original email
+        Assert.Equal(2, emailSender.Emails.Count);
+        var email = emailSender.Emails[1];
+
+        Assert.Equal("Confirm your email", email.Subject);
+        Assert.Equal(newEmail, email.Address);
+
+        AssertOk(await client.GetAsync(GetEmailConfirmationLink(email)));
+
+        var infoAfterEmailChangeResponse = await client.GetFromJsonAsync<JsonElement>("/identity/account/info");
+        Assert.Equal(newUsername, infoAfterEmailChangeResponse.GetProperty("username").GetString());
+        // The email is immediately updated after the email is confirmed
+        Assert.Equal(newEmail, infoAfterEmailChangeResponse.GetProperty("email").GetString());
+    }
+
+    [Fact]
+    public async Task CanChangePasswordWithoutResetEmail()
+    {
+        await using var app = await CreateAppAsync();
+        using var client = app.GetTestClient();
+
+        await client.PostAsJsonAsync("/identity/register", new { Username, Password, Email = Username });
+        var loginResponse = await client.PostAsJsonAsync("/identity/login", new { Username, Password });
+        var loginContent = await loginResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var accessToken = loginContent.GetProperty("access_token").GetString();
+        client.DefaultRequestHeaders.Authorization = new("Bearer", accessToken);
+
+        var newPassword = $"{Password}!";
+
+        await AssertValidationProblemAsync(await client.PostAsJsonAsync("/identity/account/info", new { newPassword }),
+            "OldPasswordRequired");
+        AssertOk(await client.PostAsJsonAsync("/identity/account/info", new { OldPassword = Password, newPassword }));
+
+        client.DefaultRequestHeaders.Clear();
+
+        // We can immediately log in with the new passowrd
+        await AssertProblemAsync(await client.PostAsJsonAsync($"/identity/login", new { Username, Password }),
+            "Failed");
+        AssertOk(await client.PostAsJsonAsync($"/identity/login", new { Username, Password = newPassword }));
     }
 
     private async Task<WebApplication> CreateAppAsync<TUser, TContext>(Action<IServiceCollection>? configureServices, bool autoStart = true)
@@ -971,12 +1087,9 @@ public class MapIdentityApiTests : LoggedTest
         await AssertProblemAsync(await client.PostAsJsonAsync($"{groupPrefix}/login", new { username, Password }),
             "NotAllowed");
 
-        var confirmEmailResponse = await client.GetAsync(GetEmailConfirmationLink(email));
-        confirmEmailResponse.EnsureSuccessStatusCode();
+        AssertOk(await client.GetAsync(GetEmailConfirmationLink(email)));
 
         var loginResponse = await client.PostAsJsonAsync($"{groupPrefix}/login", new { username, Password });
-        loginResponse.EnsureSuccessStatusCode();
-
         var loginContent = await loginResponse.Content.ReadFromJsonAsync<JsonElement>();
         var accessToken = loginContent.GetProperty("access_token").GetString();
         Assert.NotNull(accessToken);

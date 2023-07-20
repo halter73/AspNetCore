@@ -9,6 +9,9 @@ namespace Microsoft.AspNetCore.Identity.DTO;
 [JsonSerializable(typeof(LoginRequest))]
 [JsonSerializable(typeof(RefreshRequest))]
 [JsonSerializable(typeof(ResetPasswordRequest))]
+[JsonSerializable(typeof(ResendEmailRequest))]
+[JsonSerializable(typeof(InfoRequest))]
+[JsonSerializable(typeof(InfoResponse))]
 [JsonSerializable(typeof(TwoFactorRequest))]
 [JsonSerializable(typeof(TwoFactorResponse))]
 internal sealed partial class IdentityEndpointsJsonSerializerContext : JsonSerializerContext

@@ -3,7 +3,6 @@
 
 #nullable enable
 
-using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
@@ -111,7 +110,7 @@ public class MapIdentityApiTests : LoggedTest
             services.AddSingleton<TimeProvider>(clock);
             services.AddDbContext<ApplicationDbContext>((sp, options) => options.UseSqlite(sp.GetRequiredService<SqliteConnection>()));
             services.AddIdentityCore<ApplicationUser>().AddApiEndpoints().AddEntityFrameworkStores<ApplicationDbContext>();
-            services.AddAuthentication(IdentityConstants.BearerScheme).AddIdentityBearerToken<ApplicationUser>(options =>
+            services.AddAuthentication().AddBearerToken(IdentityConstants.BearerScheme, options =>
             {
                 options.BearerTokenExpiration = expireTimeSpan;
             });
@@ -186,7 +185,7 @@ public class MapIdentityApiTests : LoggedTest
         {
             services.AddDbContext<ApplicationDbContext>((sp, options) => options.UseSqlite(sp.GetRequiredService<SqliteConnection>()));
             services.AddIdentityCore<ApplicationUser>().AddApiEndpoints().AddEntityFrameworkStores<ApplicationDbContext>();
-            services.AddAuthentication(IdentityConstants.BearerScheme).AddIdentityBearerToken<ApplicationUser>(options =>
+            services.AddAuthentication().AddBearerToken(IdentityConstants.BearerScheme, options =>
             {
                 options.Events.OnMessageReceived = context =>
                 {
@@ -271,7 +270,7 @@ public class MapIdentityApiTests : LoggedTest
             services.AddSingleton<TimeProvider>(clock);
             services.AddDbContext<ApplicationDbContext>((sp, options) => options.UseSqlite(sp.GetRequiredService<SqliteConnection>()));
             services.AddIdentityCore<ApplicationUser>().AddApiEndpoints().AddEntityFrameworkStores<ApplicationDbContext>();
-            services.AddAuthentication(IdentityConstants.BearerScheme).AddIdentityBearerToken<ApplicationUser>(options =>
+            services.AddAuthentication().AddBearerToken(IdentityConstants.BearerScheme, options =>
             {
                 options.RefreshTokenExpiration = expireTimeSpan;
             });
@@ -1133,10 +1132,38 @@ public class MapIdentityApiTests : LoggedTest
 
         client.DefaultRequestHeaders.Clear();
 
-        // We can immediately log in with the new passowrd
+        // We can immediately log in with the new password
         await AssertProblemAsync(await client.PostAsJsonAsync($"/identity/login", new { Username, Password }),
             "Failed");
         AssertOk(await client.PostAsJsonAsync($"/identity/login", new { Username, Password = newPassword }));
+    }
+
+    [Fact]
+    public async Task CanReportMultipleInfoUpdateErrorsAtOnce()
+    {
+        await using var app = await CreateAppAsync();
+        using var client = app.GetTestClient();
+
+        await RegisterAsync(client);
+        // Register a second user that conflicts with our first NewUsername
+        await RegisterAsync(client, username: "taken");
+
+        await LoginAsync(client);
+
+        var newPassword = $"{Password}!";
+        var multipleProblemResponse = await client.PostAsJsonAsync("/identity/account/info", new { newPassword, NewUsername = "taken" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, multipleProblemResponse.StatusCode);
+        var problemDetails = await multipleProblemResponse.Content.ReadFromJsonAsync<ValidationProblemDetails>();
+        Assert.NotNull(problemDetails);
+
+        Assert.Equal(2, problemDetails.Errors.Count);
+        Assert.Contains("OldPasswordRequired", problemDetails.Errors.Keys);
+        Assert.Contains("DuplicateUserName", problemDetails.Errors.Keys);
+
+        // We can in fact update multiple things at once if we do it correctly though.
+        AssertOk(await client.PostAsJsonAsync("/identity/account/info", new { OldPassword = Password, newPassword, NewUsername = "not-taken" }));
+        AssertOk(await client.PostAsJsonAsync($"/identity/login", new { Username = "not-taken", Password = newPassword }));
     }
 
     private async Task<WebApplication> CreateAppAsync<TUser, TContext>(Action<IServiceCollection>? configureServices, bool autoStart = true)
@@ -1191,8 +1218,8 @@ public class MapIdentityApiTests : LoggedTest
     private static IdentityBuilder AddIdentityApiEndpointsBearerOnly(IServiceCollection services)
     {
         services
-            .AddAuthentication(IdentityConstants.BearerScheme)
-            .AddIdentityBearerToken<ApplicationUser>();
+            .AddAuthentication()
+            .AddBearerToken(IdentityConstants.BearerScheme);
 
         return services
             .AddDbContext<ApplicationDbContext>((sp, options) => options.UseSqlite(sp.GetRequiredService<SqliteConnection>()))

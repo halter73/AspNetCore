@@ -543,4 +543,3 @@ public static class IdentityApiEndpointRouteBuilderExtensions
         public string? Name => null;
     }
 }
-

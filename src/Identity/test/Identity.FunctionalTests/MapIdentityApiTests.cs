@@ -598,7 +598,7 @@ public class MapIdentityApiTests : LoggedTest
 
         client.DefaultRequestHeaders.Authorization = new("Bearer", accessToken);
 
-        // We cannot enable 2fa without verifying we can produce a valid one.
+        // We cannot enable 2fa without verifying we can produce a valid token.
         await AssertValidationProblemAsync(await client.PostAsJsonAsync("/identity/account/2fa", new { Enable = true }),
             "RequiresTwoFactor");
         await AssertValidationProblemAsync(await client.PostAsJsonAsync("/identity/account/2fa", new { Enable = true, TwoFactorCode = "wrong" }),

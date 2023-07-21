@@ -440,6 +440,7 @@ public static class IdentityApiEndpointRouteBuilderExtensions
 
     private static ValidationProblem CreateValidationProblem(params IdentityResult[] results)
     {
+        // This could be golfed with SelectMany, GroupBy and ToDictionary, but perf! :P
         var errorDictionary = new Dictionary<string, string[]>(results.Length);
 
         foreach (var result in results)
@@ -492,19 +493,11 @@ public static class IdentityApiEndpointRouteBuilderExtensions
     private static async Task<InfoResponse> CreateInfoResponseAsync<TUser>(TUser user, ClaimsPrincipal claimsPrincipal, UserManager<TUser> userManager)
         where TUser : class
     {
-        var claimsArray = claimsPrincipal.Claims.ToArray();
-        var claimsDictionary = new Dictionary<string, string>(claimsArray.Length);
-
-        foreach (var claim in claimsArray)
-        {
-            claimsDictionary.Add(claim.Type, claim.Value);
-        }
-
         return new()
         {
             Username = await userManager.GetUserNameAsync(user) ?? throw new NotSupportedException("Users must have a user name."),
             Email = await userManager.GetEmailAsync(user) ?? throw new NotSupportedException("Users must have an email."),
-            Claims = claimsDictionary,
+            Claims = claimsPrincipal.Claims.ToDictionary(c => c.Type, c => c.Value),
         };
     }
 

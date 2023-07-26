@@ -14,6 +14,22 @@ namespace Microsoft.AspNetCore.Analyzers.Http;
 public class HeaderDictionaryIndexerAnalyzerTests
 {
     [Fact]
+    public async Task Test()
+    {
+        // Arrange & Act & Assert
+        await VerifyCS.VerifyAnalyzerAsync("""
+using System;
+var normalLiteral = "normal literal";
+var literalInterpolatedString = $"should be literal";
+var literalinterpolatedString = $"should be literal";
+var interpolatedString = $"{DateTime.Now}";
+var interpolatedString2 = $" {DateTime.Now}";
+var interpolatedString3 = $"{DateTime.Now} ";
+var interpolatedString4 = $" x{DateTime.Now} ";
+""");
+    }
+
+    [Fact]
     public async Task IHeaderDictionary_Get_MismatchCase_ReturnDiagnostic()
     {
         // Arrange & Act & Assert

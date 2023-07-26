@@ -43,6 +43,19 @@ public partial class HeaderDictionaryIndexerAnalyzer : DiagnosticAnalyzer
                 }
             }
         }, OperationKind.PropertyReference);
+
+        var test = $"this is just unnecessary";
+        var test2 = string.Format("so is this");
+
+        context.RegisterOperationAction(context =>
+        {
+            var interpolatedString = (IInterpolatedStringOperation)context.Operation;
+        }, OperationKind.InterpolatedString);
+
+        context.RegisterOperationAction(context =>
+        {
+            var literal = (ILiteralOperation)context.Operation;
+        }, OperationKind.Literal);
     }
 
     private static bool IsIHeadersDictionaryType(INamedTypeSymbol type)

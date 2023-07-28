@@ -328,7 +328,7 @@ public class AddressRegistrationTests : TestApplicationErrorLoggerLoggedTest
             var testUrlWithPort = $"{testUrl}:{(testPort == 0 ? host.GetPort() : testPort)}";
 
             var options = ((IOptions<KestrelServerOptions>)host.Services.GetService(typeof(IOptions<KestrelServerOptions>))).Value;
-            Assert.Single(options.ListenOptions);
+            Assert.Single(options.GetListenOptions());
 
             var response = await HttpClientSlim.GetStringAsync(testUrlWithPort, validateCertificate: false);
 
@@ -506,7 +506,7 @@ public class AddressRegistrationTests : TestApplicationErrorLoggerLoggedTest
                     {
                         if (mockHttps)
                         {
-                            options.DefaultCertificate = TestResources.GetTestCertificate();
+                            options.TestOverrideDefaultCertificate = TestResources.GetTestCertificate();
                         }
                     })
                     .Configure(ConfigureEchoAddress);
@@ -519,9 +519,7 @@ public class AddressRegistrationTests : TestApplicationErrorLoggerLoggedTest
 
             Assert.Equal(5000, host.GetPort());
 
-            Assert.Single(LogMessages, log => log.LogLevel == LogLevel.Debug &&
-                (string.Equals(CoreStrings.FormatBindingToDefaultAddress(Constants.DefaultServerAddress), log.Message, StringComparison.Ordinal)
-                    || string.Equals(CoreStrings.FormatBindingToDefaultAddress(Constants.DefaultServerAddress), log.Message, StringComparison.Ordinal)));
+            Assert.Single(LogMessages, log => log.LogLevel == LogLevel.Debug && string.Equals(CoreStrings.FormatBindingToDefaultAddress(Constants.DefaultServerAddress), log.Message, StringComparison.Ordinal));
 
             foreach (var address in addresses)
             {

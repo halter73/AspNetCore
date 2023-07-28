@@ -1,86 +1,429 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-namespace Microsoft.AspNetCore.Http.Generators.StaticRouteHandlerModel;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using Microsoft.AspNetCore.Http.RequestDelegateGenerator.StaticRouteHandlerModel.Emitters;
+using Microsoft.CodeAnalysis;
+
+namespace Microsoft.AspNetCore.Http.RequestDelegateGenerator.StaticRouteHandlerModel;
 
 internal static class StaticRouteHandlerModelEmitter
 {
-    /*
-     * TODO: Emit code that represents the signature of the delegate
-     * represented by the handler. When the handler does not return a value
-     * but consumes parameters the following will be emitted:
-     *
-     * ```
-     * System.Action<string, int>
-     * ```
-     *
-     * Where `string` and `int` represent parameter types. For handlers
-     * that do return a value, `System.Func<string, int, string>` will
-     * be emitted to indicate a `string`return type.
-     */
-    public static string EmitHandlerDelegateType(Endpoint endpoint)
+    public static string EmitHandlerDelegateType(this Endpoint endpoint, bool considerOptionality = false)
     {
-        return $"System.Func<{endpoint.Response.ResponseType}>";
+        // Emits a delegate type to use when casting the input that captures
+        // default parameter values.
+        //
+        // void (int arg0, Todo arg1) => throw null!
+        // IResult (int arg0, Todo arg1) => throw null!
+        if (endpoint.Parameters.Length == 0)
+        {
+            return endpoint.Response == null || (endpoint.Response.HasNoResponse && !endpoint.Response.IsAwaitable) ? "void ()" : $"{endpoint.Response.WrappedResponseType} ()";
+        }
+        var parameterTypeList = string.Join(", ", endpoint.Parameters.Select((p, i) => $"{getType(p, considerOptionality)} arg{i}{(p.HasDefaultValue ? $"= {p.DefaultValue}" : string.Empty)}"));
+
+        if (endpoint.Response == null || (endpoint.Response.HasNoResponse && !endpoint.Response.IsAwaitable))
+        {
+            return $"void ({parameterTypeList})";
+        }
+        return $"{endpoint.Response.WrappedResponseType} ({parameterTypeList})";
+
+        static string getType(EndpointParameter p, bool considerOptionality)
+        {
+            return considerOptionality
+                ? p.Type.ToDisplayString(p.IsOptional ? NullableFlowState.MaybeNull : NullableFlowState.NotNull, EmitterConstants.DisplayFormat)
+                : p.Type.ToDisplayString(EmitterConstants.DisplayFormat);
+        }
     }
 
-    public static string EmitSourceKey(Endpoint endpoint)
+    public static string EmitSourceKey(this Endpoint endpoint)
     {
-        return $@"(@""{endpoint.Location.Item1}"", {endpoint.Location.Item2})";
+        return $@"(@""{endpoint.Location.File}"", {endpoint.Location.LineNumber})";
+    }
+
+    public static string EmitVerb(this Endpoint endpoint)
+    {
+        (var verbSymbol, endpoint.EmitterContext.HttpMethod) = endpoint.HttpMethod switch
+        {
+            "MapGet" => ("GetVerb", "Get"),
+            "MapPut" => ("PutVerb", "Put"),
+            "MapPost" => ("PostVerb", "Post"),
+            "MapDelete" => ("DeleteVerb", "Delete"),
+            "MapPatch" => ("PatchVerb", "Patch"),
+            "MapMethods" => ("httpMethods", null),
+            "Map" => ("null", null),
+            "MapFallback" => ("null", null),
+            _ => throw new ArgumentException($"Received unexpected HTTP method: {endpoint.HttpMethod}")
+        };
+
+        return verbSymbol;
     }
 
     /*
-     * TODO: Emit invocation to the request handler. The structure
+     * Emit invocation to the request handler. The structure
      * involved here consists of a call to bind parameters, check
      * their validity (optionality), invoke the underlying handler with
      * the arguments bound from HTTP context, and write out the response.
      */
-    public static string EmitRequestHandler()
+    public static void EmitRequestHandler(this Endpoint endpoint, CodeWriter codeWriter)
     {
-        return """
-System.Threading.Tasks.Task RequestHandler(Microsoft.AspNetCore.Http.HttpContext httpContext)
-                {
-                        var result = handler();
-                        return httpContext.Response.WriteAsync(result);
-                }
-""";
+        codeWriter.WriteLine(endpoint.IsAwaitable ? "async Task RequestHandler(HttpContext httpContext)" : "Task RequestHandler(HttpContext httpContext)");
+        codeWriter.StartBlock(); // Start handler method block
+        codeWriter.WriteLine("var wasParamCheckFailure = false;");
+
+        if (endpoint.Parameters.Length > 0)
+        {
+            codeWriter.WriteLine(endpoint.Parameters.EmitParameterPreparation(endpoint.EmitterContext, codeWriter.Indent));
+        }
+
+        codeWriter.WriteLine("if (wasParamCheckFailure)");
+        codeWriter.StartBlock(); // Start if-statement block
+        codeWriter.WriteLine("httpContext.Response.StatusCode = 400;");
+        codeWriter.WriteLine(endpoint.IsAwaitable ? "return;" : "return Task.CompletedTask;");
+        codeWriter.EndBlock(); // End if-statement block
+        if (endpoint.Response == null)
+        {
+            return;
+        }
+        if (!endpoint.Response.HasNoResponse)
+        {
+            codeWriter.Write("var result = ");
+        }
+        if (endpoint.Response.IsAwaitable)
+        {
+            codeWriter.Write("await ");
+        }
+        codeWriter.WriteLine($"handler({endpoint.EmitArgumentList()});");
+
+        endpoint.Response.EmitHttpResponseContentType(codeWriter);
+
+        if (!endpoint.Response.HasNoResponse)
+        {
+            codeWriter.WriteLine(endpoint.Response.EmitResponseWritingCall(endpoint.IsAwaitable));
+        }
+        else if (!endpoint.IsAwaitable)
+        {
+            codeWriter.WriteLine("return Task.CompletedTask;");
+        }
+
+        codeWriter.EndBlock(); // End handler method block
     }
 
-    /*
-     * TODO: Emit invocation to the `filteredInvocation` pipeline by constructing
-     * the `EndpointFilterInvocationContext` using the bound arguments for the handler.
-     * In the source generator context, the generic overloads for `EndpointFilterInvocationContext`
-     * can be used to reduce the boxing that happens at runtime when constructing
-     * the context object.
-     */
-    public static string EmitFilteredRequestHandler()
+    private static void EmitHttpResponseContentType(this EndpointResponse endpointResponse, CodeWriter codeWriter)
     {
-        return """
-async System.Threading.Tasks.Task RequestHandlerFiltered(Microsoft.AspNetCore.Http.HttpContext httpContext)
-                {
-                    var result = await filteredInvocation(new DefaultEndpointFilterInvocationContext(httpContext));
-                    await GeneratedRouteBuilderExtensionsCore.ExecuteObjectResult(result, httpContext);
-                }
-""";
+        if (!endpointResponse.HasNoResponse
+            && endpointResponse.ResponseType is { } responseType
+            && (responseType.SpecialType == SpecialType.System_Object || responseType.SpecialType == SpecialType.System_String))
+        {
+            codeWriter.WriteLine("if (result is string)");
+            codeWriter.StartBlock();
+            codeWriter.WriteLine($@"httpContext.Response.ContentType ??= ""text/plain; charset=utf-8"";");
+            codeWriter.EndBlock();
+            codeWriter.WriteLine("else");
+            codeWriter.StartBlock();
+            codeWriter.WriteLine($@"httpContext.Response.ContentType ??= ""application/json; charset=utf-8"";");
+            codeWriter.EndBlock();
+        }
     }
 
-    /*
-     * TODO: Emit code that will call the `handler` with
-     * the appropriate arguments processed via the parameter binding.
-     *
-     * ```
-     * return System.Threading.Tasks.ValueTask.FromResult<object?>(handler(name, age));
-     * ```
-     *
-     * If the handler returns void, it will be invoked and an `EmptyHttpResult`
-     * will be returned to the user.
-     *
-     * ```
-     * handler(name, age);
-     * return System.Threading.Tasks.ValueTask.FromResult<object?>(Results.Empty);
-     * ```
-     */
-    public static string EmitFilteredInvocation()
+    private static string EmitResponseWritingCall(this EndpointResponse endpointResponse, bool isAwaitable)
     {
-        return "return System.Threading.Tasks.ValueTask.FromResult<object?>(handler());";
+        var returnOrAwait = isAwaitable ? "await" : "return";
+
+        if (endpointResponse.IsIResult)
+        {
+            return $"{returnOrAwait} GeneratedRouteBuilderExtensionsCore.ExecuteAsyncExplicit(result, httpContext);";
+        }
+        else if (endpointResponse.ResponseType?.SpecialType == SpecialType.System_String)
+        {
+            return $"{returnOrAwait} httpContext.Response.WriteAsync(result);";
+        }
+        else if (endpointResponse.ResponseType?.SpecialType == SpecialType.System_Object)
+        {
+            return $"{returnOrAwait} GeneratedRouteBuilderExtensionsCore.ExecuteReturnAsync(result, httpContext, objectJsonTypeInfo);";
+        }
+        else if (!endpointResponse.HasNoResponse)
+        {
+            return $"{returnOrAwait} {endpointResponse.EmitJsonResponse()}";
+        }
+        else if (!endpointResponse.IsAwaitable && endpointResponse.HasNoResponse)
+        {
+            return $"{returnOrAwait} Task.CompletedTask;";
+        }
+        else
+        {
+            return $"{returnOrAwait} httpContext.Response.WriteAsync(result);";
+        }
+    }
+
+    public static void EmitFilteredRequestHandler(this Endpoint endpoint, CodeWriter codeWriter)
+    {
+        var argumentList = endpoint.Parameters.Length == 0 ? string.Empty : $", {endpoint.EmitArgumentList()}";
+        var invocationCreator = endpoint.Parameters.Length > 8
+            ? "new DefaultEndpointFilterInvocationContext"
+            : "EndpointFilterInvocationContext.Create";
+        var invocationGenericArgs = endpoint.Parameters.Length is > 0 and < 8
+            ? $"<{endpoint.EmitFilterInvocationContextTypeArgs()}>"
+            : string.Empty;
+
+        codeWriter.WriteLine("async Task RequestHandlerFiltered(HttpContext httpContext)");
+        codeWriter.StartBlock(); // Start handler method block
+        codeWriter.WriteLine("var wasParamCheckFailure = false;");
+
+        if (endpoint.Parameters.Length > 0)
+        {
+            codeWriter.WriteLine(endpoint.Parameters.EmitParameterPreparation(endpoint.EmitterContext, codeWriter.Indent));
+        }
+
+        codeWriter.WriteLine("if (wasParamCheckFailure)");
+        codeWriter.StartBlock(); // Start if-statement block
+        codeWriter.WriteLine("httpContext.Response.StatusCode = 400;");
+        codeWriter.EndBlock(); // End if-statement block
+        codeWriter.WriteLine($"var result = await filteredInvocation({invocationCreator}{invocationGenericArgs}(httpContext{argumentList}));");
+        codeWriter.WriteLine("if (result is not null)");
+        codeWriter.StartBlock();
+        codeWriter.WriteLine("await GeneratedRouteBuilderExtensionsCore.ExecuteReturnAsync(result, httpContext, objectJsonTypeInfo);");
+        codeWriter.EndBlock();
+        codeWriter.EndBlock(); // End handler method block
+    }
+
+    private static void EmitBuiltinResponseTypeMetadata(this Endpoint endpoint, CodeWriter codeWriter)
+    {
+        if (endpoint.Response is not { } response || response.ResponseType is not { } responseType)
+        {
+            return;
+        }
+
+        if (response.HasNoResponse || response.IsIResult)
+        {
+            return;
+        }
+
+        if (responseType.SpecialType == SpecialType.System_String)
+        {
+            codeWriter.WriteLine("options.EndpointBuilder.Metadata.Add(new ProducesResponseTypeMetadata(statusCode: StatusCodes.Status200OK, contentTypes: GeneratedMetadataConstants.PlaintextContentType));");
+        }
+        else
+        {
+            codeWriter.WriteLine($$"""options.EndpointBuilder.Metadata.Add(new ProducesResponseTypeMetadata(statusCode: StatusCodes.Status200OK, type: typeof({{responseType.ToDisplayString(EmitterConstants.DisplayFormatWithoutNullability)}}), contentTypes: GeneratedMetadataConstants.JsonContentType));""");
+        }
+    }
+
+    private static void EmitCallToMetadataProviderForResponse(this Endpoint endpoint, CodeWriter codeWriter)
+    {
+        if (endpoint.Response is not { } response || response.ResponseType is not { } responseType)
+        {
+            return;
+        }
+
+        if (response.IsEndpointMetadataProvider)
+        {
+            codeWriter.WriteLine($"PopulateMetadataForEndpoint<{responseType.ToDisplayString(EmitterConstants.DisplayFormat)}>(methodInfo, options.EndpointBuilder);");
+        }
+    }
+    private static void EmitCallsToMetadataProvidersForParameters(this Endpoint endpoint, CodeWriter codeWriter)
+    {
+        if (endpoint.EmitterContext.HasEndpointParameterMetadataProvider)
+        {
+            codeWriter.WriteLine("var parameterInfos = methodInfo.GetParameters();");
+        }
+
+        foreach (var parameter in endpoint.Parameters)
+        {
+            if (parameter is { Source: EndpointParameterSource.AsParameters, EndpointParameters: { } innerParameters })
+            {
+                foreach (var innerParameter in innerParameters)
+                {
+                    ProcessParameter(innerParameter, codeWriter);
+                }
+            }
+
+            // Even if a parameter is decorated with the AsParameters attribute, we still need
+            // to fetch metadata on the parameter itself (as well as the properties).
+            ProcessParameter(parameter, codeWriter);
+        }
+
+        static void ProcessParameter(EndpointParameter parameter, CodeWriter codeWriter)
+        {
+            if (parameter.Type is not { } parameterType)
+            {
+                return;
+            }
+
+            if (parameter.IsEndpointParameterMetadataProvider)
+            {
+                var resolveParameterInfo = parameter.IsProperty
+                    ? parameter.PropertyAsParameterInfoConstruction
+                    : $"parameterInfos[{parameter.Ordinal}]";
+                codeWriter.WriteLine($"var {parameter.SymbolName}_ParameterInfo = {resolveParameterInfo};");
+                codeWriter.WriteLine($"PopulateMetadataForParameter<{parameterType.ToDisplayString(EmitterConstants.DisplayFormat)}>({parameter.SymbolName}_ParameterInfo, options.EndpointBuilder);");
+            }
+
+            if (parameter.IsEndpointMetadataProvider)
+            {
+                codeWriter.WriteLine($"PopulateMetadataForEndpoint<{parameterType.ToDisplayString(EmitterConstants.DisplayFormat)}>(methodInfo, options.EndpointBuilder);");
+            }
+
+        }
+    }
+
+    public static void EmitFormAcceptsMetadata(this Endpoint endpoint, CodeWriter codeWriter)
+    {
+        var hasFormFiles = endpoint.Parameters.Any(p => p.IsFormFile);
+
+        if (hasFormFiles)
+        {
+            codeWriter.WriteLine("options.EndpointBuilder.Metadata.Add(new AcceptsMetadata(contentTypes: GeneratedMetadataConstants.FormFileContentType));");
+        }
+        else
+        {
+            codeWriter.WriteLine("options.EndpointBuilder.Metadata.Add(new AcceptsMetadata(contentTypes: GeneratedMetadataConstants.FormContentType));");
+        }
+    }
+
+    public static void EmitJsonAcceptsMetadata(this Endpoint endpoint, CodeWriter codeWriter)
+    {
+        EndpointParameter? explicitBodyParameter = null;
+        var potentialImplicitBodyParameters = new List<EndpointParameter>();
+
+        foreach (var parameter in endpoint.Parameters)
+        {
+            if (explicitBodyParameter == null && parameter.Source == EndpointParameterSource.JsonBody)
+            {
+                explicitBodyParameter = parameter;
+                break;
+            }
+            else if (parameter.Source == EndpointParameterSource.JsonBodyOrService || parameter.Source == EndpointParameterSource.JsonBodyOrQuery)
+            {
+                potentialImplicitBodyParameters.Add(parameter);
+            }
+        }
+
+        if (explicitBodyParameter != null)
+        {
+            codeWriter.WriteLine($$"""options.EndpointBuilder.Metadata.Add(new AcceptsMetadata(type: typeof({{explicitBodyParameter.Type.ToDisplayString(EmitterConstants.DisplayFormatWithoutNullability)}}), isOptional: {{(explicitBodyParameter.IsOptional ? "true" : "false")}}, contentTypes: GeneratedMetadataConstants.JsonContentType));""");
+        }
+        else if (potentialImplicitBodyParameters.Count > 0)
+        {
+            codeWriter.WriteLine("var serviceProvider = options.ServiceProvider ?? options.EndpointBuilder.ApplicationServices;");
+            codeWriter.WriteLine($"var serviceProviderIsService = serviceProvider.GetRequiredService<IServiceProviderIsService>();");
+
+            codeWriter.WriteLine("var jsonBodyOrServiceTypeTuples = new (bool, Type)[] {");
+            codeWriter.Indent++;
+            foreach (var parameter in potentialImplicitBodyParameters)
+            {
+                codeWriter.WriteLine($$"""({{(parameter.IsOptional ? "true" : "false")}}, typeof({{parameter.Type.ToDisplayString(EmitterConstants.DisplayFormatWithoutNullability)}})),""");
+            }
+            codeWriter.Indent--;
+            codeWriter.WriteLine("};");
+            codeWriter.WriteLine("foreach (var (isOptional, type) in jsonBodyOrServiceTypeTuples)");
+            codeWriter.StartBlock();
+            codeWriter.WriteLine("if (!serviceProviderIsService.IsService(type))");
+            codeWriter.StartBlock();
+            codeWriter.WriteLine("options.EndpointBuilder.Metadata.Add(new AcceptsMetadata(type: type, isOptional: isOptional, contentTypes: GeneratedMetadataConstants.JsonContentType));");
+            codeWriter.WriteLine("break;");
+            codeWriter.EndBlock();
+            codeWriter.EndBlock();
+        }
+        else
+        {
+            codeWriter.WriteLine($"options.EndpointBuilder.Metadata.Add(new AcceptsMetadata(contentTypes: GeneratedMetadataConstants.JsonContentType));");
+        }
+    }
+
+    public static void EmitAcceptsMetadata(this Endpoint endpoint, CodeWriter codeWriter)
+    {
+        var hasJsonBody = endpoint.EmitterContext.HasJsonBody || endpoint.EmitterContext.HasJsonBodyOrService || endpoint.EmitterContext.HasJsonBodyOrQuery;
+
+        if (endpoint.EmitterContext.HasFormBody)
+        {
+            codeWriter.WriteLine("options.EndpointBuilder.Metadata.Add(AntiforgeryMetadata.ValidationRequired);");
+            endpoint.EmitFormAcceptsMetadata(codeWriter);
+        }
+        else if (hasJsonBody)
+        {
+            endpoint.EmitJsonAcceptsMetadata(codeWriter);
+        }
+    }
+
+    public static void EmitEndpointMetadataPopulation(this Endpoint endpoint, CodeWriter codeWriter)
+    {
+        endpoint.EmitAcceptsMetadata(codeWriter);
+        endpoint.EmitBuiltinResponseTypeMetadata(codeWriter);
+        endpoint.EmitCallsToMetadataProvidersForParameters(codeWriter);
+        endpoint.EmitCallToMetadataProviderForResponse(codeWriter);
+    }
+
+    public static void EmitFilteredInvocation(this Endpoint endpoint, CodeWriter codeWriter)
+    {
+        if (endpoint.Response?.HasNoResponse == true)
+        {
+            codeWriter.WriteLine(endpoint.Response?.IsAwaitable == true
+                ? $"await handler({endpoint.EmitFilteredArgumentList()});"
+                : $"handler({endpoint.EmitFilteredArgumentList()});");
+            codeWriter.WriteLine(endpoint.Response?.IsAwaitable == true
+                ? "return (object?)Results.Empty;"
+                : "return ValueTask.FromResult<object?>(Results.Empty);");
+        }
+        else if (endpoint.Response?.IsAwaitable == true)
+        {
+            codeWriter.WriteLine($"var result = await handler({endpoint.EmitFilteredArgumentList()});");
+            codeWriter.WriteLine("return (object?)result;");
+        }
+        else
+        {
+            codeWriter.WriteLine($"return ValueTask.FromResult<object?>(handler({endpoint.EmitFilteredArgumentList()}));");
+        }
+    }
+
+    public static string EmitFilteredArgumentList(this Endpoint endpoint)
+    {
+        if (endpoint.Parameters.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        var sb = new StringBuilder();
+
+        for (var i = 0; i < endpoint.Parameters.Length; i++)
+        {
+            // The null suppression operator on the GetArgument(...) call here is required because we'll occassionally be
+            // dealing with nullable types here. We could try to do fancy things to branch the logic here depending on
+            // the nullability, but at the end of the day we are going to call GetArguments(...) - at runtime the nullability
+            // suppression operator doesn't come into play - so its not worth worrying about.
+            sb.Append($"ic.GetArgument<{endpoint.Parameters[i].Type.ToDisplayString(EmitterConstants.DisplayFormat)}>({i})!");
+
+            if (i < endpoint.Parameters.Length - 1)
+            {
+                sb.Append(", ");
+            }
+        }
+
+        return sb.ToString();
+    }
+
+    public static string EmitFilterInvocationContextTypeArgs(this Endpoint endpoint)
+    {
+        if (endpoint.Parameters.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        var sb = new StringBuilder();
+
+        for (var i = 0; i < endpoint.Parameters.Length; i++)
+        {
+            sb.Append(endpoint.Parameters[i].Type.ToDisplayString(endpoint.Parameters[i].IsOptional ? NullableFlowState.MaybeNull : NullableFlowState.NotNull, EmitterConstants.DisplayFormat));
+
+            if (i < endpoint.Parameters.Length - 1)
+            {
+                sb.Append(", ");
+            }
+        }
+
+        return sb.ToString();
     }
 }

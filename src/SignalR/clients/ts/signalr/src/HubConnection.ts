@@ -4,7 +4,7 @@
 import { HandshakeProtocol, HandshakeRequestMessage, HandshakeResponseMessage } from "./HandshakeProtocol";
 import { IConnection } from "./IConnection";
 import { AbortError } from "./Errors";
-import { CancelInvocationMessage, CompletionMessage, IHubProtocol, InvocationMessage, MessageType, StreamInvocationMessage, StreamItemMessage } from "./IHubProtocol";
+import { CancelInvocationMessage, CloseMessage, CompletionMessage, IHubProtocol, InvocationMessage, MessageType, StreamInvocationMessage, StreamItemMessage } from "./IHubProtocol";
 import { ILogger, LogLevel } from "./ILogger";
 import { IRetryPolicy } from "./IRetryPolicy";
 import { IStreamResult } from "./Stream";
@@ -68,7 +68,7 @@ export class HubConnection {
 
     private _freezeEventListener = () =>
     {
-        this._logger.log(LogLevel.Warning, "The page is being frozen, this will likely lead to the connection being closed and messages being lost. For more information see the docs at https://docs.microsoft.com/aspnet/core/signalr/javascript-client#bsleep");
+        this._logger.log(LogLevel.Warning, "The page is being frozen, this will likely lead to the connection being closed and messages being lost. For more information see the docs at https://learn.microsoft.com/aspnet/core/signalr/javascript-client#bsleep");
     };
 
     /** The server timeout in milliseconds.
@@ -92,17 +92,29 @@ export class HubConnection {
     // create method that can be used by HubConnectionBuilder. An "internal" constructor would just
     // be stripped away and the '.d.ts' file would have no constructor, which is interpreted as a
     // public parameter-less constructor.
-    public static create(connection: IConnection, logger: ILogger, protocol: IHubProtocol, reconnectPolicy?: IRetryPolicy): HubConnection {
-        return new HubConnection(connection, logger, protocol, reconnectPolicy);
+    public static create(
+        connection: IConnection,
+        logger: ILogger,
+        protocol: IHubProtocol,
+        reconnectPolicy?: IRetryPolicy,
+        serverTimeoutInMilliseconds?: number,
+        keepAliveIntervalInMilliseconds?: number): HubConnection {
+        return new HubConnection(connection, logger, protocol, reconnectPolicy, serverTimeoutInMilliseconds, keepAliveIntervalInMilliseconds);
     }
 
-    private constructor(connection: IConnection, logger: ILogger, protocol: IHubProtocol, reconnectPolicy?: IRetryPolicy) {
+    private constructor(
+        connection: IConnection,
+        logger: ILogger,
+        protocol: IHubProtocol,
+        reconnectPolicy?: IRetryPolicy,
+        serverTimeoutInMilliseconds?: number,
+        keepAliveIntervalInMilliseconds?: number) {
         Arg.isRequired(connection, "connection");
         Arg.isRequired(logger, "logger");
         Arg.isRequired(protocol, "protocol");
 
-        this.serverTimeoutInMilliseconds = DEFAULT_TIMEOUT_IN_MS;
-        this.keepAliveIntervalInMilliseconds = DEFAULT_PING_INTERVAL_IN_MS;
+        this.serverTimeoutInMilliseconds = serverTimeoutInMilliseconds ?? DEFAULT_TIMEOUT_IN_MS;
+        this.keepAliveIntervalInMilliseconds = keepAliveIntervalInMilliseconds ?? DEFAULT_PING_INTERVAL_IN_MS;
 
         this._logger = logger;
         this._protocol = protocol;
@@ -282,6 +294,7 @@ export class HubConnection {
             return this._stopPromise!;
         }
 
+        const state = this._connectionState;
         this._connectionState = HubConnectionState.Disconnecting;
 
         this._logger.log(LogLevel.Debug, "Stopping HubConnection.");
@@ -299,6 +312,11 @@ export class HubConnection {
             return Promise.resolve();
         }
 
+        if (state === HubConnectionState.Connected) {
+            // eslint-disable-next-line @typescript-eslint/no-floating-promises
+            this._sendCloseMessage();
+        }
+
         this._cleanupTimeout();
         this._cleanupPingTimer();
         this._stopDuringStartError = error || new AbortError("The connection was stopped before the hub handshake could complete.");
@@ -307,6 +325,14 @@ export class HubConnection {
         // or the onclose callback is invoked. The onclose callback will transition the HubConnection
         // to the disconnected state if need be before HttpConnection.stop() completes.
         return this.connection.stop(error);
+    }
+
+    private async _sendCloseMessage() {
+        try {
+            await this._sendWithProtocol(this._createCloseMessage());
+        } catch {
+            // Ignore, this is a best effort attempt to let the server know the client closed gracefully.
+        }
     }
 
     /** Invokes a streaming hub method on the server using the specified name and arguments.
@@ -1064,5 +1090,9 @@ export class HubConnection {
             result,
             type: MessageType.Completion,
         };
+    }
+
+    private _createCloseMessage(): CloseMessage {
+        return { type: MessageType.Close };
     }
 }

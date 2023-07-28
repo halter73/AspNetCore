@@ -26,6 +26,9 @@ public partial class Router : IComponent, IHandleAfterRender, IDisposable
     bool _navigationInterceptionEnabled;
     ILogger<Router> _logger;
 
+    private string _updateScrollPositionForHashLastLocation;
+    private bool _updateScrollPositionForHash;
+
     private CancellationTokenSource _onNavigateCts;
 
     private Task _previousOnNavigateTask = Task.CompletedTask;
@@ -38,7 +41,11 @@ public partial class Router : IComponent, IHandleAfterRender, IDisposable
 
     [Inject] private INavigationInterception NavigationInterception { get; set; }
 
+    [Inject] private IScrollToLocationHash ScrollToLocationHash { get; set; }
+
     [Inject] private ILoggerFactory LoggerFactory { get; set; }
+
+    [Inject] IServiceProvider ServiceProvider { get; set; }
 
     /// <summary>
     /// Gets or sets the assembly that should be searched for components matching the URI.
@@ -131,8 +138,10 @@ public partial class Router : IComponent, IHandleAfterRender, IDisposable
             _onNavigateCalled = true;
             await RunOnNavigateAsync(NavigationManager.ToBaseRelativePath(_locationAbsolute), isNavigationIntercepted: false);
         }
-
-        Refresh(isNavigationIntercepted: false);
+        else
+        {
+            Refresh(isNavigationIntercepted: false);
+        }
     }
 
     /// <inheritdoc />
@@ -185,10 +194,11 @@ public partial class Router : IComponent, IHandleAfterRender, IDisposable
             return;
         }
 
+        var relativePath = NavigationManager.ToBaseRelativePath(_locationAbsolute);
+        var locationPath = TrimQueryOrHash(relativePath);
+
         RefreshRouteTable();
 
-        var locationPath = NavigationManager.ToBaseRelativePath(_locationAbsolute);
-        locationPath = TrimQueryOrHash(locationPath);
         var context = new RouteContext(locationPath);
         Routes.Route(context);
 
@@ -206,6 +216,13 @@ public partial class Router : IComponent, IHandleAfterRender, IDisposable
                 context.Handler,
                 context.Parameters ?? _emptyParametersDictionary);
             _renderHandle.Render(Found(routeData));
+
+            // If you navigate to a different path, then after the next render we'll update the scroll position
+            if (relativePath != _updateScrollPositionForHashLastLocation)
+            {
+                _updateScrollPositionForHashLastLocation = relativePath;
+                _updateScrollPositionForHash = true;
+            }
         }
         else
         {
@@ -276,15 +293,19 @@ public partial class Router : IComponent, IHandleAfterRender, IDisposable
         }
     }
 
-    Task IHandleAfterRender.OnAfterRenderAsync()
+    async Task IHandleAfterRender.OnAfterRenderAsync()
     {
         if (!_navigationInterceptionEnabled)
         {
             _navigationInterceptionEnabled = true;
-            return NavigationInterception.EnableNavigationInterceptionAsync();
+            await NavigationInterception.EnableNavigationInterceptionAsync();
         }
 
-        return Task.CompletedTask;
+        if (_updateScrollPositionForHash)
+        {
+            _updateScrollPositionForHash = false;
+            await ScrollToLocationHash.RefreshScrollPositionForHash(_locationAbsolute);
+        }
     }
 
     private static partial class Log

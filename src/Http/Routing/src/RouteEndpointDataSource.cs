@@ -127,7 +127,7 @@ internal sealed class RouteEndpointDataSource : EndpointDataSource
         // The Map methods don't support customizing the order apart from using int.MaxValue to give MapFallback the lowest priority.
         // Otherwise, we always use the default of 0 unless a convention changes it later.
         var order = isFallback ? int.MaxValue : 0;
-        var displayName = pattern.RawText ?? pattern.DebuggerToString();
+        var displayName = pattern.DebuggerToString();
 
         // Don't include the method name for non-route-handlers because the name is just "Invoke" when built from
         // ApplicationBuilder.Build(). This was observed in MapSignalRTests and is not very useful. Maybe if we come up
@@ -172,6 +172,11 @@ internal sealed class RouteEndpointDataSource : EndpointDataSource
             DisplayName = displayName,
             ApplicationServices = _applicationServices,
         };
+
+        if (isFallback)
+        {
+            builder.Metadata.Add(FallbackMetadata.Instance);
+        }
 
         if (isRouteHandler)
         {
@@ -262,20 +267,22 @@ internal sealed class RouteEndpointDataSource : EndpointDataSource
 
     private RequestDelegateFactoryOptions CreateRdfOptions(RouteEntry entry, RoutePattern pattern, RouteEndpointBuilder builder)
     {
-        var routeParamNames = new List<string>(pattern.Parameters.Count);
-        foreach (var parameter in pattern.Parameters)
-        {
-            routeParamNames.Add(parameter.Name);
-        }
-
         return new()
         {
             ServiceProvider = _applicationServices,
-            RouteParameterNames = routeParamNames,
+            RouteParameterNames = ProduceRouteParamNames(),
             ThrowOnBadRequest = _throwOnBadRequest,
             DisableInferBodyFromParameters = ShouldDisableInferredBodyParameters(entry.HttpMethods),
             EndpointBuilder = builder,
         };
+
+        IEnumerable<string> ProduceRouteParamNames()
+        {
+            foreach (var routePatternPart in pattern.Parameters)
+            {
+                yield return routePatternPart.Name;
+            }
+        }
     }
 
     private static bool ShouldDisableInferredBodyParameters(IEnumerable<string>? httpMethods)

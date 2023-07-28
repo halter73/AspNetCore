@@ -11,15 +11,16 @@ using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace Microsoft.AspNetCore.Analyzers.RouteHandlers;
 
+using WellKnownType = WellKnownTypeData.WellKnownType;
+
 public partial class RouteHandlerAnalyzer : DiagnosticAnalyzer
 {
     private static void DisallowNonParsableComplexTypesOnParameters(
         in OperationAnalysisContext context,
+        WellKnownTypes wellKnownTypes,
         RouteUsageModel routeUsage,
         IMethodSymbol methodSymbol)
     {
-        var wellKnownTypes = WellKnownTypes.GetOrCreate(context.Compilation);
-
         foreach (var handlerDelegateParameter in methodSymbol.Parameters)
         {
             // If the parameter is decorated with a FromServices attribute then we can skip it.
@@ -67,14 +68,11 @@ public partial class RouteHandlerAnalyzer : DiagnosticAnalyzer
             if (IsRouteParameter(routeUsage, handlerDelegateParameter))
             {
                 var parsability = ParsabilityHelper.GetParsability(parameterTypeSymbol, wellKnownTypes);
-                var bindability = ParsabilityHelper.GetBindability(parameterTypeSymbol, wellKnownTypes);
 
-                if (!(parsability == Parsability.Parsable || bindability == Bindability.Bindable))
+                if (parsability != Parsability.Parsable)
                 {
-                    var descriptor = SelectDescriptor(parsability, bindability);
-
                     context.ReportDiagnostic(Diagnostic.Create(
-                        descriptor,
+                        DiagnosticDescriptors.RouteParameterComplexTypeIsNotParsable,
                         location,
                         handlerDelegateParameter.Name,
                         parameterTypeSymbol.Name
@@ -102,10 +100,8 @@ public partial class RouteHandlerAnalyzer : DiagnosticAnalyzer
             var parsability = ParsabilityHelper.GetParsability(parameterTypeSymbol, wellKnownTypes);
             if (parameter.HasAttributeImplementingInterface(fromMetadataInterfaceTypeSymbol) && parsability != Parsability.Parsable)
             {
-                var descriptor = SelectDescriptor(parsability, Bindability.NotBindable);
-
                 context.ReportDiagnostic(Diagnostic.Create(
-                    descriptor,
+                    DiagnosticDescriptors.RouteParameterComplexTypeIsNotParsable,
                     location,
                     parameter.Name,
                     parameterTypeSymbol.Name
@@ -138,17 +134,6 @@ public partial class RouteHandlerAnalyzer : DiagnosticAnalyzer
             }
 
             return parameterTypeSymbol;
-        }
-
-        static DiagnosticDescriptor SelectDescriptor(Parsability parsability, Bindability bindability)
-        {
-            // This abomination is used to take the parsability and bindability and together figure
-            // out what the most optimal diagnostic message is to give to our plucky user.
-            return (parsability, bindability) switch
-            {
-                { parsability: Parsability.NotParsable, bindability: Bindability.InvalidReturnType } => DiagnosticDescriptors.BindAsyncSignatureMustReturnValueTaskOfT,
-                _ => DiagnosticDescriptors.RouteParameterComplexTypeIsNotParsableOrBindable
-            };
         }
     }
 }

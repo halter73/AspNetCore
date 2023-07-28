@@ -3,6 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Primitives;
 using Microsoft.Net.Http.Headers;
@@ -80,10 +81,16 @@ public class FormFeature : IFormFeature
         }
     }
 
+    internal bool HasInvalidAntiforgeryValidationFeature => ResolveHasInvalidAntiforgeryValidationFeature();
+
     /// <inheritdoc />
     public IFormCollection? Form
     {
-        get { return _form; }
+        get
+        {
+            HandleUncheckedAntiforgeryValidationFeature();
+            return _form;
+        }
         set
         {
             _parsedFormTask = null;
@@ -94,6 +101,7 @@ public class FormFeature : IFormFeature
     /// <inheritdoc />
     public IFormCollection ReadForm()
     {
+        HandleUncheckedAntiforgeryValidationFeature();
         if (Form != null)
         {
             return Form;
@@ -101,11 +109,10 @@ public class FormFeature : IFormFeature
 
         if (!HasFormContentType)
         {
-            throw new InvalidOperationException("Incorrect Content-Type: " + _request.ContentType);
+            throw new InvalidOperationException("This request does not have a Content-Type header. Forms are available from requests with bodies like POSTs and a form Content-Type of either application/x-www-form-urlencoded or multipart/form-data.");
         }
 
-        // TODO: Issue #456 Avoid Sync-over-Async http://blogs.msdn.com/b/pfxteam/archive/2012/04/13/10293638.aspx
-        // TODO: How do we prevent thread exhaustion?
+        // c.f., https://aka.ms/aspnet/forms-async
         return ReadFormAsync().GetAwaiter().GetResult();
     }
 
@@ -115,6 +122,7 @@ public class FormFeature : IFormFeature
     /// <inheritdoc />
     public Task<IFormCollection> ReadFormAsync(CancellationToken cancellationToken)
     {
+        HandleUncheckedAntiforgeryValidationFeature();
         // Avoid state machine and task allocation for repeated reads
         if (_parsedFormTask == null)
         {
@@ -132,6 +140,8 @@ public class FormFeature : IFormFeature
 
     private async Task<IFormCollection> InnerReadFormAsync(CancellationToken cancellationToken)
     {
+        HandleUncheckedAntiforgeryValidationFeature();
+
         if (!HasFormContentType)
         {
             throw new InvalidOperationException("Incorrect Content-Type: " + _request.ContentType);
@@ -282,7 +292,7 @@ public class FormFeature : IFormFeature
     private static Encoding FilterEncoding(Encoding? encoding)
     {
         // UTF-7 is insecure and should not be honored. UTF-8 will succeed for most cases.
-        // https://docs.microsoft.com/en-us/dotnet/core/compatibility/syslib-warnings/syslib0001
+        // https://learn.microsoft.com/en-us/dotnet/core/compatibility/syslib-warnings/syslib0001
         if (encoding == null || encoding.CodePage == 65000)
         {
             return Encoding.UTF8;
@@ -300,6 +310,21 @@ public class FormFeature : IFormFeature
     {
         // Content-Type: multipart/form-data; boundary=----WebKitFormBoundarymx2fSWqWSd0OxQqq
         return contentType != null && contentType.MediaType.Equals("multipart/form-data", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool ResolveHasInvalidAntiforgeryValidationFeature()
+    {
+        var hasInvokedMiddleware = _request.HttpContext.Items.ContainsKey("__AntiforgeryMiddlewareWithEndpointInvoked");
+        var hasInvalidToken = _request.HttpContext.Features.Get<IAntiforgeryValidationFeature>() is { IsValid: false };
+        return hasInvokedMiddleware && hasInvalidToken;
+    }
+
+    private void HandleUncheckedAntiforgeryValidationFeature()
+    {
+        if (HasInvalidAntiforgeryValidationFeature)
+        {
+            throw new InvalidOperationException("This form is being accessed with an invalid anti-forgery token. Validate the `IAntiforgeryValidationFeature` on the request before reading from the form.");
+        }
     }
 
     // Content-Type: multipart/form-data; boundary="----WebKitFormBoundarymx2fSWqWSd0OxQqq"

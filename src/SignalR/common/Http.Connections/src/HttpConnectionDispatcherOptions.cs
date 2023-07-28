@@ -108,10 +108,7 @@ public class HttpConnectionDispatcherOptions
         get => _transportSendTimeout;
         set
         {
-            if (value == TimeSpan.Zero)
-            {
-                throw new ArgumentOutOfRangeException(nameof(value));
-            }
+            ArgumentOutOfRangeException.ThrowIfEqual(value, TimeSpan.Zero);
 
             _transportSendTimeout = value;
             TransportSendTimeoutTicks = value.Ticks;
@@ -126,6 +123,14 @@ public class HttpConnectionDispatcherOptions
     /// Closed connections will miss messages sent while closed.
     /// </remarks>
     public bool CloseOnAuthenticationExpiration { get; set; }
+
+    /// <summary>
+    /// Set to allow connections to ack messages, helps enable reconnects that keep connection state.
+    /// </summary>
+    /// <remarks>
+    /// Keeps messages in memory until acked (up to a limit), and keeps connections around for a short time to allow stateful reconnects.
+    /// </remarks>
+    public bool AllowAcks { get; set; }
 
     internal long TransportSendTimeoutTicks { get; private set; }
     internal bool TransportSendTimeoutEnabled => _transportSendTimeout != Timeout.InfiniteTimeSpan;

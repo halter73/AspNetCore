@@ -14,7 +14,7 @@ internal sealed class RequestDelegateFactoryContext
     // Options
     public required IServiceProvider ServiceProvider { get; init; }
     public required IServiceProviderIsService? ServiceProviderIsService { get; init; }
-    public required List<string>? RouteParameters { get; init; }
+    public required IEnumerable<string>? RouteParameters { get; init; }
     public required bool ThrowOnBadRequest { get; init; }
     public required bool DisableInferredFromBody { get; init; }
     public required EndpointBuilder EndpointBuilder { get; init; }
@@ -59,5 +59,4 @@ internal sealed class RequestDelegateFactoryContext
 
     // Grab these options upfront to avoid the per request DI scope that would be made otherwise to get the options when writing Json
     public required JsonSerializerOptions JsonSerializerOptions { get; set; }
-    public required Expression JsonSerializerOptionsExpression { get; set; }
 }

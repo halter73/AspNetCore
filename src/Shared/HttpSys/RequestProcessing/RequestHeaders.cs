@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Collections;
+using System.Diagnostics;
 using System.Linq;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
@@ -9,6 +10,8 @@ using Microsoft.Net.Http.Headers;
 
 namespace Microsoft.AspNetCore.HttpSys.Internal;
 
+[DebuggerDisplay("Count = {Count}")]
+[DebuggerTypeProxy(typeof(RequestHeadersDebugView))]
 internal sealed partial class RequestHeaders : IHeaderDictionary
 {
     private IDictionary<string, StringValues>? _extra;
@@ -66,6 +69,11 @@ internal sealed partial class RequestHeaders : IHeaderDictionary
 
     void IDictionary<string, StringValues>.Add(string key, StringValues value)
     {
+        if (ContainsKey(key))
+        {
+            ThrowDuplicateKeyException();
+        }
+
         if (!PropertiesTrySetValue(key, value))
         {
             Extra.Add(key, value);
@@ -216,7 +224,7 @@ internal sealed partial class RequestHeaders : IHeaderDictionary
         }
         set
         {
-            if (StringValues.IsNullOrEmpty(value))
+            if (value.Count == 0)
             {
                 Remove(key);
             }
@@ -249,6 +257,11 @@ internal sealed partial class RequestHeaders : IHeaderDictionary
         {
             throw new InvalidOperationException("The response headers cannot be modified because the response has already started.");
         }
+    }
+
+    private static void ThrowDuplicateKeyException()
+    {
+        throw new ArgumentException("An item with the same key has already been added.");
     }
 
     public IEnumerable<string> GetValues(string key)
@@ -287,5 +300,13 @@ internal sealed partial class RequestHeaders : IHeaderDictionary
             }
         }
         return observedHeadersCount;
+    }
+
+    private sealed class RequestHeadersDebugView(RequestHeaders dictionary)
+    {
+        private readonly RequestHeaders _dictionary = dictionary;
+
+        [DebuggerBrowsable(DebuggerBrowsableState.RootHidden)]
+        public KeyValuePair<string, string>[] Items => _dictionary.Select(pair => new KeyValuePair<string, string>(pair.Key, pair.Value.ToString())).ToArray();
     }
 }

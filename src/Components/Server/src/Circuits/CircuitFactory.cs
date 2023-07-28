@@ -47,12 +47,14 @@ internal sealed partial class CircuitFactory : ICircuitFactory
 
         var navigationManager = (RemoteNavigationManager)scope.ServiceProvider.GetRequiredService<NavigationManager>();
         var navigationInterception = (RemoteNavigationInterception)scope.ServiceProvider.GetRequiredService<INavigationInterception>();
+        var scrollToLocationHash = (RemoteScrollToLocationHash)scope.ServiceProvider.GetRequiredService<IScrollToLocationHash>();
         if (client.Connected)
         {
             navigationManager.AttachJsRuntime(jsRuntime);
             navigationManager.Initialize(baseUri, uri);
 
             navigationInterception.AttachJSRuntime(jsRuntime);
+            scrollToLocationHash.AttachJSRuntime(jsRuntime);
         }
         else
         {
@@ -62,12 +64,14 @@ internal sealed partial class CircuitFactory : ICircuitFactory
         var appLifetime = scope.ServiceProvider.GetRequiredService<ComponentStatePersistenceManager>();
         await appLifetime.RestoreStateAsync(store);
 
+        var serverComponentDeserializer = scope.ServiceProvider.GetRequiredService<IServerComponentDeserializer>();
         var jsComponentInterop = new CircuitJSComponentInterop(_options);
         var renderer = new RemoteRenderer(
             scope.ServiceProvider,
             _loggerFactory,
             _options,
             client,
+            serverComponentDeserializer,
             _loggerFactory.CreateLogger<RemoteRenderer>(),
             jsRuntime,
             jsComponentInterop);

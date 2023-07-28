@@ -6,7 +6,9 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO.Pipelines;
 using System.Net;
+using System.Net.Security;
 using System.Runtime.InteropServices;
+using System.Security.Authentication;
 using System.Security.Claims;
 using System.Security.Principal;
 using System.Text;
@@ -88,6 +90,7 @@ internal abstract partial class IISHttpContext : NativeRequestContext, IThreadPo
 
     private int PauseWriterThreshold => _options.MaxRequestBodyBufferSize;
     private int ResumeWriterTheshold => PauseWriterThreshold / 2;
+    private bool IsHttps => SslStatus != SslStatus.Insecure;
 
     public Version HttpVersion { get; set; } = default!;
     public string Scheme { get; set; } = default!;
@@ -110,6 +113,16 @@ internal abstract partial class IISHttpContext : NativeRequestContext, IThreadPo
     public Stream RequestBody { get; set; } = default!;
     public Stream ResponseBody { get; set; } = default!;
     public PipeWriter? ResponsePipeWrapper { get; set; }
+
+    public SslProtocols Protocol { get; private set; }
+    public TlsCipherSuite? NegotiatedCipherSuite { get; private set; }
+    public string SniHostName { get; private set; } = default!;
+    public CipherAlgorithmType CipherAlgorithm { get; private set; }
+    public int CipherStrength { get; private set; }
+    public HashAlgorithmType HashAlgorithm { get; private set; }
+    public int HashStrength { get; private set; }
+    public ExchangeAlgorithmType KeyExchangeAlgorithm { get; private set; }
+    public int KeyExchangeStrength { get; private set; }
 
     protected IAsyncIOEngine? AsyncIO { get; set; }
 
@@ -139,7 +152,7 @@ internal abstract partial class IISHttpContext : NativeRequestContext, IThreadPo
             RawTarget = GetRawUrl() ?? string.Empty;
             // TODO version is slow.
             HttpVersion = GetVersion();
-            Scheme = SslStatus != SslStatus.Insecure ? Constants.HttpsScheme : Constants.HttpScheme;
+            Scheme = IsHttps ? Constants.HttpsScheme : Constants.HttpScheme;
             KnownMethod = VerbId;
             StatusCode = 200;
 
@@ -253,6 +266,12 @@ internal abstract partial class IISHttpContext : NativeRequestContext, IThreadPo
             // Request headers can be modified by the app, read these first.
             RequestCanHaveBody = CheckRequestCanHaveBody();
 
+            SniHostName = string.Empty;
+            if (IsHttps)
+            {
+                GetTlsHandshakeResults();
+            }
+
             if (_options.ForwardWindowsAuthentication)
             {
                 WindowsUser = GetWindowsPrincipal();
@@ -345,7 +364,7 @@ internal abstract partial class IISHttpContext : NativeRequestContext, IThreadPo
         // Note Http.Sys adds the Transfer-Encoding: chunked header to HTTP/2 requests with bodies for back compat.
         // Transfer-Encoding takes priority over Content-Length.
         string transferEncoding = RequestHeaders.TransferEncoding.ToString();
-        if (transferEncoding != null && string.Equals("chunked", transferEncoding.Split(',')[^1].Trim(), StringComparison.OrdinalIgnoreCase))
+        if (IsChunked(transferEncoding))
         {
             // https://datatracker.ietf.org/doc/html/rfc7230#section-3.3.2
             // A sender MUST NOT send a Content-Length header field in any message
@@ -369,6 +388,40 @@ internal abstract partial class IISHttpContext : NativeRequestContext, IThreadPo
         }
 
         return RequestHeaders.ContentLength.GetValueOrDefault() > 0;
+    }
+
+    private void GetTlsHandshakeResults()
+    {
+        var handshake = this.GetTlsHandshake();
+        Protocol = handshake.Protocol;
+        CipherAlgorithm = handshake.CipherType;
+        CipherStrength = (int)handshake.CipherStrength;
+        HashAlgorithm = handshake.HashType;
+        HashStrength = (int)handshake.HashStrength;
+        KeyExchangeAlgorithm = handshake.KeyExchangeType;
+        KeyExchangeStrength = (int)handshake.KeyExchangeStrength;
+
+        var sni = GetClientSni();
+        SniHostName = sni.Hostname;
+    }
+
+    private unsafe HttpApiTypes.HTTP_REQUEST_PROPERTY_SNI GetClientSni()
+    {
+        var buffer = new byte[HttpApiTypes.SniPropertySizeInBytes];
+        fixed (byte* pBuffer = buffer)
+        {
+            var statusCode = NativeMethods.HttpQueryRequestProperty(
+                RequestId,
+                HttpApiTypes.HTTP_REQUEST_PROPERTY.HttpRequestPropertySni,
+                qualifier: null,
+                qualifierSize: 0,
+                (void*)pBuffer,
+                (uint)buffer.Length,
+                bytesReturned: null,
+                IntPtr.Zero);
+
+            return statusCode == NativeMethods.HR_OK ? Marshal.PtrToStructure<HttpApiTypes.HTTP_REQUEST_PROPERTY_SNI>((IntPtr)pBuffer) : default;
+        }
     }
 
     private async Task InitializeResponse(bool flushHeaders)
@@ -719,6 +772,11 @@ internal abstract partial class IISHttpContext : NativeRequestContext, IThreadPo
         Log.ApplicationError(_logger, ((IHttpConnectionFeature)this).ConnectionId, ((IHttpRequestIdentifierFeature)this).TraceIdentifier, ex);
     }
 
+    protected void ReportRequestAborted()
+    {
+        Log.RequestAborted(_logger, ((IHttpConnectionFeature)this).ConnectionId, ((IHttpRequestIdentifierFeature)this).TraceIdentifier);
+    }
+
     public void PostCompletion(NativeMethods.REQUEST_NOTIFICATION_STATUS requestNotificationStatus)
     {
         NativeMethods.HttpSetCompletionStatus(_requestNativeHandle, requestNotificationStatus);
@@ -758,6 +816,8 @@ internal abstract partial class IISHttpContext : NativeRequestContext, IThreadPo
             localAbortCts?.Dispose();
 
             disposedValue = true;
+
+            AsyncIO?.Dispose();
         }
     }
 
@@ -807,6 +867,7 @@ internal abstract partial class IISHttpContext : NativeRequestContext, IThreadPo
         finally
         {
             // Post completion after completing the request to resume the state machine
+            // This must be called before freeing the GCHandle _thisHandle, see comment in IndicateManagedRequestComplete for details
             PostCompletion(ConvertRequestCompletionResults(successfulRequest));
 
             // After disposing a safe handle, Dispose() will not block waiting for the pinvokes to finish.
@@ -829,5 +890,20 @@ internal abstract partial class IISHttpContext : NativeRequestContext, IThreadPo
     {
         return success ? NativeMethods.REQUEST_NOTIFICATION_STATUS.RQ_NOTIFICATION_CONTINUE
                        : NativeMethods.REQUEST_NOTIFICATION_STATUS.RQ_NOTIFICATION_FINISH_REQUEST;
+    }
+
+    private static bool IsChunked(string? transferEncoding)
+    {
+        if (transferEncoding is null)
+        {
+            return false;
+        }
+
+        var index = transferEncoding.LastIndexOf(',');
+        if (transferEncoding.AsSpan().Slice(index + 1).Trim().Equals("chunked", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+        return false;
     }
 }

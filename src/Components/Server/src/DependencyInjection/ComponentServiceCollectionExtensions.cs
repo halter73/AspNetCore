@@ -1,8 +1,10 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Routing;
 using Microsoft.AspNetCore.Components.Server;
 using Microsoft.AspNetCore.Components.Server.BlazorPack;
@@ -27,6 +29,7 @@ public static class ComponentServiceCollectionExtensions
     /// <param name="services">The <see cref="IServiceCollection"/>.</param>
     /// <param name="configure">A callback to configure <see cref="CircuitOptions"/>.</param>
     /// <returns>An <see cref="IServerSideBlazorBuilder"/> that can be used to further customize the configuration.</returns>
+    [RequiresUnreferencedCode("Server-side Blazor does not currently support native AOT.", Url = "https://aka.ms/aspnet/nativeaot")]
     public static IServerSideBlazorBuilder AddServerSideBlazor(this IServiceCollection services, Action<CircuitOptions>? configure = null)
     {
         var builder = new DefaultServerSideBlazorBuilder(services);
@@ -65,6 +68,7 @@ public static class ComponentServiceCollectionExtensions
         services.TryAddSingleton<ComponentParametersTypeCache>();
         services.TryAddSingleton<CircuitIdFactory>();
         services.TryAddScoped<IErrorBoundaryLogger, RemoteErrorBoundaryLogger>();
+        services.TryAddScoped<AntiforgeryStateProvider, DefaultAntiforgeryStateProvider>();
 
         services.TryAddScoped(s => s.GetRequiredService<ICircuitAccessor>().Circuit);
         services.TryAddScoped<ICircuitAccessor, DefaultCircuitAccessor>();
@@ -77,6 +81,7 @@ public static class ComponentServiceCollectionExtensions
         services.AddScoped<NavigationManager, RemoteNavigationManager>();
         services.AddScoped<IJSRuntime, RemoteJSRuntime>();
         services.AddScoped<INavigationInterception, RemoteNavigationInterception>();
+        services.AddScoped<IScrollToLocationHash, RemoteScrollToLocationHash>();
         services.TryAddScoped<AuthenticationStateProvider, ServerAuthenticationStateProvider>();
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IConfigureOptions<CircuitOptions>, CircuitOptionsJSInteropDetailedErrorsConfiguration>());

@@ -920,7 +920,24 @@ public abstract class UserStoreBase<TUser, [DynamicallyAccessedMembers(Dynamical
         var mergedCodes = await GetTokenAsync(user, InternalLoginProvider, RecoveryCodeTokenName, cancellationToken).ConfigureAwait(false) ?? "";
         if (mergedCodes.Length > 0)
         {
-            return mergedCodes.Split(';').Length;
+#if NET8_0_OR_GREATER
+            return mergedCodes.AsSpan().Count(';') + 1;
+#else
+            // non-allocating version of mergedCodes.Split(';').Length
+            var count = 1;
+            var index = 0;
+            while (index < mergedCodes.Length)
+            {
+                var semiColonIndex = mergedCodes.IndexOf(';', index);
+                if (semiColonIndex < 0)
+                {
+                    break;
+                }
+                count++;
+                index = semiColonIndex + 1;
+            }
+            return count;
+#endif
         }
         return 0;
     }

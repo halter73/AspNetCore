@@ -37,6 +37,8 @@ public static partial class HttpResponseJsonExtensions
         TValue value,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(response);
+
         return response.WriteAsJsonAsync(value, options: null, contentType: null, cancellationToken);
     }
 
@@ -107,9 +109,7 @@ public static partial class HttpResponseJsonExtensions
     /// <param name="contentType">The content-type to set on the response.</param>
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> used to cancel the operation.</param>
     /// <returns>The task object representing the asynchronous operation.</returns>
-#pragma warning disable RS0026 // Do not add multiple public overloads with optional parameters
     public static Task WriteAsJsonAsync<TValue>(
-#pragma warning restore RS0026 // Do not add multiple public overloads with optional parameters
         this HttpResponse response,
         TValue value,
         JsonTypeInfo<TValue> jsonTypeInfo,
@@ -211,7 +211,9 @@ public static partial class HttpResponseJsonExtensions
         Type type,
         CancellationToken cancellationToken = default)
     {
-        return response.WriteAsJsonAsync(value, type, options: null, contentType: null, cancellationToken);
+        ArgumentNullException.ThrowIfNull(response);
+
+        return response.WriteAsJsonAsync(value, type, options: null,  contentType: null, cancellationToken);
     }
 
     /// <summary>
@@ -300,9 +302,7 @@ public static partial class HttpResponseJsonExtensions
     /// <param name="contentType">The content-type to set on the response.</param>
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> used to cancel the operation.</param>
     /// <returns>The task object representing the asynchronous operation.</returns>
-#pragma warning disable RS0026 // Do not add multiple public overloads with optional parameters
     public static Task WriteAsJsonAsync(
-#pragma warning restore RS0026 // Do not add multiple public overloads with optional parameters
         this HttpResponse response,
         object? value,
         Type type,

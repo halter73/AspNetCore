@@ -30,6 +30,7 @@ namespace Microsoft.AspNetCore.Server.IIS.FunctionalTests;
 #endif
 
 [Collection(IISTestSiteCollection.Name)]
+[SkipOnHelix("Unsupported queue", Queues = "Windows.Amd64.VS2022.Pre.Open;")]
 public class RequestResponseTests
 {
     private readonly IISTestSiteFixture _fixture;
@@ -437,6 +438,13 @@ public class RequestResponseTests
             Assert.StartsWith("Response Begin", text);
             Assert.EndsWith("Response End", text);
         });
+    }
+
+    [ConditionalFact]
+    public async Task TestStringValuesEmptyForMissingHeaders()
+    {
+        var result = await _fixture.Client.GetStringAsync($"/TestRequestHeaders");
+        Assert.Equal("Success", result);
     }
 
     [ConditionalFact]

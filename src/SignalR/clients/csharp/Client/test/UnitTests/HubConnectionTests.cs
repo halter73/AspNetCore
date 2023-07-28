@@ -193,7 +193,7 @@ public partial class HubConnectionTests : VerifiableLoggedTest
             await hubConnection.StopAsync().DefaultTimeout();
 
             // Assert that InvokeAsync didn't send a message
-            Assert.Null(await connection.ReadSentTextMessageAsync().DefaultTimeout());
+            Assert.Equal("{\"type\":7}", await connection.ReadSentTextMessageAsync().DefaultTimeout());
         }
     }
 
@@ -212,7 +212,7 @@ public partial class HubConnectionTests : VerifiableLoggedTest
             await hubConnection.StopAsync().DefaultTimeout();
 
             // Assert that SendAsync didn't send a message
-            Assert.Null(await connection.ReadSentTextMessageAsync().DefaultTimeout());
+            Assert.Equal("{\"type\":7}", await connection.ReadSentTextMessageAsync().DefaultTimeout());
         }
     }
 
@@ -254,7 +254,7 @@ public partial class HubConnectionTests : VerifiableLoggedTest
             await hubConnection.StopAsync().DefaultTimeout();
 
             // Assert that StreamAsChannelAsync didn't send a message
-            Assert.Null(await connection.ReadSentTextMessageAsync().DefaultTimeout());
+            Assert.Equal("{\"type\":7}", await connection.ReadSentTextMessageAsync().DefaultTimeout());
         }
     }
 
@@ -273,7 +273,7 @@ public partial class HubConnectionTests : VerifiableLoggedTest
             await hubConnection.StopAsync().DefaultTimeout();
 
             // Assert that StreamAsync didn't send a message
-            Assert.Null(await connection.ReadSentTextMessageAsync().DefaultTimeout());
+            Assert.Equal("{\"type\":7}", await connection.ReadSentTextMessageAsync().DefaultTimeout());
         }
     }
 
@@ -304,6 +304,40 @@ public partial class HubConnectionTests : VerifiableLoggedTest
             }
             // Cancel after stream is completed but before the AsyncEnumerator is disposed
             cts.Cancel();
+        }
+    }
+
+    [Fact]
+    public async Task CanCancelTokenDuringStream_SendsCancelInvocation()
+    {
+        using (StartVerifiableLog())
+        {
+            var connection = new TestConnection();
+            var hubConnection = CreateHubConnection(connection, loggerFactory: LoggerFactory);
+
+            await hubConnection.StartAsync().DefaultTimeout();
+
+            using var cts = new CancellationTokenSource();
+            var asyncEnumerable = hubConnection.StreamAsync<int>("Stream", 1, cts.Token);
+
+            await using var e = asyncEnumerable.GetAsyncEnumerator(cts.Token);
+            var task = e.MoveNextAsync();
+
+            var item = await connection.ReadSentJsonAsync().DefaultTimeout();
+            var invocationId = item["invocationId"];
+            await connection.ReceiveJsonMessage(
+                new { type = HubProtocolConstants.StreamItemMessageType, invocationId, item = 1 }
+                ).DefaultTimeout();
+
+            await task.DefaultTimeout();
+            cts.Cancel();
+
+            item = await connection.ReadSentJsonAsync().DefaultTimeout();
+            Assert.Equal(HubProtocolConstants.CancelInvocationMessageType, item["type"]);
+            Assert.Equal(invocationId, item["invocationId"]);
+
+            // Stream on client-side completes on cancellation
+            await Assert.ThrowsAsync<TaskCanceledException>(async () => await e.MoveNextAsync()).DefaultTimeout();
         }
     }
 

@@ -20,13 +20,28 @@ To get started, fork this repo and then clone it locally. This workflow assumes 
 
     > :bulb: All other steps below will be against your fork of the aspnetcore repo (e.g. `YOUR_USERNAME/aspnetcore`), not the official `dotnet/aspnetcore` repo.
 
-1. If you're on Windows, update the PowerShell execution policy on your machine. For more information on execution policies, review [the execution policy docs](https://docs.microsoft.com/powershell/module/microsoft.powershell.security/set-executionpolicy). To do this, open a PowerShell prompt and issue the following command:
+1. If you're on Windows, update the PowerShell execution policy on your machine. For more information on execution policies, review [the execution policy docs](https://learn.microsoft.com/powershell/module/microsoft.powershell.security/set-executionpolicy). To do this, open a PowerShell prompt and issue the following command:
 
     ```powershell
     Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
     ```
 
     > :warning: All Windows commands below assume a PowerShell prompt.
+
+1. If you're on Windows, install Visual Studio (even if you aren't using it to build) to get the required C++ components and native tools. To install Visual Studio on your machine, use the official installer script in the repo.
+
+    > :warning: Even if you have Visual Studio installed on your machine, we recommend running this installation script to make sure that the correct Visual Studio components are installed.
+    >
+    > To modify an existing Visual Studio installation, [follow the instructions for installing from a configuration file](https://learn.microsoft.com/visualstudio/install/import-export-installation-configurations#import-a-configuration) and use the `.vsconfig` file located in the root of the repository:
+
+    ```powershell
+    ./eng/scripts/InstallVisualStudio.ps1 Enterprise Preview
+    ```
+
+    Replace `Enterprise` with `Professional` or `Community` if that is your preferred Visual Studio edition.
+    The preview channel is currently required as it supports the preview version of the SDK that is used.
+
+    If you are seeing errors similar to `the imported project "....\aspnetcore.tools\msbuild\17.1.0\tools\MSBuild\Microsoft\VC\v170\Microsoft.Cpp.Default.props" was not found`, try installing/updating Visual Studio as above.
 
 The steps you follow next depend on your preferred development environment:
 
@@ -35,16 +50,6 @@ The steps you follow next depend on your preferred development environment:
 - [Codespaces on GitHub](#codespaces-on-github)
 
 ## Visual Studio on Windows
-
-1. To install Visual Studio on your machine, use the official installer script in the repo.
-
-    > :warning: Even if you have Visual Studio installed on your machine, we recommend running this installation script to make sure that the correct Visual Studio components are installed.
-    >
-    > To modify an existing Visual Studio installation, [follow the instructions for installing from a configuration file](https://learn.microsoft.com/visualstudio/install/import-export-installation-configurations?view=vs-2022#import-a-configuration) and use the `.vsconfig` file located in the root of the repository:
-
-    ```powershell
-    ./eng/scripts/InstallVisualStudio.ps1
-    ```
 
 1. Before you open project in Visual Studio, install the required dependencies and set up the repo by running the `restore.cmd` script in the root of the repo:
 
@@ -64,7 +69,7 @@ The steps you follow next depend on your preferred development environment:
 
     We have a single _.sln_ file for all of ASP.NET Core, but most people don't work with it directly because Visual Studio doesn't currently handle projects of this scale very well.
 
-    Instead, we have many Solution Filter (.slnf) files which include a sub-set of projects. For more information on solution files, you can review the [official Visual Studio doc](https://docs.microsoft.com/visualstudio/ide/filtered-solutions).
+    Instead, we have many Solution Filter (.slnf) files which include a sub-set of projects. For more information on solution files, you can review the [official Visual Studio doc](https://learn.microsoft.com/visualstudio/ide/filtered-solutions).
 
     These principles guide how we create and manage .slnf files:
 
@@ -74,7 +79,7 @@ The steps you follow next depend on your preferred development environment:
 
     </details>
 
-1. You can now build, debug, and test using Visual Studio. For more information on using Visual Studio to build and run projects, you can review the [official Visual Studio docs](https://docs.microsoft.com/visualstudio/get-started/csharp/run-program).
+1. You can now build, debug, and test using Visual Studio. For more information on using Visual Studio to build and run projects, you can review the [official Visual Studio docs](https://learn.microsoft.com/visualstudio/get-started/csharp/run-program).
 
 ## Visual Studio Code or other editor on Windows, Linux, Mac
 
@@ -82,7 +87,7 @@ The steps you follow next depend on your preferred development environment:
 
 1. To use Visual Studio Code for developing in this repo, you need [Visual Studio Code installed](https://code.visualstudio.com/) and the ability to [launch `code` from the command line](https://code.visualstudio.com/docs/setup/mac#_launching-from-the-command-line).
 
-1. This repo has JavaScript dependencies, so you need [Node.js](https://nodejs.org/en/) and [yarn](https://yarnpkg.com/) installed on your machine.
+1. This repo has JavaScript dependencies, so you need [Node.js](https://nodejs.org/en/). [Yarn](https://yarnpkg.com/) version 1.x will be installed automatically using `npm`, if you have already installed it with a version >= 2.x then you may have to uninstall it as it is not compatible with the aspnetcore build script.
 
 1. Before you open anything in Visual Studio Code, run the `restore` script in the root of the repo to install the required .NET dependencies.
 
@@ -119,7 +124,7 @@ The steps you follow next depend on your preferred development environment:
 
 1. Once you've opened the project in VS Code, you can build and test changes by running the `./build.sh` command in the terminal.
 
-    > :bulb: The `build.sh` or `build.cmd` script will be local to the directory of the project you opened. For example, the script located in the `src/Http` directory.
+    > :bulb: The `build.sh` or `build.cmd` script will be local to the directory of the project you opened. For example, the script located in the `src/Http` directory. If you want to build the whole tree, use the `build.sh` or `build.cmd` that is located in the `eng` directory.
 
     ```bash
     # Linux or Mac

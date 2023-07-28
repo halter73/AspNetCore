@@ -179,7 +179,7 @@ public class WebHostBuilder : IWebHostBuilder
             var assemblyNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var assemblyName in _options.GetFinalHostingStartupAssemblies())
             {
-                if (!assemblyNames.Add(assemblyName))
+                if (!assemblyNames.Add(assemblyName) && logger.IsEnabled(LogLevel.Warning))
                 {
                     logger.LogWarning($"The assembly {assemblyName} was specified multiple times. Hosting startup assemblies should only be specified once.");
                 }
@@ -197,10 +197,7 @@ public class WebHostBuilder : IWebHostBuilder
 
         static IServiceProvider GetProviderFromFactory(IServiceCollection collection)
         {
-            // TODO: Remove when DI no longer has RequiresDynamicCodeAttribute https://github.com/dotnet/runtime/pull/79425
-#pragma warning disable IL3050 // Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.
             var provider = collection.BuildServiceProvider();
-#pragma warning restore IL3050 // Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.
             var factory = provider.GetService<IServiceProviderFactory<IServiceCollection>>();
 
             if (factory != null && factory is not DefaultServiceProviderFactory)
@@ -296,6 +293,9 @@ public class WebHostBuilder : IWebHostBuilder
         services.AddScoped<IMiddlewareFactory, MiddlewareFactory>();
         services.AddOptions();
         services.AddLogging();
+
+        services.AddMetrics();
+        services.TryAddSingleton<HostingMetrics>();
 
         services.AddTransient<IServiceProviderFactory<IServiceCollection>, DefaultServiceProviderFactory>();
 

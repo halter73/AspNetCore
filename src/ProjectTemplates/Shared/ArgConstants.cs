@@ -6,8 +6,7 @@ namespace Templates.Test.Helpers;
 internal static class ArgConstants
 {
     public const string UseProgramMain = "--use-program-main";
-    public const string UseMinimalApis = "--use-minimal-apis";
-    public const string Hosted = "--hosted";
+    public const string UseControllers = "--use-controllers";
     public const string Pwa = "--pwa";
     public const string CallsGraph = "--calls-graph";
     public const string CalledApiUrl = "--called-api-url";
@@ -25,5 +24,6 @@ internal static class ArgConstants
     public const string AadB2cInstance = "--aad-b2c-instance";
     public const string UseLocalDb = "-uld";
     public const string NoHttps = "--no-https";
-    public const string PublishNativeAot = "--publish-native-aot";
+    public const string PublishNativeAot = "--aot";
+    public const string UseServer = "--use-server";
 }

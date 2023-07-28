@@ -38,7 +38,20 @@ public class KestrelServerOptions
     // The following two lists configure the endpoints that Kestrel should listen to. If both lists are empty, the "urls" config setting (e.g. UseUrls) is used.
     internal List<ListenOptions> CodeBackedListenOptions { get; } = new List<ListenOptions>();
     internal List<ListenOptions> ConfigurationBackedListenOptions { get; } = new List<ListenOptions>();
-    internal IEnumerable<ListenOptions> ListenOptions => CodeBackedListenOptions.Concat(ConfigurationBackedListenOptions);
+
+    internal ListenOptions[] GetListenOptions()
+    {
+        int resultCount = CodeBackedListenOptions.Count + ConfigurationBackedListenOptions.Count;
+        if (resultCount == 0)
+        {
+            return Array.Empty<ListenOptions>();
+        }
+
+        var result = new ListenOptions[resultCount];
+        CodeBackedListenOptions.CopyTo(result);
+        ConfigurationBackedListenOptions.CopyTo(result, CodeBackedListenOptions.Count);
+        return result;
+    }
 
     // For testing and debugging.
     internal List<ListenOptions> OptionsInUse { get; } = new List<ListenOptions>();
@@ -151,14 +164,22 @@ public class KestrelServerOptions
     private Action<HttpsConnectionAdapterOptions> HttpsDefaults { get; set; } = _ => { };
 
     /// <summary>
-    /// The default server certificate for https endpoints. This is applied lazily after HttpsDefaults and user options.
+    /// The development server certificate for https endpoints. This is applied lazily after HttpsDefaults and user options.
     /// </summary>
-    internal X509Certificate2? DefaultCertificate { get; set; }
+    /// <remarks>
+    /// Getter exposed for testing.
+    /// </remarks>
+    internal X509Certificate2? DevelopmentCertificate { get; private set; }
+
+    /// <summary>
+    /// Allow tests to explicitly set the default certificate.
+    /// </summary>
+    internal X509Certificate2? TestOverrideDefaultCertificate { get; set; }
 
     /// <summary>
     /// Has the default dev certificate load been attempted?
     /// </summary>
-    internal bool IsDevCertLoaded { get; set; }
+    internal bool IsDevelopmentCertificateLoaded { get; set; }
 
     /// <summary>
     /// Internal AppContext switch to toggle the WebTransport and HTTP/3 datagrams experiemental features.
@@ -227,16 +248,51 @@ public class KestrelServerOptions
         HttpsDefaults(httpsOptions);
     }
 
-    internal void ApplyDefaultCert(HttpsConnectionAdapterOptions httpsOptions)
+    internal void ApplyDefaultCertificate(HttpsConnectionAdapterOptions httpsOptions)
     {
-        if (httpsOptions.ServerCertificate != null || httpsOptions.ServerCertificateSelector != null)
+        if (httpsOptions.HasServerCertificateOrSelector)
         {
             return;
         }
 
-        EnsureDefaultCert();
+        // It's important (and currently true) that we don't reach here with https configuration uninitialized because
+        // we might incorrectly favor the development certificate over one specified by the user.
+        Debug.Assert(ApplicationServices.GetRequiredService<IHttpsConfigurationService>().IsInitialized, "HTTPS configuration should have been enabled");
 
-        httpsOptions.ServerCertificate = DefaultCertificate;
+        if (TestOverrideDefaultCertificate is X509Certificate2 certificateFromTest)
+        {
+            httpsOptions.ServerCertificate = certificateFromTest;
+            return;
+        }
+
+        if (ConfigurationLoader?.DefaultCertificate is X509Certificate2 certificateFromLoader)
+        {
+            httpsOptions.ServerCertificate = certificateFromLoader;
+            return;
+        }
+
+        if (!IsDevelopmentCertificateLoaded)
+        {
+            IsDevelopmentCertificateLoaded = true;
+            Debug.Assert(DevelopmentCertificate is null);
+            var logger = ApplicationServices!.GetRequiredService<ILogger<KestrelServer>>();
+            DevelopmentCertificate = GetDevelopmentCertificateFromStore(logger);
+        }
+
+        httpsOptions.ServerCertificate = DevelopmentCertificate;
+    }
+
+    internal void EnableHttpsConfiguration()
+    {
+        var httpsConfigurationService = ApplicationServices.GetRequiredService<IHttpsConfigurationService>();
+
+        if (!httpsConfigurationService.IsInitialized)
+        {
+            var hostEnvironment = ApplicationServices.GetRequiredService<IHostEnvironment>();
+            var logger = ApplicationServices.GetRequiredService<ILogger<KestrelServer>>();
+            var httpsLogger = ApplicationServices.GetRequiredService<ILogger<HttpsConnectionMiddleware>>();
+            httpsConfigurationService.Initialize(hostEnvironment, logger, httpsLogger);
+        }
     }
 
     internal void Serialize(Utf8JsonWriter writer)
@@ -253,8 +309,8 @@ public class KestrelServerOptions
         writer.WritePropertyName(nameof(AllowResponseHeaderCompression));
         writer.WriteBooleanValue(AllowResponseHeaderCompression);
 
-        writer.WritePropertyName(nameof(IsDevCertLoaded));
-        writer.WriteBooleanValue(IsDevCertLoaded);
+        writer.WritePropertyName(nameof(IsDevelopmentCertificateLoaded));
+        writer.WriteBooleanValue(IsDevelopmentCertificateLoaded);
 
         writer.WriteString(nameof(RequestHeaderEncodingSelector), RequestHeaderEncodingSelector == DefaultHeaderEncodingSelector ? "default" : "configured");
         writer.WriteString(nameof(ResponseHeaderEncodingSelector), ResponseHeaderEncodingSelector == DefaultHeaderEncodingSelector ? "default" : "configured");
@@ -280,46 +336,44 @@ public class KestrelServerOptions
         writer.WriteEndArray();
     }
 
-    private void EnsureDefaultCert()
+    private static X509Certificate2? GetDevelopmentCertificateFromStore(ILogger<KestrelServer> logger)
     {
-        if (DefaultCertificate == null && !IsDevCertLoaded)
+        try
         {
-            IsDevCertLoaded = true; // Only try once
-            var logger = ApplicationServices!.GetRequiredService<ILogger<KestrelServer>>();
-            try
-            {
-                DefaultCertificate = CertificateManager.Instance.ListCertificates(StoreName.My, StoreLocation.CurrentUser, isValid: true, requireExportable: false)
-                    .FirstOrDefault();
+            var cert = CertificateManager.Instance.ListCertificates(StoreName.My, StoreLocation.CurrentUser, isValid: true, requireExportable: false)
+                .FirstOrDefault();
 
-                if (DefaultCertificate != null)
-                {
-                    var status = CertificateManager.Instance.CheckCertificateState(DefaultCertificate, interactive: false);
-                    if (!status.Success)
-                    {
-                        // Display a warning indicating to the user that a prompt might appear and provide instructions on what to do in that
-                        // case. The underlying implementation of this check is specific to Mac OS and is handled within CheckCertificateState.
-                        // Kestrel must NEVER cause a UI prompt on a production system. We only attempt this here because Mac OS is not supported
-                        // in production.
-                        Debug.Assert(status.FailureMessage != null, "Status with a failure result must have a message.");
-                        logger.DeveloperCertificateFirstRun(status.FailureMessage);
-
-                        // Prevent binding to HTTPS if the certificate is not valid (avoid the prompt)
-                        DefaultCertificate = null;
-                    }
-                    else if (!CertificateManager.Instance.IsTrusted(DefaultCertificate))
-                    {
-                        logger.DeveloperCertificateNotTrusted();
-                    }
-                }
-                else
-                {
-                    logger.UnableToLocateDevelopmentCertificate();
-                }
-            }
-            catch
+            if (cert is null)
             {
                 logger.UnableToLocateDevelopmentCertificate();
+                return null;
             }
+
+            var status = CertificateManager.Instance.CheckCertificateState(cert, interactive: false);
+            if (!status.Success)
+            {
+                // Display a warning indicating to the user that a prompt might appear and provide instructions on what to do in that
+                // case. The underlying implementation of this check is specific to Mac OS and is handled within CheckCertificateState.
+                // Kestrel must NEVER cause a UI prompt on a production system. We only attempt this here because Mac OS is not supported
+                // in production.
+                Debug.Assert(status.FailureMessage != null, "Status with a failure result must have a message.");
+                logger.DeveloperCertificateFirstRun(status.FailureMessage);
+
+                // Prevent binding to HTTPS if the certificate is not valid (avoid the prompt)
+                return null;
+            }
+
+            if (!CertificateManager.Instance.IsTrusted(cert))
+            {
+                logger.DeveloperCertificateNotTrusted();
+            }
+
+            return cert;
+        }
+        catch
+        {
+            logger.UnableToLocateDevelopmentCertificate();
+            return null;
         }
     }
 
@@ -355,11 +409,8 @@ public class KestrelServerOptions
             throw new InvalidOperationException($"{nameof(ApplicationServices)} must not be null. This is normally set automatically via {nameof(IConfigureOptions<KestrelServerOptions>)}.");
         }
 
-        var hostEnvironment = ApplicationServices.GetRequiredService<IHostEnvironment>();
-        var logger = ApplicationServices.GetRequiredService<ILogger<KestrelServer>>();
-        var httpsLogger = ApplicationServices.GetRequiredService<ILogger<HttpsConnectionMiddleware>>();
-
-        var loader = new KestrelConfigurationLoader(this, config, hostEnvironment, reloadOnChange, logger, httpsLogger);
+        var httpsConfigurationService = ApplicationServices.GetRequiredService<IHttpsConfigurationService>();
+        var loader = new KestrelConfigurationLoader(this, config, httpsConfigurationService, reloadOnChange);
         ConfigurationLoader = loader;
         return loader;
     }

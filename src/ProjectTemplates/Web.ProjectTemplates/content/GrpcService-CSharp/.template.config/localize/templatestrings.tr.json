@@ -1,7 +1,7 @@
 ﻿{
   "author": "Microsoft",
   "name": "ASP.NET Core gRPC Hizmeti",
-  "description": "gRPC ASP.NET Core hizmeti oluşturmaya yönelik proje şablonu.",
+  "description": "A project template for creating a gRPC service using ASP.NET Core, with optional support for publishing as native AOT.",
   "symbols/Framework/description": "Projenin hedef çerçevesi.",
   "symbols/Framework/choices/net8.0/description": "Hedef net8.0",
   "symbols/ExcludeLaunchSettings/description": "launchSettings.json öğesinin oluşturulan şablondan dışlanıp dışlanmayacağı.",
@@ -10,6 +10,8 @@
   "symbols/kestrelHttpsPort/description": "launchSettings.json içinde HTTPS uç noktası için kullanılacak bağlantı noktası numarası. Bu seçenek yalnızca no-https parametresi kullanılmazsa uygulanabilir (IndividualAuth veya OrganizationalAuth kullanılırsa no-https yoksayılır).",
   "symbols/UseProgramMain/displayName": "_Üst düzey deyimler kullanmayın",
   "symbols/UseProgramMain/description": "Üst düzey deyimler yerine açık bir Program sınıfı ve Ana yöntem oluşturup oluşturulmayacağını belirtir.",
+  "symbols/NativeAot/displayName": "_native AOT yayımlamayı etkinleştir",
+  "symbols/NativeAot/description": "Projenin native AOT olarak yayımlama için etkinleştirilip etkinleştirilmeyeceğini belirtir.",
   "postActions/restore/description": "Bu projenin gerektirdiği NuGet paketlerini geri yükleyin.",
   "postActions/restore/manualInstructions/default/text": "'dotnet restore' çalıştır"
 }

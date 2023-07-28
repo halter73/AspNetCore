@@ -104,10 +104,7 @@ internal sealed partial class WebHost : IWebHost, IAsyncDisposable
             // EnsureApplicationServices may have failed due to a missing or throwing Startup class.
             if (_applicationServices == null)
             {
-                // TODO: Remove when DI no longer has RequiresDynamicCodeAttribute https://github.com/dotnet/runtime/pull/79425
-#pragma warning disable IL3050 // Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.
                 _applicationServices = _applicationServiceCollection.BuildServiceProvider();
-#pragma warning restore IL3050 // Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.
             }
 
             if (!_options.CaptureStartupErrors)
@@ -144,7 +141,8 @@ internal sealed partial class WebHost : IWebHost, IAsyncDisposable
         var activitySource = _applicationServices.GetRequiredService<ActivitySource>();
         var propagator = _applicationServices.GetRequiredService<DistributedContextPropagator>();
         var httpContextFactory = _applicationServices.GetRequiredService<IHttpContextFactory>();
-        var hostingApp = new HostingApplication(application, _logger, diagnosticSource, activitySource, propagator, httpContextFactory);
+        var hostingMetrics = _applicationServices.GetRequiredService<HostingMetrics>();
+        var hostingApp = new HostingApplication(application, _logger, diagnosticSource, activitySource, propagator, httpContextFactory, HostingEventSource.Log, hostingMetrics);
         await Server.StartAsync(hostingApp, cancellationToken).ConfigureAwait(false);
         _startedServer = true;
 

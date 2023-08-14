@@ -424,8 +424,9 @@ public static class IdentityApiEndpointRouteBuilderExtensions
     }
 
     private static ValidationProblem CreateValidationProblem(string errorCode, string errorDescription) =>
-        TypedResults.ValidationProblem(new Dictionary<string, string[]> {
-            { errorCode, new[] { errorDescription } }
+        TypedResults.ValidationProblem(new Dictionary<string, string[]>
+        {
+            [errorCode] = [errorDescription],
         });
 
     private static ValidationProblem CreateValidationProblem(IdentityResult result)

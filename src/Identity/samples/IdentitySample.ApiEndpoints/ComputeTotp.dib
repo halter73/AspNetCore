@@ -1,0 +1,212 @@
+#!meta
+
+{"kernelInfo":{"defaultKernelName":"csharp","items":[{"aliases":[],"languageName":"csharp","name":"csharp"}]}}
+
+#!csharp
+
+using System.Diagnostics;
+using System.Globalization;
+using System.Net;
+using System.Security.Cryptography;
+using System.Text;
+
+// See http://tools.ietf.org/html/rfc3548#section-5
+internal static class Base32
+{
+    private const string _base32Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+
+
+    public static string ToBase32(byte[] input)
+    {
+        StringBuilder sb = new StringBuilder();
+        for (int offset = 0; offset < input.Length;)
+        {
+            byte a, b, c, d, e, f, g, h;
+            int numCharsToOutput = GetNextGroup(input, ref offset, out a, out b, out c, out d, out e, out f, out g, out h);
+
+            sb.Append((numCharsToOutput >= 1) ? _base32Chars[a] : '=');
+            sb.Append((numCharsToOutput >= 2) ? _base32Chars[b] : '=');
+            sb.Append((numCharsToOutput >= 3) ? _base32Chars[c] : '=');
+            sb.Append((numCharsToOutput >= 4) ? _base32Chars[d] : '=');
+            sb.Append((numCharsToOutput >= 5) ? _base32Chars[e] : '=');
+            sb.Append((numCharsToOutput >= 6) ? _base32Chars[f] : '=');
+            sb.Append((numCharsToOutput >= 7) ? _base32Chars[g] : '=');
+            sb.Append((numCharsToOutput >= 8) ? _base32Chars[h] : '=');
+        }
+
+        return sb.ToString();
+    }
+
+    public static byte[] FromBase32(string input)
+    {
+        var trimmedInput = input.AsSpan().TrimEnd('=');
+        if (trimmedInput.Length == 0)
+        {
+            return Array.Empty<byte>();
+        }
+
+        var output = new byte[trimmedInput.Length * 5 / 8];
+        var bitIndex = 0;
+        var inputIndex = 0;
+        var outputBits = 0;
+        var outputIndex = 0;
+        while (outputIndex < output.Length)
+        {
+            var byteIndex = _base32Chars.IndexOf(char.ToUpperInvariant(trimmedInput[inputIndex]));
+            if (byteIndex < 0)
+            {
+                throw new FormatException();
+            }
+
+            var bits = Math.Min(5 - bitIndex, 8 - outputBits);
+            output[outputIndex] <<= bits;
+            output[outputIndex] |= (byte)(byteIndex >> (5 - (bitIndex + bits)));
+
+            bitIndex += bits;
+            if (bitIndex >= 5)
+            {
+                inputIndex++;
+                bitIndex = 0;
+            }
+
+            outputBits += bits;
+            if (outputBits >= 8)
+            {
+                outputIndex++;
+                outputBits = 0;
+            }
+        }
+        return output;
+    }
+
+    // returns the number of bytes that were output
+    private static int GetNextGroup(Span<byte> input, ref int offset, out byte a, out byte b, out byte c, out byte d, out byte e, out byte f, out byte g, out byte h)
+    {
+        uint b1, b2, b3, b4, b5;
+
+        int retVal;
+        switch (input.Length - offset)
+        {
+            case 1: retVal = 2; break;
+            case 2: retVal = 4; break;
+            case 3: retVal = 5; break;
+            case 4: retVal = 7; break;
+            default: retVal = 8; break;
+        }
+
+        b1 = (offset < input.Length) ? input[offset++] : 0U;
+        b2 = (offset < input.Length) ? input[offset++] : 0U;
+        b3 = (offset < input.Length) ? input[offset++] : 0U;
+        b4 = (offset < input.Length) ? input[offset++] : 0U;
+        b5 = (offset < input.Length) ? input[offset++] : 0U;
+
+        a = (byte)(b1 >> 3);
+        b = (byte)(((b1 & 0x07) << 2) | (b2 >> 6));
+        c = (byte)((b2 >> 1) & 0x1f);
+        d = (byte)(((b2 & 0x01) << 4) | (b3 >> 4));
+        e = (byte)(((b3 & 0x0f) << 1) | (b4 >> 7));
+        f = (byte)((b4 >> 2) & 0x1f);
+        g = (byte)(((b4 & 0x3) << 3) | (b5 >> 5));
+        h = (byte)(b5 & 0x1f);
+
+        return retVal;
+    }
+}
+
+internal static class Rfc6238AuthenticationService
+{
+    private static readonly TimeSpan _timestep = TimeSpan.FromMinutes(3);
+    private static readonly Encoding _encoding = new UTF8Encoding(false, true);
+
+    internal static int ComputeTotp(
+        byte[] key,
+        ulong timestepNumber,
+        byte[]? modifierBytes)
+    {
+        // # of 0's = length of pin
+        const int Mod = 1000000;
+
+        // See https://tools.ietf.org/html/rfc4226
+        // We can add an optional modifier
+        Span<byte> timestepAsBytes = stackalloc byte[sizeof(long)];
+        var res = BitConverter.TryWriteBytes(timestepAsBytes, IPAddress.HostToNetworkOrder((long)timestepNumber));
+        Debug.Assert(res);
+
+
+        Span<byte> modifierCombinedBytes = timestepAsBytes;
+        if (modifierBytes is not null)
+        {
+            modifierCombinedBytes = ApplyModifier(timestepAsBytes, modifierBytes);
+        }
+        Span<byte> hash = stackalloc byte[HMACSHA1.HashSizeInBytes];
+        res = HMACSHA1.TryHashData(key, modifierCombinedBytes, hash, out var written);
+        Debug.Assert(res);
+        Debug.Assert(written == hash.Length);
+
+        // Generate DT string
+        var offset = hash[hash.Length - 1] & 0xf;
+        Debug.Assert(offset + 4 < hash.Length);
+        var binaryCode = (hash[offset] & 0x7f) << 24
+                            | (hash[offset + 1] & 0xff) << 16
+                            | (hash[offset + 2] & 0xff) << 8
+                            | (hash[offset + 3] & 0xff);
+
+        return binaryCode % Mod;
+    }
+
+    private static byte[] ApplyModifier(Span<byte> input, byte[] modifierBytes)
+    {
+        var combined = new byte[checked(input.Length + modifierBytes.Length)];
+        input.CopyTo(combined);
+        Buffer.BlockCopy(modifierBytes, 0, combined, input.Length, modifierBytes.Length);
+        return combined;
+    }
+
+    // More info: https://tools.ietf.org/html/rfc6238#section-4
+    private static ulong GetCurrentTimeStepNumber()
+    {
+        var delta = DateTimeOffset.UtcNow - DateTimeOffset.UnixEpoch;
+        return (ulong)(delta.Ticks / _timestep.Ticks);
+    }
+
+    public static int GenerateCode(byte[] securityToken, string? modifier = null)
+    {
+
+        // Allow a variance of no greater than 9 minutes in either direction
+        var currentTimeStep = GetCurrentTimeStepNumber();
+
+        var modifierBytes = modifier is not null ? _encoding.GetBytes(modifier) : null;
+        return ComputeTotp(securityToken, currentTimeStep, modifierBytes);
+    }
+
+    public static bool ValidateCode(byte[] securityToken, int code, string? modifier = null)
+    {
+        // Allow a variance of no greater than 9 minutes in either direction
+        var currentTimeStep = GetCurrentTimeStepNumber();
+
+        {
+            var modifierBytes = modifier is not null ? _encoding.GetBytes(modifier) : null;
+            for (var i = -2; i <= 2; i++)
+            {
+                var computedTotp = ComputeTotp(securityToken, (ulong)((long)currentTimeStep + i), modifierBytes);
+
+                if (computedTotp == code)
+                {
+                    return true;
+                }
+            }
+        }
+
+        // No match
+        return false;
+    }
+}
+
+#!csharp
+
+var sharedKey = "3SZ5LLNCHB3XWI5PQD65QUI3CZOXAUXW";
+var keyBytes = Base32.FromBase32(sharedKey);
+var unixTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+var timestep = Convert.ToInt64(unixTimestamp / 30);
+var twoFactorCode = Rfc6238AuthenticationService.ComputeTotp(keyBytes, (ulong)timestep, modifierBytes: null).ToString(CultureInfo.InvariantCulture);
+twoFactorCode

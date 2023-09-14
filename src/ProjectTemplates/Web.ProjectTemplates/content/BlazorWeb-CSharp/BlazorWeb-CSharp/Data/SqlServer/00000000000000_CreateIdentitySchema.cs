@@ -2,7 +2,7 @@ using System;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
 
-namespace Company.WebApplication1.Data.Migrations
+namespace BlazorWeb_CSharp.Data.Migrations
 {
     public partial class CreateIdentitySchema : Migration
     {

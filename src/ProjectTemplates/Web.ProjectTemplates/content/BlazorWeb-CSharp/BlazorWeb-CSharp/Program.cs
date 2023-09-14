@@ -1,4 +1,11 @@
 using BlazorWeb_CSharp.Components;
+#if (IndividualLocalAuth)
+using BlazorWeb_CSharp;
+using BlazorWeb_CSharp.Data;
+using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+#endif
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -7,14 +14,36 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents();
 #else
 builder.Services.AddRazorComponents()
-    #if (UseServer && UseWebAssembly)
+#if (UseServer && UseWebAssembly)
     .AddServerComponents()
     .AddWebAssemblyComponents();
-    #elif(UseServer)
+#elif (UseServer)
     .AddServerComponents();
-    #elif(UseWebAssembly)
+#elif (UseWebAssembly)
     .AddWebAssemblyComponents();
-    #endif
+#endif
+#endif
+
+#if (IndividualLocalAuth)
+builder.Services.AddCascadingAuthenticationState();
+builder.Services.AddScoped<AuthenticationStateProvider, PersistingAuthenticationStateProvider>();
+
+builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme)
+    .AddIdentityCookies();
+
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+#if (UseLocalDB)
+    options.UseSqlServer(connectionString));
+#else
+    options.UseSqlite(connectionString));
+#endif
+builder.Services.AddDatabaseDeveloperPageExceptionFilter();
+
+builder.Services.AddIdentityCore<IdentityUser>(options => options.SignIn.RequireConfirmedAccount = true)
+    .AddEntityFrameworkStores<ApplicationDbContext>()
+    .AddSignInManager()
+    .AddDefaultTokenProviders();
 #endif
 
 var app = builder.Build();

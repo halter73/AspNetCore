@@ -100,6 +100,37 @@
             "BlazorWeb-CSharp.Client/Pages/**",
             "BlazorWeb-CSharp.Client/wwwroot/**"
           ]
+        },
+        {
+          "condition": "(!IndividualLocalAuth)",
+          "exclude": [
+            "BlazorWeb-CSharp/Data/**",
+            "BlazorWeb-CSharp/PersistingAuthenticationStateProvider.cs"
+          ]
+        },
+        {
+          "condition": "(!IndividualLocalAuth || UseLocalDB)",
+          "exclude": [
+            "BlazorWeb-CSharp/app.db"
+          ]
+        },
+        {
+          "condition": "(IndividualLocalAuth && UseLocalDB)",
+          "rename": {
+            "BlazorWeb-CSharp/Data/SqlServer/": "BlazorWeb-CSharp/Data/Migrations/"
+          },
+          "exclude": [
+            "BlazorWeb-CSharp/Data/SqlLite/**"
+          ]
+        },
+        {
+          "condition": "(IndividualLocalAuth && !UseLocalDB)",
+          "rename": {
+            "BlazorWeb-CSharp/Data/SqlLite/": "BlazorWeb-CSharp/Data/Migrations/"
+          },
+          "exclude": [
+            "BlazorWeb-CSharp/Data/SqlServer/**"
+          ]
         }
       ]
     }
@@ -271,9 +302,9 @@
       "type": "computed",
       "value": "(((IncludeSampleContent && (HostIdentifier != \"dotnetcli\" && HostIdentifier != \"dotnetcli-preview\"))) || ((!Empty && (HostIdentifier == \"dotnetcli\" || HostIdentifier == \"dotnetcli-preview\"))))"
     },
-    "IndividualAuth": {
+    "IndividualLocalAuth": {
       "type": "computed",
-      "value": "(auth == \"Individual\" || auth == \"IndividualB2C\")"
+      "value": "(auth == \"Individual\")"
     },
     "RequiresHttps": {
       "type": "computed",

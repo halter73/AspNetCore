@@ -1,4 +1,4 @@
-using BlazorWeb.Client;
+using BlazorWeb_CSharp.Client;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -15,24 +15,31 @@ public class PersistingAuthenticationStateProvider : AuthenticationStateProvider
     {
         _contextAccessor = contextAccessor;
 
-        var userIdKey = identityOptions.Value.ClaimsIdentity.UserIdClaimType;
-        var emailKey = identityOptions.Value.ClaimsIdentity.EmailClaimType;
-
         _subscription = state.RegisterOnPersisting(() =>
         {
             var user = RequiredHttpContext.User;
 
-            state.PersistAsJson(ClientAuthenticationStateProvider.PersistenceKey, new UserInfo
+            if (user.Identity?.IsAuthenticated == true)
             {
-                UserId = user.FindFirst(userIdKey)?.Value,
-                Email = user.FindFirst(emailKey)?.Value,
-            });
+                var userId = user.FindFirst(identityOptions.Value.ClaimsIdentity.UserIdClaimType)?.Value;
+                var email = user.FindFirst(identityOptions.Value.ClaimsIdentity.EmailClaimType)?.Value;
+
+                if (userId != null && email != null)
+                {
+                    state.PersistAsJson(nameof(UserInfo), new UserInfo
+                    {
+                        UserId = userId,
+                        Email = email,
+                    });
+                }
+            }
+
             return Task.CompletedTask;
         });
     }
 
-    private HttpContext RequiredHttpContext =>
-        _contextAccessor.HttpContext ?? throw new InvalidOperationException("IHttpContextAccessor HttpContext AsyncLocal missing!");
+    private HttpContext RequiredHttpContext => 
+        _contextAccessor.HttpContext ?? throw new InvalidOperationException("IHttpContextAccessor HttpContext AsyncLocal missing!"); 
 
     public override Task<AuthenticationState> GetAuthenticationStateAsync() =>
         Task.FromResult(new AuthenticationState(RequiredHttpContext.User));

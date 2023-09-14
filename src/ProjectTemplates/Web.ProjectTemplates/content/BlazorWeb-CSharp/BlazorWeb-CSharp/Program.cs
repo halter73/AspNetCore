@@ -1,9 +1,11 @@
 using BlazorWeb_CSharp.Components;
 #if (IndividualLocalAuth)
 using BlazorWeb_CSharp;
+using BlazorWeb_CSharp.Client;
 using BlazorWeb_CSharp.Data;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.EntityFrameworkCore;
 #endif
 
@@ -44,8 +46,10 @@ builder.Services.AddIdentityCore<IdentityUser>(options => options.SignIn.Require
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddSignInManager()
     .AddDefaultTokenProviders();
-#endif
 
+builder.Services.AddSingleton<IEmailSender, NoOpEmailSender>();
+
+#endif
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.

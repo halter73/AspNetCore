@@ -1,4 +1,11 @@
 #if (IndividualLocalAuth)
+using Microsoft.AspNetCore.Components.Authorization;
+#if (!UseServer && !UseWebAssembly)
+using Microsoft.AspNetCore.Components.Server;
+#endif
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.UI.Services;
+using Microsoft.EntityFrameworkCore;
 using BlazorWeb_CSharp;
 #endif
 #if (UseWebAssembly)
@@ -7,10 +14,6 @@ using BlazorWeb_CSharp.Client.Pages;
 using BlazorWeb_CSharp.Components;
 #if (IndividualLocalAuth)
 using BlazorWeb_CSharp.Data;
-using Microsoft.AspNetCore.Components.Authorization;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Identity.UI.Services;
-using Microsoft.EntityFrameworkCore;
 #endif
 
 var builder = WebApplication.CreateBuilder(args);
@@ -32,8 +35,18 @@ builder.Services.AddRazorComponents()
 
 #if (IndividualLocalAuth)
 builder.Services.AddCascadingAuthenticationState();
-builder.Services.AddScoped<AuthenticationStateProvider, PersistingAuthenticationStateProvider>();
 builder.Services.AddScoped<UserAccessor>();
+#if (UseServer && UseWebAssembly)
+builder.Services.AddScoped<AuthenticationStateProvider, PersistingRevalidatingAuthenticationStateProvider>();
+#elif (UseServer)
+builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
+#elif (UseWebAssembly)
+builder.Services.AddScoped<AuthenticationStateProvider, PersistingServerAuthenticationStateProvider>();
+#else
+builder.Services.AddScoped<AuthenticationStateProvider, ServerAuthenticationStateProvider>();
+
+builder.Services.AddAuthorization();
+#endif
 
 builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme)
     .AddIdentityCookies();

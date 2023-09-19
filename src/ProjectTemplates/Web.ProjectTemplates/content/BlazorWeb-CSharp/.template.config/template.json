@@ -117,6 +117,7 @@
             "BlazorWeb-CSharp/Components/Identity/**",
             "BlazorWeb-CSharp/Data/**",
             "BlazorWeb-CSharp/Identity/**",
+            "BlazorWeb-CSharp/ApplicationAuthenticationStateProvider.cs",
             "BlazorWeb-CSharp/PersistingAuthenticationStateProvider.cs",
             "BlazorWeb-CSharp.Client/PersistentAuthenticationStateProvider.cs",
             "BlazorWeb-CSharp.Client/UserInfo.cs",

@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 using BlazorWeb_CSharp.Data;
 
-namespace BlazorWeb_CSharp;
+namespace BlazorWeb_CSharp.Identity;
 
 public class IdentityRevalidatingAuthenticationStateProvider : RevalidatingServerAuthenticationStateProvider
 {

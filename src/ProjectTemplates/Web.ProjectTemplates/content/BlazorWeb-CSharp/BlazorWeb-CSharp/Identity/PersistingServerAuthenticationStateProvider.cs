@@ -1,4 +1,4 @@
-using BlazorWeb_CSharp.Client;
+using System.Diagnostics;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Server;
@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 
-namespace BlazorWeb_CSharp;
+namespace BlazorWeb_CSharp.Identity;
 
 public class PersistingServerAuthenticationStateProvider : ServerAuthenticationStateProvider, IDisposable
 {
@@ -19,7 +19,7 @@ public class PersistingServerAuthenticationStateProvider : ServerAuthenticationS
     {
         _options = options.Value;
         AuthenticationStateChanged += OnAuthenticationStateChanged;
-        _subscription = _state.RegisterOnPersisting(OnPersistingAsync, RenderMode.InteractiveWebAssembly);
+        _subscription = state.RegisterOnPersisting(OnPersistingAsync, RenderMode.InteractiveWebAssembly);
     }
 
     private void OnAuthenticationStateChanged(Task<AuthenticationState> authenticationStateTask)
@@ -53,7 +53,7 @@ public class PersistingServerAuthenticationStateProvider : ServerAuthenticationS
         }
     }
 
-    protected override void Dispose(bool disposing)
+    public void Dispose()
     {
         _subscription.Dispose();
         AuthenticationStateChanged -= OnAuthenticationStateChanged;

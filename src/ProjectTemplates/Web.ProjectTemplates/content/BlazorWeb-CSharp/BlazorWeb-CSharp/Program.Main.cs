@@ -6,7 +6,6 @@ using Microsoft.AspNetCore.Components.Server;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.EntityFrameworkCore;
-using BlazorWeb_CSharp;
 #endif
 #if (UseWebAssembly)
 using BlazorWeb_CSharp.Client.Pages;
@@ -14,6 +13,7 @@ using BlazorWeb_CSharp.Client.Pages;
 using BlazorWeb_CSharp.Components;
 #if (IndividualLocalAuth)
 using BlazorWeb_CSharp.Data;
+using BlazorWeb_CSharp.Identity;
 #endif
 
 namespace BlazorWeb_CSharp;

@@ -9,7 +9,7 @@ using Microsoft.Extensions.Options;
 using BlazorWeb_CSharp.Client;
 using BlazorWeb_CSharp.Data;
 
-namespace BlazorWeb_CSharp;
+namespace BlazorWeb_CSharp.Identity;
 
 public class PersistingRevalidatingAuthenticationStateProvider : RevalidatingServerAuthenticationStateProvider
 {

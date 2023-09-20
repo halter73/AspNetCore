@@ -11,34 +11,31 @@ using BlazorWeb_CSharp.Data;
 
 namespace BlazorWeb_CSharp;
 
-public class ApplicationAuthenticationStateProvider : RevalidatingServerAuthenticationStateProvider
+public class PersistingRevalidatingAuthenticationStateProvider : RevalidatingServerAuthenticationStateProvider
 {
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly IdentityOptions _options;
-
-    private readonly PersistentComponentState _state;
     private readonly PersistingComponentStateSubscription _subscription;
+    private readonly IdentityOptions _options;
 
     private Task<AuthenticationState>? _authenticationStateTask;
 
-    public ApplicationAuthenticationStateProvider(
+    public PersistingRevalidatingAuthenticationStateProvider(
         ILoggerFactory loggerFactory,
         IServiceScopeFactory scopeFactory,
         PersistentComponentState state,
-        IOptions<IdentityOptions> optionsAccessor)
+        IOptions<IdentityOptions> options)
         : base(loggerFactory)
     {
-        _state = state;
         _scopeFactory = scopeFactory;
+        _options = options.Value;
 
+        AuthenticationStateChanged += OnAuthenticationStateChanged;
         #if (UseServer && UseWebAssembly)
-        _subscription = _state.RegisterOnPersisting(OnPersistingAsync, RenderMode.InteractiveAuto);
+        _subscription = state.RegisterOnPersisting(OnPersistingAsync, RenderMode.InteractiveAuto);
         }, RenderMode.InteractiveAuto);
         #else
-        _subscription = _state.RegisterOnPersisting(OnPersistingAsync, RenderMode.InteractiveServer);
+        _subscription = state.RegisterOnPersisting(OnPersistingAsync, RenderMode.InteractiveServer);
         #endif
-        AuthenticationStateChanged += OnAuthenticationStateChanged;
-        _options = optionsAccessor.Value;
     }
 
     protected override TimeSpan RevalidationInterval => TimeSpan.FromMinutes(30);

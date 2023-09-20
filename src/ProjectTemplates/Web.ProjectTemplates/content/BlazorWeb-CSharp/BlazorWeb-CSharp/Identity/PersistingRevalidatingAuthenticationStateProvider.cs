@@ -14,8 +14,10 @@ namespace BlazorWeb_CSharp.Identity;
 public class PersistingRevalidatingAuthenticationStateProvider : RevalidatingServerAuthenticationStateProvider
 {
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly PersistingComponentStateSubscription _subscription;
+    private readonly PersistentComponentState _state;
     private readonly IdentityOptions _options;
+
+    private readonly PersistingComponentStateSubscription _subscription;
 
     private Task<AuthenticationState>? _authenticationStateTask;
 
@@ -27,6 +29,7 @@ public class PersistingRevalidatingAuthenticationStateProvider : RevalidatingSer
         : base(loggerFactory)
     {
         _scopeFactory = scopeFactory;
+        _state = state;
         _options = options.Value;
 
         AuthenticationStateChanged += OnAuthenticationStateChanged;

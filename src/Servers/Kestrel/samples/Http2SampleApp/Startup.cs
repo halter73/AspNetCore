@@ -17,10 +17,9 @@ public class Startup
 
     public void Configure(IApplicationBuilder app)
     {
-        app.UseTimingMiddleware();
-        app.Run(context =>
+        app.Run(async context =>
         {
-            return context.Response.WriteAsync("Hello World! " + context.Request.Protocol);
+            await context.Response.BodyWriter.WriteAsync(new byte[500 * 1024]);
         });
     }
 }

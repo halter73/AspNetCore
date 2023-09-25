@@ -75,9 +75,8 @@ internal sealed partial class Http2Connection : IHttp2StreamLifetimeHandler, IHt
     private int _clientActiveStreamCount;
     private int _serverActiveStreamCount;
 
-    // A circular buffer of the most recent ENHANCE_YOUR_CALM timestamps
-    private readonly DateTime[] _enhanceYourCalmTimes = new DateTime[3]; // TODO (acasey): configurable length
-    private int _enhanceYourCalmNextIndex;
+    private int _enhanceYourCalmCount;
+    private int _tickCount;
 
     // The following are the only fields that can be modified outside of the ProcessRequestsAsync loop.
     private readonly ConcurrentQueue<Http2Stream> _completedStreams = new ConcurrentQueue<Http2Stream>();
@@ -143,8 +142,6 @@ internal sealed partial class Http2Connection : IHttp2StreamLifetimeHandler, IHt
             context.ConnectionId,
             context.MemoryPool,
             context.ServiceContext);
-
-        Array.Fill(_enhanceYourCalmTimes, DateTime.MinValue);
     }
 
     public string ConnectionId => _context.ConnectionId;
@@ -1183,29 +1180,8 @@ internal sealed partial class Http2Connection : IHttp2StreamLifetimeHandler, IHt
                 // Tell client to calm down.
                 // TODO consider making when to send ENHANCE_YOUR_CALM configurable?
 
-                var tooMany = true;
-
-                var now = DateTime.UtcNow;
-                var startTime = now - TimeSpan.FromMinutes(1); // TODO (acasey): configurable
-
-                // We expect the limit to be exceeded rarely, so contention should be limited
-                lock (_enhanceYourCalmTimes)
-                {
-                    _enhanceYourCalmTimes[_enhanceYourCalmNextIndex] = now;
-                    _enhanceYourCalmNextIndex = (_enhanceYourCalmNextIndex + 1) % _enhanceYourCalmTimes.Length;
-
-                    // Only a problem if *all* times are newer than startTime
-                    for (var i = 0; i < _enhanceYourCalmTimes.Length; i++)
-                    {
-                        if (_enhanceYourCalmTimes[i] < startTime)
-                        {
-                            tooMany = false;
-                            break;
-                        }
-                    }
-                }
-
-                if (tooMany)
+                var count = Interlocked.Increment(ref _enhanceYourCalmCount);
+                if (count > 3) // TODO (acasey): configurable
                 {
                     Abort(new ConnectionAbortedException(CoreStrings.Http2ErrorMaxStreams)); // TODO (acasey): refine string?  Probably don't want to be too descriptive
                     return; // We don't need to clean up since this connection is going away
@@ -1283,6 +1259,10 @@ internal sealed partial class Http2Connection : IHttp2StreamLifetimeHandler, IHt
     void IRequestProcessor.Tick(long timestamp)
     {
         Input.CancelPendingRead();
+        if (++_tickCount % 30 == 0) // TODO (acasey): configurable
+        {
+            Interlocked.Exchange(ref _enhanceYourCalmCount, 0);
+        }
     }
 
     void IHttp2StreamLifetimeHandler.OnStreamCompleted(Http2Stream stream)

@@ -1190,7 +1190,7 @@ internal sealed partial class Http2Connection : IHttp2StreamLifetimeHandler, IHt
                 var count = Interlocked.Increment(ref _enhanceYourCalmCount);
                 if (count > 3) // TODO (acasey): configurable
                 {
-                    Log.Http2TooManyEnhanceYourCalms(_context.ConnectionId, seconds: 10); // TODO (acasey): configured value
+                    Log.Http2TooManyEnhanceYourCalms(_context.ConnectionId, count: 10, seconds: 10); // TODO (acasey): configured values
 
                     // Now that we've logged a useful message, we can put vague text in the exception
                     // messages in case they somehow make it back to the client (not expected)

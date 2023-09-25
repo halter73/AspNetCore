@@ -101,7 +101,8 @@ internal sealed class Http2FrameWriter
     {
         if (!_channel.Writer.TryWrite(producer))
         {
-            // It should not be possible to exceed the bound of the channel.
+            // This can happen if a client resets streams faster than we can clear them out - we end up with a backlog
+            // exceeding the channel size.  Disconnecting seems appropriate in this case.
             var ex = new ConnectionAbortedException("HTTP/2 connection exceeded the output operations maximum queue size.");
             _log.Http2QueueOperationsExceeded(_connectionId, ex);
             _http2Connection.Abort(ex);

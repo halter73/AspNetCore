@@ -1190,10 +1190,15 @@ internal sealed partial class Http2Connection : IHttp2StreamLifetimeHandler, IHt
                 var count = Interlocked.Increment(ref _enhanceYourCalmCount);
                 if (count > 3) // TODO (acasey): configurable
                 {
+                    Log.Http2TooManyEnhanceYourCalms(_context.ConnectionId, seconds: 10); // TODO (acasey): configured value
+
+                    // Now that we've logged a useful message, we can put vague text in the exception
+                    // messages in case they somehow make it back to the client (not expected)
+
                     // This will close the socket - we want to do that right away
-                    Abort(new ConnectionAbortedException(CoreStrings.Http2ErrorMaxStreams)); // TODO (acasey): refine string?  Probably don't want to be too descriptive
+                    Abort(new ConnectionAbortedException(CoreStrings.Http2ConnectionFaulted));
                     // Throwing an exception as well will help us clean up on our end more quickly by (e.g.) skipping processing of already-buffered input
-                    throw new Http2ConnectionErrorException(CoreStrings.Http2ErrorKeepAliveTimeout, Http2ErrorCode.ENHANCE_YOUR_CALM); // TODO (acasey): message
+                    throw new Http2ConnectionErrorException(CoreStrings.Http2ConnectionFaulted, Http2ErrorCode.ENHANCE_YOUR_CALM);
                 }
 
                 throw new Http2StreamErrorException(_currentHeadersStream.StreamId, CoreStrings.Http2TellClientToCalmDown, Http2ErrorCode.ENHANCE_YOUR_CALM);

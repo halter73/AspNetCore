@@ -85,6 +85,11 @@ internal sealed partial class KestrelTrace : ILogger
         Http2Log.Http2UnexpectedConnectionQueueError(_http2Logger, connectionId, ex);
     }
 
+    public void Http2TooManyEnhanceYourCalms(string connectionId, int seconds)
+    {
+        Http2Log.Http2TooManyEnhanceYourCalms(_http2Logger, connectionId, seconds);
+    }
+
     private static partial class Http2Log
     {
         [LoggerMessage(29, LogLevel.Debug, @"Connection id ""{ConnectionId}"": HTTP/2 connection error.", EventName = "Http2ConnectionError")]
@@ -130,5 +135,8 @@ internal sealed partial class KestrelTrace : ILogger
         public static partial void Http2UnexpectedConnectionQueueError(ILogger logger, string connectionId, Exception ex);
 
         // IDs prior to 64 are reserved for back compat (the various KestrelTrace loggers used to share a single sequence)
+
+        [LoggerMessage(64, LogLevel.Error, @"Connection id ""{ConnectionId}"" aborted since too many stream resets were received within ""{seconds}"" seconds.", EventName = "Http2TooManyEnhanceYourCalms")]
+        public static partial void Http2TooManyEnhanceYourCalms(ILogger logger, string connectionId, int seconds);
     }
 }

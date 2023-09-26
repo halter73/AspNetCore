@@ -50,7 +50,11 @@ internal sealed partial class Http2Connection : IHttp2StreamLifetimeHandler, IHt
 
     private static readonly int _enhanceYourCalmMaximumCount = AppContext.GetData(EnhanceYourCalmMaximumCountProperty) is int eycMaxCount
         ? eycMaxCount
-        : 100;
+        : 10;
+
+    // Accumulate _enhanceYourCalmCount over the course of EnhanceYourCalmTickWindowCount ticks.
+    // This should make bursts less likely to trigger disconnects.
+    private const int EnhanceYourCalmTickWindowCount = 5;
 
     private static bool IsEnhanceYourCalmEnabled => _enhanceYourCalmMaximumCount > 0;
 
@@ -1195,7 +1199,7 @@ internal sealed partial class Http2Connection : IHttp2StreamLifetimeHandler, IHt
                 // Tell client to calm down.
                 // TODO consider making when to send ENHANCE_YOUR_CALM configurable?
 
-                if (IsEnhanceYourCalmEnabled && Interlocked.Increment(ref _enhanceYourCalmCount) > _enhanceYourCalmMaximumCount)
+                if (IsEnhanceYourCalmEnabled && Interlocked.Increment(ref _enhanceYourCalmCount) > EnhanceYourCalmTickWindowCount * _enhanceYourCalmMaximumCount)
                 {
                     Log.Http2TooManyEnhanceYourCalms(_context.ConnectionId, _enhanceYourCalmMaximumCount);
 
@@ -1280,7 +1284,7 @@ internal sealed partial class Http2Connection : IHttp2StreamLifetimeHandler, IHt
     void IRequestProcessor.Tick(long timestamp)
     {
         Input.CancelPendingRead();
-        if (IsEnhanceYourCalmEnabled)
+        if (IsEnhanceYourCalmEnabled && ++_tickCount % EnhanceYourCalmTickWindowCount == 0)
         {
             Interlocked.Exchange(ref _enhanceYourCalmCount, 0);
         }

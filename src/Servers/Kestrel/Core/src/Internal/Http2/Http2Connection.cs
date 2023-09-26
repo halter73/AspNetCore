@@ -46,6 +46,14 @@ internal sealed partial class Http2Connection : IHttp2StreamLifetimeHandler, IHt
     private const int MaxStreamPoolSize = 100;
     private readonly TimeSpan StreamPoolExpiry = TimeSpan.FromSeconds(5);
 
+    private const string EnhanceYourCalmWindowSecondsProperty = "Microsoft.AspNetCore.Server.Kestrel.Http2.EnhanceYourCalm.Seconds";
+    private const string EnhanceYourCalmMaximumCountProperty = "Microsoft.AspNetCore.Server.Kestrel.Http2.EnhanceYourCalm.Count";
+    private const string EnhanceYourCalmDisabledSwitch = "Microsoft.AspNetCore.Server.Kestrel.Http2.EnhanceYourCalm.Disable";
+
+    private static readonly int _enhanceYourCalmWindowSeconds;
+    private static readonly int _enhanceYourCalmMaximumCount;
+    private static readonly bool _enhanceYourCalmCountingEnabled;
+
     private readonly HttpConnectionContext _context;
     private readonly ConnectionMetricsContext _metricsContext;
     private readonly Http2FrameWriter _frameWriter;
@@ -62,14 +70,6 @@ internal sealed partial class Http2Connection : IHttp2StreamLifetimeHandler, IHt
 
     // This is only set to true by tests.
     private readonly bool _scheduleInline;
-
-    private const string EnhanceYourCalmWindowSecondsProperty = "Microsoft.AspNetCore.Server.Kestrel.Http2.EnhanceYourCalm.Seconds";
-    private const string EnhanceYourCalmMaximumCountProperty = "Microsoft.AspNetCore.Server.Kestrel.Http2.EnhanceYourCalm.Count";
-    private const string EnhanceYourCalmDisabledSwitch = "Microsoft.AspNetCore.Server.Kestrel.Http2.EnhanceYourCalm.Disable";
-
-    private readonly int _enhanceYourCalmWindowSeconds;
-    private readonly int _enhanceYourCalmMaximumCount;
-    private readonly bool _enhanceYourCalmCountingEnabled;
 
     private Http2Stream? _currentHeadersStream;
     private RequestHeaderParsingState _requestHeaderParsingState;
@@ -97,6 +97,36 @@ internal sealed partial class Http2Connection : IHttp2StreamLifetimeHandler, IHt
     internal readonly Dictionary<int, Http2Stream> _streams = new Dictionary<int, Http2Stream>();
     internal PooledStreamStack<Http2Stream> StreamPool;
     internal IHttp2StreamLifetimeHandler _streamLifetimeHandler;
+
+#pragma warning disable CA1810 // Initialize reference type static fields inline
+    static Http2Connection()
+#pragma warning restore CA1810 // Initialize reference type static fields inline
+    {
+        // If it's unspecified or specified as not-disabled, then enable it
+        if (!AppContext.TryGetSwitch(EnhanceYourCalmDisabledSwitch, out var eycDisabled) || !eycDisabled)
+        {
+            _enhanceYourCalmCountingEnabled = true;
+
+            if (AppContext.GetData(EnhanceYourCalmMaximumCountProperty) is int eycMaxCount)
+            {
+                _enhanceYourCalmMaximumCount = eycMaxCount;
+            }
+            else
+            {
+                _enhanceYourCalmMaximumCount = 10;
+            }
+
+            var secondsData = AppContext.GetData(EnhanceYourCalmWindowSecondsProperty);
+            if (secondsData is int eycWindowSeconds)
+            {
+                _enhanceYourCalmWindowSeconds = eycWindowSeconds;
+            }
+            else
+            {
+                _enhanceYourCalmWindowSeconds = 10;
+            }
+        }
+    }
 
     public Http2Connection(HttpConnectionContext context)
     {
@@ -150,42 +180,6 @@ internal sealed partial class Http2Connection : IHttp2StreamLifetimeHandler, IHt
             context.ConnectionId,
             context.MemoryPool,
             context.ServiceContext);
-
-        // If it's unspecified or specified as not-disabled, then enable it
-        if (!AppContext.TryGetSwitch(EnhanceYourCalmDisabledSwitch, out var eycDisabled) || !eycDisabled)
-        {
-            _enhanceYourCalmCountingEnabled = true;
-
-            var countData = AppContext.GetData(EnhanceYourCalmMaximumCountProperty);
-            if (countData is int eycMaxCount)
-            {
-                _enhanceYourCalmMaximumCount = eycMaxCount;
-            }
-            else
-            {
-                if (countData is not null)
-                {
-                    Log.LogTrace($"{EnhanceYourCalmMaximumCountProperty} must be an integer. Using default value.");
-                }
-
-                _enhanceYourCalmWindowSeconds = 10;
-            }
-
-            var secondsData = AppContext.GetData(EnhanceYourCalmWindowSecondsProperty);
-            if (secondsData is int eycWindowSeconds)
-            {
-                _enhanceYourCalmWindowSeconds = eycWindowSeconds;
-            }
-            else
-            {
-                if (secondsData is not null)
-                {
-                    Log.LogTrace($"{EnhanceYourCalmWindowSecondsProperty} must be an integer. Using default value.");
-                }
-
-                _enhanceYourCalmMaximumCount = 10;
-            }
-        }
     }
 
     public string ConnectionId => _context.ConnectionId;

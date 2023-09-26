@@ -46,13 +46,13 @@ internal sealed partial class Http2Connection : IHttp2StreamLifetimeHandler, IHt
     private const int MaxStreamPoolSize = 100;
     private readonly TimeSpan StreamPoolExpiry = TimeSpan.FromSeconds(5);
 
-    private const string EnhanceYourCalmWindowSecondsProperty = "Microsoft.AspNetCore.Server.Kestrel.Http2.EnhanceYourCalm.Seconds";
-    private const string EnhanceYourCalmMaximumCountProperty = "Microsoft.AspNetCore.Server.Kestrel.Http2.EnhanceYourCalm.Count";
-    private const string EnhanceYourCalmDisabledSwitch = "Microsoft.AspNetCore.Server.Kestrel.Http2.EnhanceYourCalm.Disable";
+    private const string EnhanceYourCalmMaximumCountProperty = "Microsoft.AspNetCore.Server.Kestrel.Http2.EnhanceYourCalmCount";
 
-    private static readonly int _enhanceYourCalmWindowSeconds;
-    private static readonly int _enhanceYourCalmMaximumCount;
-    private static readonly bool _enhanceYourCalmCountingEnabled;
+    private static readonly int _enhanceYourCalmMaximumCount = AppContext.GetData(EnhanceYourCalmMaximumCountProperty) is int eycMaxCount
+        ? eycMaxCount
+        : 100;
+
+    private static bool IsEnhanceYourCalmEnabled => _enhanceYourCalmMaximumCount > 0;
 
     private readonly HttpConnectionContext _context;
     private readonly ConnectionMetricsContext _metricsContext;
@@ -97,36 +97,6 @@ internal sealed partial class Http2Connection : IHttp2StreamLifetimeHandler, IHt
     internal readonly Dictionary<int, Http2Stream> _streams = new Dictionary<int, Http2Stream>();
     internal PooledStreamStack<Http2Stream> StreamPool;
     internal IHttp2StreamLifetimeHandler _streamLifetimeHandler;
-
-#pragma warning disable CA1810 // Initialize reference type static fields inline
-    static Http2Connection()
-#pragma warning restore CA1810 // Initialize reference type static fields inline
-    {
-        // If it's unspecified or specified as not-disabled, then enable it
-        if (!AppContext.TryGetSwitch(EnhanceYourCalmDisabledSwitch, out var eycDisabled) || !eycDisabled)
-        {
-            _enhanceYourCalmCountingEnabled = true;
-
-            if (AppContext.GetData(EnhanceYourCalmMaximumCountProperty) is int eycMaxCount)
-            {
-                _enhanceYourCalmMaximumCount = eycMaxCount;
-            }
-            else
-            {
-                _enhanceYourCalmMaximumCount = 10;
-            }
-
-            var secondsData = AppContext.GetData(EnhanceYourCalmWindowSecondsProperty);
-            if (secondsData is int eycWindowSeconds)
-            {
-                _enhanceYourCalmWindowSeconds = eycWindowSeconds;
-            }
-            else
-            {
-                _enhanceYourCalmWindowSeconds = 10;
-            }
-        }
-    }
 
     public Http2Connection(HttpConnectionContext context)
     {
@@ -408,7 +378,7 @@ internal sealed partial class Http2Connection : IHttp2StreamLifetimeHandler, IHt
                 // Since we're making a narrow fix for a patch, we'll bypass it in such scenarios.
                 // TODO: This is probably a bug - something in here should probably detect aborted
                 // connections and short-circuit.
-                if (!_enhanceYourCalmCountingEnabled || error is not Http2ConnectionErrorException)
+                if (!IsEnhanceYourCalmEnabled || error is not Http2ConnectionErrorException)
                 {
                     // Use the server _serverActiveStreamCount to drain all requests on the server side.
                     // Can't use _clientActiveStreamCount now as we now decrement that count earlier/
@@ -1225,9 +1195,9 @@ internal sealed partial class Http2Connection : IHttp2StreamLifetimeHandler, IHt
                 // Tell client to calm down.
                 // TODO consider making when to send ENHANCE_YOUR_CALM configurable?
 
-                if (_enhanceYourCalmCountingEnabled && Interlocked.Increment(ref _enhanceYourCalmCount) > _enhanceYourCalmMaximumCount)
+                if (IsEnhanceYourCalmEnabled && Interlocked.Increment(ref _enhanceYourCalmCount) > _enhanceYourCalmMaximumCount)
                 {
-                    Log.Http2TooManyEnhanceYourCalms(_context.ConnectionId, _enhanceYourCalmMaximumCount, _enhanceYourCalmWindowSeconds);
+                    Log.Http2TooManyEnhanceYourCalms(_context.ConnectionId, _enhanceYourCalmMaximumCount);
 
                     // Now that we've logged a useful message, we can put vague text in the exception
                     // messages in case they somehow make it back to the client (not expected)
@@ -1310,7 +1280,7 @@ internal sealed partial class Http2Connection : IHttp2StreamLifetimeHandler, IHt
     void IRequestProcessor.Tick(long timestamp)
     {
         Input.CancelPendingRead();
-        if (_enhanceYourCalmCountingEnabled && ++_tickCount % _enhanceYourCalmWindowSeconds == 0)
+        if (IsEnhanceYourCalmEnabled)
         {
             Interlocked.Exchange(ref _enhanceYourCalmCount, 0);
         }

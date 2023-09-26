@@ -85,9 +85,9 @@ internal sealed partial class KestrelTrace : ILogger
         Http2Log.Http2UnexpectedConnectionQueueError(_http2Logger, connectionId, ex);
     }
 
-    public void Http2TooManyEnhanceYourCalms(string connectionId, int count, int seconds)
+    public void Http2TooManyEnhanceYourCalms(string connectionId, int count)
     {
-        Http2Log.Http2TooManyEnhanceYourCalms(_http2Logger, connectionId, count, seconds);
+        Http2Log.Http2TooManyEnhanceYourCalms(_http2Logger, connectionId, count);
     }
 
     private static partial class Http2Log
@@ -136,7 +136,7 @@ internal sealed partial class KestrelTrace : ILogger
 
         // IDs prior to 64 are reserved for back compat (the various KestrelTrace loggers used to share a single sequence)
 
-        [LoggerMessage(64, LogLevel.Error, @"Connection id ""{ConnectionId}"" aborted since ""{Count}"" ENHANCE_YOUR_CALM responses were required within ""{Seconds}"" seconds.", EventName = "Http2TooManyEnhanceYourCalms")]
-        public static partial void Http2TooManyEnhanceYourCalms(ILogger logger, string connectionId, int count, int seconds);
+        [LoggerMessage(64, LogLevel.Error, @"Connection id ""{ConnectionId}"" aborted since at least ""{Count}"" ENHANCE_YOUR_CALM responses were required per second.", EventName = "Http2TooManyEnhanceYourCalms")]
+        public static partial void Http2TooManyEnhanceYourCalms(ILogger logger, string connectionId, int count);
     }
 }

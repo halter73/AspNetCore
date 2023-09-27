@@ -12,6 +12,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Identity.DefaultUI.WebSite;
 using Identity.DefaultUI.WebSite.Data;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Http;
@@ -862,7 +863,7 @@ public class MapIdentityApiTests : LoggedTest
         client.DefaultRequestHeaders.Authorization = new("Bearer", recoveryAccessToken);
 
         var updated2faResponse = await client.PostAsJsonAsync("/identity/manage/2fa", new object());
-        var updated2faContent = await updated2faResponse.Content.ReadFromJsonAsync<JsonElement>();;
+        var updated2faContent = await updated2faResponse.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(8, updated2faContent.GetProperty("recoveryCodesLeft").GetInt32());
         Assert.Null(updated2faContent.GetProperty("recoveryCodes").GetString());
 
@@ -1030,6 +1031,27 @@ public class MapIdentityApiTests : LoggedTest
         Assert.Equal(Email, claims.GetProperty(ClaimTypes.Email).GetString());
         Assert.Equal("pwd", claims.GetProperty("amr").GetString());
         Assert.NotNull(claims.GetProperty(ClaimTypes.NameIdentifier).GetString());
+    }
+
+    [Fact]
+    public async Task CanGetMultipleRoles()
+    {
+        await using var app = await CreateAppAsync(services =>
+        {
+            AddIdentityApiEndpoints(services);
+            services.AddSingleton<IClaimsTransformation, AddMultipleRolesTransformation>();
+        });
+        using var client = app.GetTestClient();
+
+        await RegisterAsync(client);
+        await LoginAsync(client);
+
+        var infoResponse = await client.GetFromJsonAsync<JsonElement>("/identity/manage/info");
+        var claims = infoResponse.GetProperty("claims");
+
+        Assert.Collection(claims.GetProperty(ClaimsIdentity.DefaultRoleClaimType).EnumerateArray(),
+            role1 => Assert.Equal("role1", role1.GetString()),
+            role2 => Assert.Equal("role2", role2.GetString()));
     }
 
     [Theory]
@@ -1517,6 +1539,17 @@ public class MapIdentityApiTests : LoggedTest
         {
             return string.Join(":", userId, purpose, "ImmaToken");
         }
+    }
+
+    private sealed class AddMultipleRolesTransformation : IClaimsTransformation
+    {
+        public Task<ClaimsPrincipal> TransformAsync(ClaimsPrincipal principal) =>
+            Task.FromResult(new ClaimsPrincipal(new ClaimsIdentity(
+                principal.Claims.Concat(new[]
+            {
+                new Claim(ClaimsIdentity.DefaultRoleClaimType, "role1"),
+                new Claim(ClaimsIdentity.DefaultRoleClaimType, "role2"),
+            }), principal.Identity?.AuthenticationType)));
     }
 
     private sealed class TestEmailSender : IEmailSender

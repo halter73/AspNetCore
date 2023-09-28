@@ -12,10 +12,8 @@ using BlazorWeb_CSharp.Client.Pages;
 #endif
 using BlazorWeb_CSharp.Components;
 #if (IndividualLocalAuth)
-using BlazorWeb_CSharp.Data;
-#if (UseServer || UseWebAssembly)
 using BlazorWeb_CSharp.Components.Account;
-#endif
+using BlazorWeb_CSharp.Data;
 #endif
 
 namespace BlazorWeb_CSharp;

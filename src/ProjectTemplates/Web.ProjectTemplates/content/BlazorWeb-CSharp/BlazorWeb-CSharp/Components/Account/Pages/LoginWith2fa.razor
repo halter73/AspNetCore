@@ -24,13 +24,13 @@
             <DataAnnotationsValidator />
             <ValidationSummary class="text-danger" />
             <div class="form-floating mb-3">
-                <InputText id="two-factor-code" @bind-Value="Input.TwoFactorCode" class="form-control" autocomplete="off" />
+                <InputText @bind-Value="Input.TwoFactorCode" class="form-control" autocomplete="off" />
                 <label for="two-factor-code" class="form-label">Authenticator code</label>
                 <ValidationMessage For="() => Input.TwoFactorCode" class="text-danger" />
             </div>
             <div class="checkbox mb-3">
                 <label for="remember-machine" class="form-label">
-                    <InputCheckbox id="remember-machine" @bind-Value="Input.RememberMachine" />
+                    <InputCheckbox @bind-Value="Input.RememberMachine" />
                     Remember this machine
                 </label>
             </div>
@@ -42,7 +42,7 @@
 </div>
 <p>
     Don't have access to your authenticator device? You can
-    <a id="recovery-code-login" href="/Account/LoginWithRecoveryCode?ReturnUrl=@ReturnUrl">log in with a recovery code</a>.
+    <a href="/Account/LoginWithRecoveryCode?ReturnUrl=@ReturnUrl">log in with a recovery code</a>.
 </p>
 
 @code {

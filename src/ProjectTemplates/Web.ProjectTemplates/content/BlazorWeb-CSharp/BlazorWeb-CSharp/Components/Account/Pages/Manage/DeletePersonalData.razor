@@ -24,13 +24,13 @@
 </div>
 
 <div>
-    <EditForm id="delete-user" Model="Input" FormName="delete-user" OnValidSubmit="OnValidSubmitAsync" method="post">
+    <EditForm Model="Input" FormName="delete-user" OnValidSubmit="OnValidSubmitAsync" method="post">
         <DataAnnotationsValidator />
         <ValidationSummary class="text-danger" />
         @if (requirePassword)
         {
             <div class="form-floating mb-3">
-                <InputText id="password" type="password" @bind-Value="Input.Password" class="form-control" autocomplete="current-password" aria-required="true" placeholder="Please enter your password." />
+                <InputText type="password" @bind-Value="Input.Password" class="form-control" autocomplete="current-password" aria-required="true" placeholder="Please enter your password." />
                 <label for="password" class="form-label">Password</label>
                 <ValidationMessage For="() => Input.Password" class="text-danger" />
             </div>

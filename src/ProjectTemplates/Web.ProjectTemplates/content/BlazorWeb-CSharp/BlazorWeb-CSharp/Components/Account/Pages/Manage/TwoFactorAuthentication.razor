@@ -54,12 +54,12 @@
     <h4>Authenticator app</h4>
     @if (!hasAuthenticator)
     {
-        <a id="enable-authenticator" href="/Account/Manage/EnableAuthenticator" class="btn btn-primary">Add authenticator app</a>
+        <a href="/Account/Manage/EnableAuthenticator" class="btn btn-primary">Add authenticator app</a>
     }
     else
     {
-        <a id="enable-authenticator" href="/Account/Manage/EnableAuthenticator" class="btn btn-primary">Set up authenticator app</a>
-        <a id="reset-authenticator" href="/Account/Manage/ResetAuthenticator" class="btn btn-primary">Reset authenticator app</a>
+        <a href="/Account/Manage/EnableAuthenticator" class="btn btn-primary">Set up authenticator app</a>
+        <a href="/Account/Manage/ResetAuthenticator" class="btn btn-primary">Reset authenticator app</a>
     }
 }
 else

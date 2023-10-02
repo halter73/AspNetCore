@@ -23,11 +23,11 @@
             @foreach (var login in currentLogins)
             {
                 <tr>
-                    <td id="login-provider-@login.LoginProvider">@login.ProviderDisplayName</td>
+                    <td>@login.ProviderDisplayName</td>
                     <td>
                         @if (showRemoveButton)
                         {
-                            <form id="remove-login-@login.LoginProvider" @formname="@($"remove-login-{login.LoginProvider}")" @onsubmit="OnSubmitAsync" method="post">
+                            <form @formname="@($"remove-login-{login.LoginProvider}")" @onsubmit="OnSubmitAsync" method="post">
                                 <AntiforgeryToken />
                                 <div>
                                     <input type="hidden" name="@nameof(LoginProvider)" value="@login.LoginProvider" />
@@ -50,14 +50,14 @@
 {
     <h4>Add another service to log in.</h4>
     <hr />
-    <form id="link-login-form" class="form-horizontal" action="/Account/Manage/LinkExternalLogin" method="post">
+    <form class="form-horizontal" action="/Account/Manage/LinkExternalLogin" method="post">
         <AntiforgeryToken />
-        <div id="socialLoginList">
+        <div>
             <p>
                 @foreach (var provider in otherLogins)
                 {
                     <button
-                        id="link-login-button-@provider.Name"
+                       
                         type="submit"
                         class="btn btn-primary"
                         name="Provider"

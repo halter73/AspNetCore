@@ -32,21 +32,21 @@
 </div>
 
 @code {
-    private ApplicationUser _user = default!;
+    private ApplicationUser user = default!;
 
     protected override async Task OnInitializedAsync()
     {
-        _user = await UserAccessor.GetRequiredUserAsync();
+        user = await UserAccessor.GetRequiredUserAsync();
     }
 
     private async Task OnSubmitAsync()
     {
-        await UserManager.SetTwoFactorEnabledAsync(_user, false);
-        await UserManager.ResetAuthenticatorKeyAsync(_user);
-        var userId = await UserManager.GetUserIdAsync(_user);
-        Logger.LogInformation("User with ID '{UserId}' has reset their authentication app key.", _user.Id);
+        await UserManager.SetTwoFactorEnabledAsync(user, false);
+        await UserManager.ResetAuthenticatorKeyAsync(user);
+        var userId = await UserManager.GetUserIdAsync(user);
+        Logger.LogInformation("User with ID '{UserId}' has reset their authentication app key.", user.Id);
 
-        await SignInManager.RefreshSignInAsync(_user);
+        await SignInManager.RefreshSignInAsync(user);
 
         RedirectManager.RedirectToWithStatus(
             "/Account/Manage/EnableAuthenticator",

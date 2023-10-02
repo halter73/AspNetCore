@@ -9,7 +9,7 @@ internal sealed class IdentityRedirectManager(
 {
     public const string StatusCookieName = "Identity.StatusMessage";
 
-    private static readonly CookieBuilder _statusCookieBuilder = new CookieBuilder
+    private static readonly CookieBuilder statusCookieBuilder = new CookieBuilder
     {
         SameSite = SameSiteMode.Strict,
         HttpOnly = true,
@@ -48,7 +48,7 @@ internal sealed class IdentityRedirectManager(
     {
         var httpContext = httpContextAccessor.HttpContext ??
             throw new InvalidOperationException($"{nameof(RedirectToWithStatus)} requires access to an {nameof(HttpContext)}.");
-        httpContext.Response.Cookies.Append(StatusCookieName, message, _statusCookieBuilder.Build(httpContext));
+        httpContext.Response.Cookies.Append(StatusCookieName, message, statusCookieBuilder.Build(httpContext));
 
         RedirectTo(uri);
     }

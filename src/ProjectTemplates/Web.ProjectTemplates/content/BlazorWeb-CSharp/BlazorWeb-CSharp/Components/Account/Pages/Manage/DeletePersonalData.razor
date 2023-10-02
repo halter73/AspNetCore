@@ -13,7 +13,7 @@
 
 <PageTitle>Delete Personal Data</PageTitle>
 
-<StatusMessage Message="@_message" />
+<StatusMessage Message="@message" />
 
 <h3>Delete Personal Data</h3>
 
@@ -27,7 +27,7 @@
     <EditForm id="delete-user" Model="Input" FormName="delete-user" OnValidSubmit="OnValidSubmitAsync" method="post">
         <DataAnnotationsValidator />
         <ValidationSummary class="text-danger" />
-        @if (_requirePassword)
+        @if (requirePassword)
         {
             <div class="form-floating mb-3">
                 <InputText id="password" type="password" @bind-Value="Input.Password" class="form-control" autocomplete="current-password" aria-required="true" placeholder="Please enter your password." />
@@ -40,9 +40,9 @@
 </div>
 
 @code {
-    private string? _message;
-    private ApplicationUser _user = default!;
-    private bool _requirePassword;
+    private string? message;
+    private ApplicationUser user = default!;
+    private bool requirePassword;
 
     [SupplyParameterFromForm]
     private InputModel Input { get; set; } = default!;
@@ -51,20 +51,20 @@
     {
         Input ??= new();
 
-        _user = await UserAccessor.GetRequiredUserAsync();
-        _requirePassword = await UserManager.HasPasswordAsync(_user);
+        user = await UserAccessor.GetRequiredUserAsync();
+        requirePassword = await UserManager.HasPasswordAsync(user);
     }
 
     private async Task OnValidSubmitAsync()
     {
-        if (_requirePassword && !await UserManager.CheckPasswordAsync(_user, Input.Password!))
+        if (requirePassword && !await UserManager.CheckPasswordAsync(user, Input.Password!))
         {
-            _message = "Error: Incorrect password.";
+            message = "Error: Incorrect password.";
             return;
         }
 
-        var result = await UserManager.DeleteAsync(_user);
-        var userId = await UserManager.GetUserIdAsync(_user);
+        var result = await UserManager.DeleteAsync(user);
+        var userId = await UserManager.GetUserIdAsync(user);
         if (!result.Succeeded)
         {
             throw new InvalidOperationException($"Unexpected error occurred deleting user.");

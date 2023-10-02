@@ -13,13 +13,13 @@ namespace BlazorWeb_CSharp.Components.Account;
 
 public class PersistingRevalidatingAuthenticationStateProvider : RevalidatingServerAuthenticationStateProvider
 {
-    private readonly IServiceScopeFactory _scopeFactory;
-    private readonly PersistentComponentState _state;
-    private readonly IdentityOptions _options;
+    private readonly IServiceScopeFactory scopeFactory;
+    private readonly PersistentComponentState state;
+    private readonly IdentityOptions options;
 
-    private readonly PersistingComponentStateSubscription _subscription;
+    private readonly PersistingComponentStateSubscription subscription;
 
-    private Task<AuthenticationState>? _authenticationStateTask;
+    private Task<AuthenticationState>? authenticationStateTask;
 
     public PersistingRevalidatingAuthenticationStateProvider(
         ILoggerFactory loggerFactory,
@@ -28,12 +28,12 @@ public class PersistingRevalidatingAuthenticationStateProvider : RevalidatingSer
         IOptions<IdentityOptions> options)
         : base(loggerFactory)
     {
-        _scopeFactory = scopeFactory;
-        _state = state;
-        _options = options.Value;
+        scopeFactory = scopeFactory;
+        state = state;
+        options = options.Value;
 
         AuthenticationStateChanged += OnAuthenticationStateChanged;
-        _subscription = state.RegisterOnPersisting(OnPersistingAsync, RenderMode.InteractiveWebAssembly);
+        subscription = state.RegisterOnPersisting(OnPersistingAsync, RenderMode.InteractiveWebAssembly);
     }
 
     protected override TimeSpan RevalidationInterval => TimeSpan.FromMinutes(30);
@@ -42,7 +42,7 @@ public class PersistingRevalidatingAuthenticationStateProvider : RevalidatingSer
         AuthenticationState authenticationState, CancellationToken cancellationToken)
     {
         // Get the user manager from a new scope to ensure it fetches fresh data
-        await using var scope = _scopeFactory.CreateAsyncScope();
+        await using var scope = scopeFactory.CreateAsyncScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         return await ValidateSecurityStampAsync(userManager, authenticationState.User);
     }
@@ -60,7 +60,7 @@ public class PersistingRevalidatingAuthenticationStateProvider : RevalidatingSer
         }
         else
         {
-            var principalStamp = principal.FindFirstValue(_options.ClaimsIdentity.SecurityStampClaimType);
+            var principalStamp = principal.FindFirstValue(options.ClaimsIdentity.SecurityStampClaimType);
             var userStamp = await userManager.GetSecurityStampAsync(user);
             return principalStamp == userStamp;
         }
@@ -68,27 +68,27 @@ public class PersistingRevalidatingAuthenticationStateProvider : RevalidatingSer
 
     private void OnAuthenticationStateChanged(Task<AuthenticationState> authenticationStateTask)
     {
-        _authenticationStateTask = authenticationStateTask;
+        authenticationStateTask = authenticationStateTask;
     }
 
     private async Task OnPersistingAsync()
     {
-        if (_authenticationStateTask is null)
+        if (authenticationStateTask is null)
         {
             throw new UnreachableException($"Authentication state not set in {nameof(RevalidatingServerAuthenticationStateProvider)}.{nameof(OnPersistingAsync)}().");
         }
 
-        var authenticationState = await _authenticationStateTask;
+        var authenticationState = await authenticationStateTask;
         var principal = authenticationState.User;
 
         if (principal.Identity?.IsAuthenticated == true)
         {
-            var userId = principal.FindFirst(_options.ClaimsIdentity.UserIdClaimType)?.Value;
-            var email = principal.FindFirst(_options.ClaimsIdentity.EmailClaimType)?.Value;
+            var userId = principal.FindFirst(options.ClaimsIdentity.UserIdClaimType)?.Value;
+            var email = principal.FindFirst(options.ClaimsIdentity.EmailClaimType)?.Value;
 
             if (userId != null && email != null)
             {
-                _state.PersistAsJson(nameof(UserInfo), new UserInfo
+                state.PersistAsJson(nameof(UserInfo), new UserInfo
                 {
                     UserId = userId,
                     Email = email,
@@ -99,7 +99,7 @@ public class PersistingRevalidatingAuthenticationStateProvider : RevalidatingSer
 
     protected override void Dispose(bool disposing)
     {
-        _subscription.Dispose();
+        subscription.Dispose();
         AuthenticationStateChanged -= OnAuthenticationStateChanged;
         base.Dispose(disposing);
     }

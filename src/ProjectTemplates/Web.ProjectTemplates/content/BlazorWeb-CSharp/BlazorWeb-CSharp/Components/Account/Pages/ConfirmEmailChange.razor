@@ -15,11 +15,11 @@
 
 <h1>Confirm email change</h1>
 
-<StatusMessage Message="@_message" />
+<StatusMessage Message="@message" />
 
 @code {
-    private string? _message;
-    private ApplicationUser _user = default!;
+    private string? message;
+    private ApplicationUser user = default!;
 
     [SupplyParameterFromQuery]
     private string? UserId { get; set; }
@@ -39,26 +39,26 @@
             return;
         }
 
-        _user = await UserAccessor.GetRequiredUserAsync();
+        user = await UserAccessor.GetRequiredUserAsync();
 
         var code = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(Code));
-        var result = await UserManager.ChangeEmailAsync(_user, Email, code);
+        var result = await UserManager.ChangeEmailAsync(user, Email, code);
         if (!result.Succeeded)
         {
-            _message = "Error changing email.";
+            message = "Error changing email.";
             return;
         }
 
         // In our UI email and user name are one and the same, so when we update the email
         // we need to update the user name.
-        var setUserNameResult = await UserManager.SetUserNameAsync(_user, Email);
+        var setUserNameResult = await UserManager.SetUserNameAsync(user, Email);
         if (!setUserNameResult.Succeeded)
         {
-            _message = "Error changing user name.";
+            message = "Error changing user name.";
             return;
         }
 
-        await SignInManager.RefreshSignInAsync(_user);
-        _message = "Thank you for confirming your email change.";
+        await SignInManager.RefreshSignInAsync(user);
+        message = "Thank you for confirming your email change.";
     }
 }

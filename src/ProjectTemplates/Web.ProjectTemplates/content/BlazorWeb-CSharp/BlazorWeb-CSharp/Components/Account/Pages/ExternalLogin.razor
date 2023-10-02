@@ -19,12 +19,12 @@
 @inject ILogger<ExternalLogin> Logger
 
 @{
-    var providerDisplayName = _externalLoginInfo.ProviderDisplayName;
+    var providerDisplayName = externalLoginInfo.ProviderDisplayName;
 }
 
 <PageTitle>Register</PageTitle>
 
-<StatusMessage Message="@_message" />
+<StatusMessage Message="@message" />
 <h1>Register</h1>
 <h2 id="external-login-title">Associate your @providerDisplayName account.</h2>
 <hr />
@@ -53,9 +53,9 @@
 @code {
     public const string LoginCallbackAction = "LoginCallback";
 
-    private string? _message;
-    private ExternalLoginInfo _externalLoginInfo = default!;
-    private IUserEmailStore<ApplicationUser> _emailStore = default!;
+    private string? message;
+    private ExternalLoginInfo externalLoginInfo = default!;
+    private IUserEmailStore<ApplicationUser> emailStore = default!;
 
     [SupplyParameterFromQuery]
     private string? RemoteError { get; set; }
@@ -90,8 +90,8 @@
             return;
         }
 
-        _externalLoginInfo = externalLoginInfo;
-        _emailStore = GetEmailStore();
+        externalLoginInfo = externalLoginInfo;
+        emailStore = GetEmailStore();
 
         if (HttpMethods.IsGet(HttpContext.Request.Method))
         {
@@ -112,16 +112,16 @@
     {
         // Sign in the user with this external login provider if the user already has a login.
         var result = await SignInManager.ExternalLoginSignInAsync(
-            _externalLoginInfo.LoginProvider,
-            _externalLoginInfo.ProviderKey,
+            externalLoginInfo.LoginProvider,
+            externalLoginInfo.ProviderKey,
             isPersistent: false,
             bypassTwoFactor: true);
         if (result.Succeeded)
         {
             Logger.LogInformation(
                 "{Name} logged in with {LoginProvider} provider.",
-                _externalLoginInfo.Principal.Identity?.Name,
-                _externalLoginInfo.LoginProvider);
+                externalLoginInfo.Principal.Identity?.Name,
+                externalLoginInfo.LoginProvider);
             RedirectManager.RedirectTo(ReturnUrl);
             return;
         }
@@ -133,9 +133,9 @@
         }
 
         // If the user does not have an account, then ask the user to create an account.
-        if (_externalLoginInfo.Principal.HasClaim(c => c.Type == ClaimTypes.Email))
+        if (externalLoginInfo.Principal.HasClaim(c => c.Type == ClaimTypes.Email))
         {
-            Input.Email = _externalLoginInfo.Principal.FindFirstValue(ClaimTypes.Email);
+            Input.Email = externalLoginInfo.Principal.FindFirstValue(ClaimTypes.Email);
         }
     }
 
@@ -144,15 +144,15 @@
         var user = CreateUser();
 
         await UserStore.SetUserNameAsync(user, Input.Email, CancellationToken.None);
-        await _emailStore.SetEmailAsync(user, Input.Email, CancellationToken.None);
+        await emailStore.SetEmailAsync(user, Input.Email, CancellationToken.None);
 
         var result = await UserManager.CreateAsync(user);
         if (result.Succeeded)
         {
-            result = await UserManager.AddLoginAsync(user, _externalLoginInfo);
+            result = await UserManager.AddLoginAsync(user, externalLoginInfo);
             if (result.Succeeded)
             {
-                Logger.LogInformation("User created an account using {Name} provider.", _externalLoginInfo.LoginProvider);
+                Logger.LogInformation("User created an account using {Name} provider.", externalLoginInfo.LoginProvider);
 
                 var userId = await UserManager.GetUserIdAsync(user);
                 var code = await UserManager.GenerateEmailConfirmationTokenAsync(user);
@@ -171,14 +171,14 @@
                     return;
                 }
 
-                await SignInManager.SignInAsync(user, isPersistent: false, _externalLoginInfo.LoginProvider);
+                await SignInManager.SignInAsync(user, isPersistent: false, externalLoginInfo.LoginProvider);
                 RedirectManager.RedirectTo(ReturnUrl);
                 return;
             }
         }
         else
         {
-            _message = $"Error: {string.Join(",", result.Errors.Select(error => error.Description))}";
+            message = $"Error: {string.Join(",", result.Errors.Select(error => error.Description))}";
         }
     }
 

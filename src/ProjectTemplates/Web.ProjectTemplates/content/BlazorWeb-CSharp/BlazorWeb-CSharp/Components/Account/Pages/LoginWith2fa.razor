@@ -14,7 +14,7 @@
 
 <h1>Two-factor authentication</h1>
 <hr />
-<StatusMessage Message="@_message" />
+<StatusMessage Message="@message" />
 <p>Your login is protected with an authenticator app. Enter your authenticator code below.</p>
 <div class="row">
     <div class="col-md-4">
@@ -46,8 +46,8 @@
 </p>
 
 @code {
-    private string? _message;
-    private ApplicationUser _user = default!;
+    private string? message;
+    private ApplicationUser user = default!;
 
     [SupplyParameterFromForm]
     private InputModel Input { get; set; } = default!;
@@ -69,29 +69,29 @@
             throw new InvalidOperationException($"Unable to load two-factor authentication user.");
         }
 
-        _user = user;
+        user = user;
     }
 
     private async Task OnValidSubmitAsync()
     {
         var authenticatorCode = Input.TwoFactorCode!.Replace(" ", string.Empty).Replace("-", string.Empty);
         var result = await SignInManager.TwoFactorAuthenticatorSignInAsync(authenticatorCode, RememberMe, Input.RememberMachine);
-        var userId = await UserManager.GetUserIdAsync(_user);
+        var userId = await UserManager.GetUserIdAsync(user);
 
         if (result.Succeeded)
         {
-            Logger.LogInformation("User with ID '{UserId}' logged in with 2fa.", _user.Id);
+            Logger.LogInformation("User with ID '{UserId}' logged in with 2fa.", user.Id);
             RedirectManager.RedirectTo(ReturnUrl ?? "/");
         }
         else if (result.IsLockedOut)
         {
-            Logger.LogWarning("User with ID '{UserId}' account locked out.", _user.Id);
+            Logger.LogWarning("User with ID '{UserId}' account locked out.", user.Id);
             RedirectManager.RedirectTo("/Account/Lockout");
         }
         else
         {
-            Logger.LogWarning("Invalid authenticator code entered for user with ID '{UserId}'.", _user.Id);
-            _message = "Error: Invalid authenticator code.";
+            Logger.LogWarning("Invalid authenticator code entered for user with ID '{UserId}'.", user.Id);
+            message = "Error: Invalid authenticator code.";
         }
     }
 

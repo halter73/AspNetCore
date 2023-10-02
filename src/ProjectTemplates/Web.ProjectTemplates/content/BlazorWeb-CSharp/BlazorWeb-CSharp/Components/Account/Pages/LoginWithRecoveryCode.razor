@@ -15,7 +15,7 @@
 
 <h1>Recovery code verification</h1>
 <hr />
-<StatusMessage Message="@_message" />
+<StatusMessage Message="@message" />
 <p>
     You have requested to log in with a recovery code. This login will not be remembered until you provide
     an authenticator app code at log in or disable 2FA and log in again.
@@ -36,8 +36,8 @@
 </div>
 
 @code {
-    private string? _message;
-    private ApplicationUser _user = default!;
+    private string? message;
+    private ApplicationUser user = default!;
 
     [SupplyParameterFromForm]
     private InputModel Input { get; set; } = default!;
@@ -56,7 +56,7 @@
             throw new InvalidOperationException($"Unable to load two-factor authentication user.");
         }
 
-        _user = user;
+        user = user;
     }
 
     private async Task OnValidSubmitAsync()
@@ -65,11 +65,11 @@
 
         var result = await SignInManager.TwoFactorRecoveryCodeSignInAsync(recoveryCode);
 
-        var userId = await UserManager.GetUserIdAsync(_user);
+        var userId = await UserManager.GetUserIdAsync(user);
 
         if (result.Succeeded)
         {
-            Logger.LogInformation("User with ID '{UserId}' logged in with a recovery code.", _user.Id);
+            Logger.LogInformation("User with ID '{UserId}' logged in with a recovery code.", user.Id);
             RedirectManager.RedirectTo(ReturnUrl ?? "/");
         }
         if (result.IsLockedOut)
@@ -79,8 +79,8 @@
         }
         else
         {
-            Logger.LogWarning("Invalid recovery code entered for user with ID '{UserId}' ", _user.Id);
-            _message = "Error: Invalid recovery code entered.";
+            Logger.LogWarning("Invalid recovery code entered for user with ID '{UserId}' ", user.Id);
+            message = "Error: Invalid recovery code entered.";
         }
     }
 

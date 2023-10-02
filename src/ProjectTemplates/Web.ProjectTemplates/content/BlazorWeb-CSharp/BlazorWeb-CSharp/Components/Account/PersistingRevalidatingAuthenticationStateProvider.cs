@@ -23,14 +23,14 @@ public class PersistingRevalidatingAuthenticationStateProvider : RevalidatingSer
 
     public PersistingRevalidatingAuthenticationStateProvider(
         ILoggerFactory loggerFactory,
-        IServiceScopeFactory scopeFactory,
-        PersistentComponentState state,
-        IOptions<IdentityOptions> options)
+        IServiceScopeFactory serviceScopeFactory,
+        PersistentComponentState persistentComponentState,
+        IOptions<IdentityOptions> optionsAccessor)
         : base(loggerFactory)
     {
-        scopeFactory = scopeFactory;
-        state = state;
-        options = options.Value;
+        scopeFactory = serviceScopeFactory;
+        state = persistentComponentState;
+        options = optionsAccessor.Value;
 
         AuthenticationStateChanged += OnAuthenticationStateChanged;
         subscription = state.RegisterOnPersisting(OnPersistingAsync, RenderMode.InteractiveWebAssembly);
@@ -50,7 +50,7 @@ public class PersistingRevalidatingAuthenticationStateProvider : RevalidatingSer
     private async Task<bool> ValidateSecurityStampAsync(UserManager<ApplicationUser> userManager, ClaimsPrincipal principal)
     {
         var user = await userManager.GetUserAsync(principal);
-        if (user == null)
+        if (user is null)
         {
             return false;
         }
@@ -66,9 +66,9 @@ public class PersistingRevalidatingAuthenticationStateProvider : RevalidatingSer
         }
     }
 
-    private void OnAuthenticationStateChanged(Task<AuthenticationState> authenticationStateTask)
+    private void OnAuthenticationStateChanged(Task<AuthenticationState> task)
     {
-        authenticationStateTask = authenticationStateTask;
+        authenticationStateTask = task;
     }
 
     private async Task OnPersistingAsync()

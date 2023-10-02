@@ -18,18 +18,20 @@ public class PersistingServerAuthenticationStateProvider : ServerAuthenticationS
 
     private Task<AuthenticationState>? authenticationStateTask;
 
-    public PersistingServerAuthenticationStateProvider(PersistentComponentState state, IOptions<IdentityOptions> options)
+    public PersistingServerAuthenticationStateProvider(
+        PersistentComponentState persistentComponentState,
+        IOptions<IdentityOptions> optionsAccessor)
     {
-        state = state;
-        options = options.Value;
+        state = persistentComponentState;
+        options = optionsAccessor.Value;
 
         AuthenticationStateChanged += OnAuthenticationStateChanged;
         subscription = state.RegisterOnPersisting(OnPersistingAsync, RenderMode.InteractiveWebAssembly);
     }
 
-    private void OnAuthenticationStateChanged(Task<AuthenticationState> authenticationStateTask)
+    private void OnAuthenticationStateChanged(Task<AuthenticationState> task)
     {
-        authenticationStateTask = authenticationStateTask;
+        authenticationStateTask = task;
     }
 
     private async Task OnPersistingAsync()

@@ -25,14 +25,14 @@
 
     protected override async Task OnInitializedAsync()
     {
-        if (UserId == null || Code == null)
+        if (UserId is null || Code is null)
         {
             RedirectManager.RedirectTo("/");
         }
         else
         {
             var user = await UserManager.FindByIdAsync(UserId);
-            if (user == null)
+            if (user is null)
             {
                 // Need a way to trigger a 404 from Blazor: https://github.com/dotnet/aspnetcore/issues/45654
                 statusMessage = $"Error loading user with ID {UserId}";

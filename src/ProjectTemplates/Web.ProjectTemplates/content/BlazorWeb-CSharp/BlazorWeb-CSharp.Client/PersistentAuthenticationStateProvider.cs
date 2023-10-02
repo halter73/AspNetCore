@@ -26,4 +26,3 @@ public class PersistentAuthenticationStateProvider(PersistentComponentState pers
                 authenticationType: nameof(PersistentAuthenticationStateProvider)))));
     }
 }
-

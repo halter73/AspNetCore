@@ -50,13 +50,8 @@
         Input ??= new();
 
         // Ensure the user has gone through the username & password screen first
-        var user = await SignInManager.GetTwoFactorAuthenticationUserAsync();
-        if (user is null)
-        {
+        user = await SignInManager.GetTwoFactorAuthenticationUserAsync() ??
             throw new InvalidOperationException($"Unable to load two-factor authentication user.");
-        }
-
-        user = user;
     }
 
     private async Task OnValidSubmitAsync()

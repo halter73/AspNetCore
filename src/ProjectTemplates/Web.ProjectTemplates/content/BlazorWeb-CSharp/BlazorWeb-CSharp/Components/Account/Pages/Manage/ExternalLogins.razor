@@ -131,7 +131,7 @@
     {
         var userId = await UserManager.GetUserIdAsync(user);
         var info = await SignInManager.GetExternalLoginInfoAsync(userId);
-        if (info == null)
+        if (info is null)
         {
             RedirectManager.RedirectToCurrentPageWithStatus("Unexpected error occurred loading external login info.");
             return;

@@ -39,7 +39,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        if (Email == null)
+        if (Email is null)
         {
             RedirectManager.RedirectTo("/");
         }
@@ -47,7 +47,7 @@ else
         {
 
             var user = await UserManager.FindByEmailAsync(Email);
-            if (user == null)
+            if (user is null)
             {
                 // Need a way to trigger a 404 from Blazor: https://github.com/dotnet/aspnetcore/issues/45654
                 statusMessage = $"Error finding user for unspecified email";

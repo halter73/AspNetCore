@@ -83,14 +83,14 @@
             return;
         }
 
-        var externalLoginInfo = await SignInManager.GetExternalLoginInfoAsync();
-        if (externalLoginInfo is null)
+        var externalLoginInfoOrNull = await SignInManager.GetExternalLoginInfoAsync();
+        if (externalLoginInfoOrNull is null)
         {
             RedirectManager.RedirectToWithStatus("/Account/Login", "Error loading external login information.");
             return;
         }
 
-        externalLoginInfo = externalLoginInfo;
+        externalLoginInfo = externalLoginInfoOrNull;
         emailStore = GetEmailStore();
 
         if (HttpMethods.IsGet(HttpContext.Request.Method))

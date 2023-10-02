@@ -7,21 +7,12 @@ using BlazorWeb_CSharp.Data;
 
 namespace BlazorWeb_CSharp.Components.Account;
 
-public class IdentityRevalidatingAuthenticationStateProvider : RevalidatingServerAuthenticationStateProvider
-{
-    private readonly IServiceScopeFactory scopeFactory;
-    private readonly IdentityOptions options;
-
-    public IdentityRevalidatingAuthenticationStateProvider(
+public class IdentityRevalidatingAuthenticationStateProvider(
         ILoggerFactory loggerFactory,
         IServiceScopeFactory scopeFactory,
-        IOptions<IdentityOptions> optionsAccessor)
-        : base(loggerFactory)
-    {
-        scopeFactory = scopeFactory;
-        options = optionsAccessor.Value;
-    }
-
+        IOptions<IdentityOptions> options)
+    : RevalidatingServerAuthenticationStateProvider(loggerFactory)
+{
     protected override TimeSpan RevalidationInterval => TimeSpan.FromMinutes(30);
 
     protected override async Task<bool> ValidateAuthenticationStateAsync(
@@ -36,7 +27,7 @@ public class IdentityRevalidatingAuthenticationStateProvider : RevalidatingServe
     private async Task<bool> ValidateSecurityStampAsync(UserManager<ApplicationUser> userManager, ClaimsPrincipal principal)
     {
         var user = await userManager.GetUserAsync(principal);
-        if (user == null)
+        if (user is null)
         {
             return false;
         }
@@ -46,7 +37,7 @@ public class IdentityRevalidatingAuthenticationStateProvider : RevalidatingServe
         }
         else
         {
-            var principalStamp = principal.FindFirstValue(options.ClaimsIdentity.SecurityStampClaimType);
+            var principalStamp = principal.FindFirstValue(options.Value.ClaimsIdentity.SecurityStampClaimType);
             var userStamp = await userManager.GetSecurityStampAsync(user);
             return principalStamp == userStamp;
         }

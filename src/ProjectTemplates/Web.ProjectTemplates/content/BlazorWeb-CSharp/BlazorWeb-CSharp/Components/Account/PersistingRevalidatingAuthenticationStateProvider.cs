@@ -11,7 +11,7 @@ using BlazorWeb_CSharp.Data;
 
 namespace BlazorWeb_CSharp.Components.Account;
 
-public class PersistingRevalidatingAuthenticationStateProvider : RevalidatingServerAuthenticationStateProvider
+internal sealed class PersistingRevalidatingAuthenticationStateProvider : RevalidatingServerAuthenticationStateProvider
 {
     private readonly IServiceScopeFactory scopeFactory;
     private readonly PersistentComponentState state;

@@ -9,7 +9,7 @@ using BlazorWeb_CSharp.Client;
 
 namespace BlazorWeb_CSharp.Components.Account;
 
-public class PersistingServerAuthenticationStateProvider : ServerAuthenticationStateProvider, IDisposable
+internal sealed class PersistingServerAuthenticationStateProvider : ServerAuthenticationStateProvider, IDisposable
 {
     private readonly PersistentComponentState state;
     private readonly IdentityOptions options;

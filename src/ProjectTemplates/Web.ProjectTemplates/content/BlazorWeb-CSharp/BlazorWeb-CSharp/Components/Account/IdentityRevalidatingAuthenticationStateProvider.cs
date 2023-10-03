@@ -7,7 +7,7 @@ using BlazorWeb_CSharp.Data;
 
 namespace BlazorWeb_CSharp.Components.Account;
 
-public class IdentityRevalidatingAuthenticationStateProvider(
+internal sealed class IdentityRevalidatingAuthenticationStateProvider(
         ILoggerFactory loggerFactory,
         IServiceScopeFactory scopeFactory,
         IOptions<IdentityOptions> options)

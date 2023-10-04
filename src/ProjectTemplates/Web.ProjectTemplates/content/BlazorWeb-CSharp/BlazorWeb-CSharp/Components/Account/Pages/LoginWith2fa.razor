@@ -3,7 +3,6 @@
 @using System.ComponentModel.DataAnnotations
 @using Microsoft.AspNetCore.Identity
 @using BlazorWeb_CSharp.Data
-@using BlazorWeb_CSharp.Components.Account
 
 @inject SignInManager<ApplicationUser> SignInManager
 @inject UserManager<ApplicationUser> UserManager
@@ -42,7 +41,7 @@
 </div>
 <p>
     Don't have access to your authenticator device? You can
-    <a href="/Account/LoginWithRecoveryCode?ReturnUrl=@ReturnUrl">log in with a recovery code</a>.
+    <a href="Account/LoginWithRecoveryCode?ReturnUrl=@ReturnUrl">log in with a recovery code</a>.
 </p>
 
 @code {
@@ -50,7 +49,7 @@
     private ApplicationUser user = default!;
 
     [SupplyParameterFromForm]
-    private InputModel Input { get; set; } = default!;
+    private InputModel Input { get; set; } = new();
 
     [SupplyParameterFromQuery]
     private string? ReturnUrl { get; set; }
@@ -60,12 +59,9 @@
 
     protected override async Task OnInitializedAsync()
     {
-        Input ??= new();
-        ReturnUrl ??= "/";
-
         // Ensure the user has gone through the username & password screen first
         user = await SignInManager.GetTwoFactorAuthenticationUserAsync() ??
-            throw new InvalidOperationException($"Unable to load two-factor authentication user.");
+            throw new InvalidOperationException("Unable to load two-factor authentication user.");
     }
 
     private async Task OnValidSubmitAsync()
@@ -76,17 +72,17 @@
 
         if (result.Succeeded)
         {
-            Logger.LogInformation("User with ID '{UserId}' logged in with 2fa.", user.Id);
-            RedirectManager.RedirectTo(ReturnUrl ?? "/");
+            Logger.LogInformation("User with ID '{UserId}' logged in with 2fa.", userId);
+            RedirectManager.RedirectTo(ReturnUrl);
         }
         else if (result.IsLockedOut)
         {
-            Logger.LogWarning("User with ID '{UserId}' account locked out.", user.Id);
-            RedirectManager.RedirectTo("/Account/Lockout");
+            Logger.LogWarning("User with ID '{UserId}' account locked out.", userId);
+            RedirectManager.RedirectTo("Account/Lockout");
         }
         else
         {
-            Logger.LogWarning("Invalid authenticator code entered for user with ID '{UserId}'.", user.Id);
+            Logger.LogWarning("Invalid authenticator code entered for user with ID '{UserId}'.", userId);
             message = "Error: Invalid authenticator code.";
         }
     }

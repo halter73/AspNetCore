@@ -4,7 +4,6 @@
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.AspNetCore.Mvc
 @using BlazorWeb_CSharp.Data
-@using BlazorWeb_CSharp.Components.Account
 
 @inject SignInManager<ApplicationUser> SignInManager
 @inject UserManager<ApplicationUser> UserManager
@@ -40,23 +39,21 @@
     private ApplicationUser user = default!;
 
     [SupplyParameterFromForm]
-    private InputModel Input { get; set; } = default!;
+    private InputModel Input { get; set; } = new();
 
     [SupplyParameterFromQuery]
     private string? ReturnUrl { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
-        Input ??= new();
-
         // Ensure the user has gone through the username & password screen first
         user = await SignInManager.GetTwoFactorAuthenticationUserAsync() ??
-            throw new InvalidOperationException($"Unable to load two-factor authentication user.");
+            throw new InvalidOperationException("Unable to load two-factor authentication user.");
     }
 
     private async Task OnValidSubmitAsync()
     {
-        var recoveryCode = Input.RecoveryCode!.Replace(" ", string.Empty);
+        var recoveryCode = Input.RecoveryCode.Replace(" ", string.Empty);
 
         var result = await SignInManager.TwoFactorRecoveryCodeSignInAsync(recoveryCode);
 
@@ -64,17 +61,17 @@
 
         if (result.Succeeded)
         {
-            Logger.LogInformation("User with ID '{UserId}' logged in with a recovery code.", user.Id);
-            RedirectManager.RedirectTo(ReturnUrl ?? "/");
+            Logger.LogInformation("User with ID '{UserId}' logged in with a recovery code.", userId);
+            RedirectManager.RedirectTo(ReturnUrl);
         }
         if (result.IsLockedOut)
         {
             Logger.LogWarning("User account locked out.");
-            RedirectManager.RedirectTo("/Account/Lockout");
+            RedirectManager.RedirectTo("Account/Lockout");
         }
         else
         {
-            Logger.LogWarning("Invalid recovery code entered for user with ID '{UserId}' ", user.Id);
+            Logger.LogWarning("Invalid recovery code entered for user with ID '{UserId}' ", userId);
             message = "Error: Invalid recovery code entered.";
         }
     }
@@ -84,6 +81,6 @@
         [Required]
         [DataType(DataType.Text)]
         [Display(Name = "Recovery Code")]
-        public string? RecoveryCode { get; set; }
+        public string RecoveryCode { get; set; } = "";
     }
 }

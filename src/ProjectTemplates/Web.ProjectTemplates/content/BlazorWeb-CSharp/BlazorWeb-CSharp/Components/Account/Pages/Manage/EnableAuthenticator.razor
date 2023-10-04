@@ -6,10 +6,9 @@
 @using System.Text.Encodings.Web
 @using Microsoft.AspNetCore.Identity
 @using BlazorWeb_CSharp.Data
-@using BlazorWeb_CSharp.Components.Account
 
 @inject UserManager<ApplicationUser> UserManager
-@inject UserAccessor UserAccessor
+@inject IdentityUserAccessor UserAccessor
 @inject UrlEncoder UrlEncoder
 @inject IdentityRedirectManager RedirectManager
 @inject ILogger<EnableAuthenticator> Logger
@@ -70,21 +69,21 @@ else
 @code {
     private const string AuthenticatorUriFormat = "otpauth://totp/{0}:{1}?secret={2}&issuer={0}&digits=6";
 
+    private string? message;
     private ApplicationUser user = default!;
     private string? sharedKey;
     private string? authenticatorUri;
-
     private IEnumerable<string>? recoveryCodes;
-    private string? message;
+
+    [CascadingParameter]
+    public required HttpContext HttpContext { get; set; }
 
     [SupplyParameterFromForm]
-    private InputModel Input { get; set; } = default!;
+    private InputModel Input { get; set; } = new();
 
     protected override async Task OnInitializedAsync()
     {
-        Input ??= new();
-
-        user = await UserAccessor.GetRequiredUserAsync();
+        user = await UserAccessor.GetRequiredUserAsync(HttpContext);
 
         await LoadSharedKeyAndQrCodeUriAsync(user);
     }
@@ -92,16 +91,14 @@ else
     private async Task OnValidSubmitAsync()
     {
         // Strip spaces and hyphens
-        var verificationCode = Input.Code!.Replace(" ", string.Empty).Replace("-", string.Empty);
+        var verificationCode = Input.Code.Replace(" ", string.Empty).Replace("-", string.Empty);
 
         var is2faTokenValid = await UserManager.VerifyTwoFactorTokenAsync(
             user, UserManager.Options.Tokens.AuthenticatorTokenProvider, verificationCode);
 
         if (!is2faTokenValid)
         {
-            await LoadSharedKeyAndQrCodeUriAsync(user);
-            RedirectManager.RedirectToCurrentPageWithStatus("Error: Verification code is invalid.");
-            return;
+            RedirectManager.RedirectToCurrentPageWithStatus("Error: Verification code is invalid.", HttpContext);
         }
 
         await UserManager.SetTwoFactorEnabledAsync(user, true);
@@ -112,11 +109,11 @@ else
 
         if (await UserManager.CountRecoveryCodesAsync(user) == 0)
         {
-           recoveryCodes = await UserManager.GenerateNewTwoFactorRecoveryCodesAsync(user, 10);
+            recoveryCodes = await UserManager.GenerateNewTwoFactorRecoveryCodesAsync(user, 10);
         }
         else
         {
-            RedirectManager.RedirectToWithStatus("/Account/Manage/TwoFactorAuthentication", message);
+            RedirectManager.RedirectToWithStatus("Account/Manage/TwoFactorAuthentication", message, HttpContext);
         }
     }
 
@@ -169,6 +166,6 @@ else
         [StringLength(7, ErrorMessage = "The {0} must be at least {2} and at max {1} characters long.", MinimumLength = 6)]
         [DataType(DataType.Text)]
         [Display(Name = "Verification Code")]
-        public string? Code { get; set; }
+        public string Code { get; set; } = "";
     }
 }

@@ -4,14 +4,12 @@
 @using System.Text
 @using System.Text.Encodings.Web
 @using Microsoft.AspNetCore.Identity
-@using Microsoft.AspNetCore.Identity.UI.Services
 @using Microsoft.AspNetCore.WebUtilities
 @using BlazorWeb_CSharp.Data
-@using BlazorWeb_CSharp.Components.Account
 
 @inject UserManager<ApplicationUser> UserManager
-@inject UserAccessor UserAccessor
-@inject IEmailSender EmailSender
+@inject IEmailSender<ApplicationUser> EmailSender
+@inject IdentityUserAccessor UserAccessor
 @inject NavigationManager NavigationManager
 @inject IdentityRedirectManager RedirectManager
 
@@ -22,7 +20,7 @@
 <StatusMessage />
 <div class="row">
     <div class="col-md-6">
-        <form @onsubmit="OnSendEmailVerificationAsync" @formname="send-verification" method="post">
+        <form @onsubmit="OnSendEmailVerificationAsync" @formname="send-verification" id="send-verification-form" method="post">
             <AntiforgeryToken />
         </form>
         <EditForm Model="Input" FormName="change-email" OnValidSubmit="OnValidSubmitAsync" method="post">
@@ -61,6 +59,9 @@
     private string? email;
     private bool isEmailConfirmed;
 
+    [CascadingParameter]
+    public required HttpContext HttpContext { get; set; }
+
     [SupplyParameterFromForm]
     private InputModel Input { get; set; } = default!;
 
@@ -68,33 +69,29 @@
     {
         Input ??= new();
 
-        user = await UserAccessor.GetRequiredUserAsync();
+        user = await UserAccessor.GetRequiredUserAsync(HttpContext);
         email = await UserManager.GetEmailAsync(user);
         isEmailConfirmed = await UserManager.IsEmailConfirmedAsync(user);
 
-        Input.NewEmail ??= email;
+        Input.NewEmail ??= email!;
     }
 
     private async Task OnValidSubmitAsync()
     {
-        if (Input.NewEmail != email)
+        if (Input.NewEmail == email)
         {
-            var userId = await UserManager.GetUserIdAsync(user);
-            var code = await UserManager.GenerateChangeEmailTokenAsync(user, Input.NewEmail!);
-            code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
-            var callbackUrl = NavigationManager.GetUriWithQueryParameters(
-                $"{NavigationManager.BaseUri}Account/ConfirmEmailChange",
-                new Dictionary<string, object?> { { "userId", userId }, { "email", Input.NewEmail }, { "code", code } });
-            await EmailSender.SendEmailAsync(
-                Input.NewEmail!,
-                "Confirm your email",
-                $"Please confirm your account by <a href='{HtmlEncoder.Default.Encode(callbackUrl)}'>clicking here</a>.");
-
-            RedirectManager.RedirectToCurrentPageWithStatus("Confirmation link to change email sent. Please check your email.");
-            return;
+            RedirectManager.RedirectToCurrentPageWithStatus("Your email is unchanged.", HttpContext);
         }
 
-        RedirectManager.RedirectToCurrentPageWithStatus("Your email is unchanged.");
+        var userId = await UserManager.GetUserIdAsync(user);
+        var code = await UserManager.GenerateChangeEmailTokenAsync(user, Input.NewEmail);
+        code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
+        var callbackUrl = NavigationManager.GetUriWithQueryParameters(
+            NavigationManager.ToAbsoluteUri("Account/ConfirmEmailChange").AbsoluteUri,
+            new Dictionary<string, object?> { ["userId"] = userId, ["email"] = Input.NewEmail, ["code"] = code });
+        await EmailSender.SendConfirmationLinkAsync(user, Input.NewEmail, HtmlEncoder.Default.Encode(callbackUrl));
+
+        RedirectManager.RedirectToCurrentPageWithStatus("Confirmation link to change email sent. Please check your email.", HttpContext);
     }
 
     private async Task OnSendEmailVerificationAsync()
@@ -103,14 +100,12 @@
         var code = await UserManager.GenerateEmailConfirmationTokenAsync(user);
         code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
         var callbackUrl = NavigationManager.GetUriWithQueryParameters(
-            $"{NavigationManager.BaseUri}Account/ConfirmEmail",
-            new Dictionary<string, object?> { { "userId", userId }, { "code", code } });
-        await EmailSender.SendEmailAsync(
-            email!,
-            "Confirm your email",
-            $"Please confirm your account by <a href='{HtmlEncoder.Default.Encode(callbackUrl)}'>clicking here</a>.");
+            NavigationManager.ToAbsoluteUri("Account/ConfirmEmail").AbsoluteUri,
+            new Dictionary<string, object?> { ["userId"] = userId, ["code"] = code });
 
-        RedirectManager.RedirectToCurrentPageWithStatus("Verification email sent. Please check your email.");
+        await EmailSender.SendConfirmationLinkAsync(user, email!, HtmlEncoder.Default.Encode(callbackUrl));
+
+        RedirectManager.RedirectToCurrentPageWithStatus("Verification email sent. Please check your email.", HttpContext);
     }
 
     private sealed class InputModel
@@ -118,6 +113,6 @@
         [Required]
         [EmailAddress]
         [Display(Name = "New email")]
-        public string? NewEmail { get; set; }
+        public string NewEmail { get; set; } = "";
     }
 }

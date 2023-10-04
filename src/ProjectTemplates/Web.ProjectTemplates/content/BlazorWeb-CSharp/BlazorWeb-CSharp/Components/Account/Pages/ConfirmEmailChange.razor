@@ -4,11 +4,9 @@
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.AspNetCore.WebUtilities
 @using BlazorWeb_CSharp.Data
-@using BlazorWeb_CSharp.Components.Account
 
 @inject UserManager<ApplicationUser> UserManager
 @inject SignInManager<ApplicationUser> SignInManager
-@inject UserAccessor UserAccessor
 @inject IdentityRedirectManager RedirectManager
 
 <PageTitle>Confirm email change</PageTitle>
@@ -19,7 +17,9 @@
 
 @code {
     private string? message;
-    private ApplicationUser user = default!;
+
+    [CascadingParameter]
+    public required HttpContext HttpContext { get; set; }
 
     [SupplyParameterFromQuery]
     private string? UserId { get; set; }
@@ -35,11 +35,15 @@
         if (UserId is null || Email is null || Code is null)
         {
             RedirectManager.RedirectToWithStatus(
-                "/Account/Login", "Error: Invalid email change confirmation link.");
-            return;
+                "Account/Login", "Error: Invalid email change confirmation link.", HttpContext);
         }
 
-        user = await UserAccessor.GetRequiredUserAsync();
+        var user = await UserManager.FindByIdAsync(UserId);
+        if (user is null)
+        {
+            message = "Unable to find user with Id '{userId}'";
+            return;
+        }
 
         var code = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(Code));
         var result = await UserManager.ChangeEmailAsync(user, Email, code);

@@ -1,8 +1,6 @@
 ﻿@using Microsoft.AspNetCore.Authentication
 @using Microsoft.AspNetCore.Identity
-@using BlazorWeb_CSharp.Components.Account.Pages
 @using BlazorWeb_CSharp.Data
-@using BlazorWeb_CSharp.Components.Account
 
 @inject SignInManager<ApplicationUser> SignInManager
 @inject IdentityRedirectManager RedirectManager
@@ -18,7 +16,7 @@
 }
 else
 {
-    <form class="form-horizontal" action="/Account/PerformExternalLogin" method="post">
+    <form class="form-horizontal" action="Account/PerformExternalLogin" method="post">
         <div>
             <AntiforgeryToken />
             <input type="hidden" name="ReturnUrl" value="@ReturnUrl" />
@@ -36,12 +34,10 @@ else
     private IList<AuthenticationScheme>? externalLogins;
 
     [SupplyParameterFromQuery]
-    private string ReturnUrl { get; set; } = default!;
+    private string? ReturnUrl { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
-        ReturnUrl ??= "/";
-
         externalLogins = (await SignInManager.GetExternalAuthenticationSchemesAsync()).ToList();
     }
 }

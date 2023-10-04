@@ -2,10 +2,9 @@
 
 @using Microsoft.AspNetCore.Identity
 @using BlazorWeb_CSharp.Data
-@using BlazorWeb_CSharp.Components.Account
 
 @inject UserManager<ApplicationUser> UserManager
-@inject UserAccessor UserAccessor
+@inject IdentityUserAccessor UserAccessor
 @inject IdentityRedirectManager RedirectManager
 @inject ILogger<GenerateRecoveryCodes> Logger
 
@@ -28,7 +27,7 @@ else
         </p>
         <p>
             Generating new recovery codes does not change the keys used in authenticator apps. If you wish to change the key
-            used in an authenticator app you should <a href="/Account/Manage/ResetAuthenticator">reset your authenticator keys.</a>
+            used in an authenticator app you should <a href="Account/Manage/ResetAuthenticator">reset your authenticator keys.</a>
         </p>
     </div>
     <div>
@@ -40,19 +39,21 @@ else
 }
 
 @code {
-    private ApplicationUser user = default!;
-
-    private IEnumerable<string>? recoveryCodes;
     private string? message;
+    private ApplicationUser user = default!;
+    private IEnumerable<string>? recoveryCodes;
+
+    [CascadingParameter]
+    public required HttpContext HttpContext { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
-        user = await UserAccessor.GetRequiredUserAsync();
+        user = await UserAccessor.GetRequiredUserAsync(HttpContext);
 
         var isTwoFactorEnabled = await UserManager.GetTwoFactorEnabledAsync(user);
         if (!isTwoFactorEnabled)
         {
-            throw new InvalidOperationException($"Cannot generate recovery codes for user because they do not have 2FA enabled.");
+            throw new InvalidOperationException("Cannot generate recovery codes for user because they do not have 2FA enabled.");
         }
     }
 

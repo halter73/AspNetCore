@@ -9,6 +9,8 @@ using BlazorWeb_CSharp.Client;
 
 namespace BlazorWeb_CSharp.Components.Account;
 
+// This is a server-side AuthenticationStateProvider that uses PersistentComponentState to flow the
+// authentication state to the client which is then fixed for the lifetime of the WebAssembly application.
 internal sealed class PersistingServerAuthenticationStateProvider : ServerAuthenticationStateProvider, IDisposable
 {
     private readonly PersistentComponentState state;

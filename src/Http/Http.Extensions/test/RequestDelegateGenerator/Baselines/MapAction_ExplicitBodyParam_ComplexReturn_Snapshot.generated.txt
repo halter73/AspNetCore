@@ -58,7 +58,7 @@ namespace Microsoft.AspNetCore.Http.Generated
         private static readonly JsonOptions FallbackJsonOptions = new();
         private static readonly string[] PostVerb = new[] { global::Microsoft.AspNetCore.Http.HttpMethods.Post };
 
-        [InterceptsLocation(@"TestMapActions.cs", 26, 13)]
+                [InterceptsLocation(@"TestMapActions.cs", 26, 13)]
         internal static RouteHandlerBuilder MapPost0(
             this IEndpointRouteBuilder endpoints,
             [StringSyntax("Route")] string pattern,
@@ -106,7 +106,7 @@ namespace Microsoft.AspNetCore.Http.Generated
                 async Task RequestHandler(HttpContext httpContext)
                 {
                     var wasParamCheckFailure = false;
-                    // Endpoint Parameter: todo (Type = Microsoft.AspNetCore.Http.Generators.Tests.Todo, IsOptional = False, IsParsable = False, IsArray = False, Source = JsonBody)
+                                        // Endpoint Parameter: todo (Type = Microsoft.AspNetCore.Http.Generators.Tests.Todo, IsOptional = False, IsParsable = False, IsArray = False, Source = JsonBody)
                     var todo_resolveBodyResult = await GeneratedRouteBuilderExtensionsCore.TryResolveBodyAsync<global::Microsoft.AspNetCore.Http.Generators.Tests.Todo>(httpContext, logOrThrowExceptionHelper, false, "Todo", "todo", todo_JsonTypeInfo);
                     var todo_local = todo_resolveBodyResult.Item2;
                     if (!todo_resolveBodyResult.Item1)
@@ -130,7 +130,7 @@ namespace Microsoft.AspNetCore.Http.Generated
                 async Task RequestHandlerFiltered(HttpContext httpContext)
                 {
                     var wasParamCheckFailure = false;
-                    // Endpoint Parameter: todo (Type = Microsoft.AspNetCore.Http.Generators.Tests.Todo, IsOptional = False, IsParsable = False, IsArray = False, Source = JsonBody)
+                                        // Endpoint Parameter: todo (Type = Microsoft.AspNetCore.Http.Generators.Tests.Todo, IsOptional = False, IsParsable = False, IsArray = False, Source = JsonBody)
                     var todo_resolveBodyResult = await GeneratedRouteBuilderExtensionsCore.TryResolveBodyAsync<global::Microsoft.AspNetCore.Http.Generators.Tests.Todo>(httpContext, logOrThrowExceptionHelper, false, "Todo", "todo", todo_JsonTypeInfo);
                     var todo_local = todo_resolveBodyResult.Item2;
                     if (!todo_resolveBodyResult.Item1)
@@ -162,7 +162,7 @@ namespace Microsoft.AspNetCore.Http.Generated
                 createRequestDelegate);
         }
 
-        [InterceptsLocation(@"TestMapActions.cs", 27, 5)]
+                [InterceptsLocation(@"TestMapActions.cs", 27, 5)]
         internal static RouteHandlerBuilder MapPost1(
             this IEndpointRouteBuilder endpoints,
             [StringSyntax("Route")] string pattern,
@@ -210,7 +210,7 @@ namespace Microsoft.AspNetCore.Http.Generated
                 async Task RequestHandler(HttpContext httpContext)
                 {
                     var wasParamCheckFailure = false;
-                    // Endpoint Parameter: todo (Type = Microsoft.AspNetCore.Http.Generators.Tests.Todo?, IsOptional = True, IsParsable = False, IsArray = False, Source = JsonBody)
+                                        // Endpoint Parameter: todo (Type = Microsoft.AspNetCore.Http.Generators.Tests.Todo?, IsOptional = True, IsParsable = False, IsArray = False, Source = JsonBody)
                     var todo_resolveBodyResult = await GeneratedRouteBuilderExtensionsCore.TryResolveBodyAsync<global::Microsoft.AspNetCore.Http.Generators.Tests.Todo?>(httpContext, logOrThrowExceptionHelper, true, "Todo?", "todo", todo_JsonTypeInfo);
                     var todo_local = todo_resolveBodyResult.Item2;
                     if (!todo_resolveBodyResult.Item1)
@@ -234,7 +234,7 @@ namespace Microsoft.AspNetCore.Http.Generated
                 async Task RequestHandlerFiltered(HttpContext httpContext)
                 {
                     var wasParamCheckFailure = false;
-                    // Endpoint Parameter: todo (Type = Microsoft.AspNetCore.Http.Generators.Tests.Todo?, IsOptional = True, IsParsable = False, IsArray = False, Source = JsonBody)
+                                        // Endpoint Parameter: todo (Type = Microsoft.AspNetCore.Http.Generators.Tests.Todo?, IsOptional = True, IsParsable = False, IsArray = False, Source = JsonBody)
                     var todo_resolveBodyResult = await GeneratedRouteBuilderExtensionsCore.TryResolveBodyAsync<global::Microsoft.AspNetCore.Http.Generators.Tests.Todo?>(httpContext, logOrThrowExceptionHelper, true, "Todo?", "todo", todo_JsonTypeInfo);
                     var todo_local = todo_resolveBodyResult.Item2;
                     if (!todo_resolveBodyResult.Item1)

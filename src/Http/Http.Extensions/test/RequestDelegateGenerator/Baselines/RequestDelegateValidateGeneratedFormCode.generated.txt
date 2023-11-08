@@ -58,7 +58,7 @@ namespace Microsoft.AspNetCore.Http.Generated
         private static readonly JsonOptions FallbackJsonOptions = new();
         private static readonly string[] PostVerb = new[] { global::Microsoft.AspNetCore.Http.HttpMethods.Post };
 
-        [InterceptsLocation(@"TestMapActions.cs", 30, 5)]
+                [InterceptsLocation(@"TestMapActions.cs", 30, 5)]
         internal static RouteHandlerBuilder MapPost0(
             this IEndpointRouteBuilder endpoints,
             [StringSyntax("Route")] string pattern,
@@ -106,7 +106,7 @@ namespace Microsoft.AspNetCore.Http.Generated
                 async Task RequestHandler(HttpContext httpContext)
                 {
                     var wasParamCheckFailure = false;
-                    var httpContext_local = httpContext;
+                                        var httpContext_local = httpContext;
                     // Endpoint Parameter: file (Type = Microsoft.AspNetCore.Http.IFormFile, IsOptional = False, IsParsable = False, IsArray = False, Source = FormBody)
                     var file_resolveFormResult = await GeneratedRouteBuilderExtensionsCore.TryResolveFormAsync(httpContext, logOrThrowExceptionHelper, "IFormFile", "file");
                     if (!file_resolveFormResult.Item1)
@@ -168,7 +168,7 @@ namespace Microsoft.AspNetCore.Http.Generated
                 async Task RequestHandlerFiltered(HttpContext httpContext)
                 {
                     var wasParamCheckFailure = false;
-                    var httpContext_local = httpContext;
+                                        var httpContext_local = httpContext;
                     // Endpoint Parameter: file (Type = Microsoft.AspNetCore.Http.IFormFile, IsOptional = False, IsParsable = False, IsArray = False, Source = FormBody)
                     var file_resolveFormResult = await GeneratedRouteBuilderExtensionsCore.TryResolveFormAsync(httpContext, logOrThrowExceptionHelper, "IFormFile", "file");
                     if (!file_resolveFormResult.Item1)

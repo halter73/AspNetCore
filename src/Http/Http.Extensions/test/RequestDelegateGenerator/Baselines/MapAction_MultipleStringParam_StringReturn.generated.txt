@@ -58,7 +58,7 @@ namespace Microsoft.AspNetCore.Http.Generated
         private static readonly JsonOptions FallbackJsonOptions = new();
         private static readonly string[] GetVerb = new[] { global::Microsoft.AspNetCore.Http.HttpMethods.Get };
 
-        [InterceptsLocation(@"TestMapActions.cs", 26, 13)]
+                [InterceptsLocation(@"TestMapActions.cs", 26, 13)]
         internal static RouteHandlerBuilder MapGet0(
             this IEndpointRouteBuilder endpoints,
             [StringSyntax("Route")] string pattern,
@@ -104,7 +104,7 @@ namespace Microsoft.AspNetCore.Http.Generated
                 Task RequestHandler(HttpContext httpContext)
                 {
                     var wasParamCheckFailure = false;
-                    // Endpoint Parameter: p1 (Type = string, IsOptional = False, IsParsable = False, IsArray = False, Source = Query)
+                                        // Endpoint Parameter: p1 (Type = string, IsOptional = False, IsParsable = False, IsArray = False, Source = Query)
                     var p1_raw = httpContext.Request.Query["p1"];
                     if (StringValues.IsNullOrEmpty(p1_raw))
                     {
@@ -143,7 +143,7 @@ namespace Microsoft.AspNetCore.Http.Generated
                 async Task RequestHandlerFiltered(HttpContext httpContext)
                 {
                     var wasParamCheckFailure = false;
-                    // Endpoint Parameter: p1 (Type = string, IsOptional = False, IsParsable = False, IsArray = False, Source = Query)
+                                        // Endpoint Parameter: p1 (Type = string, IsOptional = False, IsParsable = False, IsArray = False, Source = Query)
                     var p1_raw = httpContext.Request.Query["p1"];
                     if (StringValues.IsNullOrEmpty(p1_raw))
                     {

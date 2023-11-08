@@ -58,7 +58,7 @@ namespace Microsoft.AspNetCore.Http.Generated
         private static readonly JsonOptions FallbackJsonOptions = new();
         private static readonly string[] PostVerb = new[] { global::Microsoft.AspNetCore.Http.HttpMethods.Post };
 
-        [InterceptsLocation(@"TestMapActions.cs", 26, 13)]
+                [InterceptsLocation(@"TestMapActions.cs", 26, 13)]
         internal static RouteHandlerBuilder MapPost0(
             this IEndpointRouteBuilder endpoints,
             [StringSyntax("Route")] string pattern,
@@ -72,7 +72,9 @@ namespace Microsoft.AspNetCore.Http.Generated
                 var serviceProvider = options.ServiceProvider ?? options.EndpointBuilder.ApplicationServices;
                 var serviceProviderIsService = serviceProvider.GetRequiredService<IServiceProviderIsService>();
                 var jsonBodyOrServiceTypeTuples = new (bool, Type)[] {
+                    #nullable disable
                     (false, typeof(global::Microsoft.AspNetCore.Http.Generators.Tests.CustomMetadataEmitter)),
+                    #nullable restore
                 };
                 foreach (var (isOptional, type) in jsonBodyOrServiceTypeTuples)
                 {
@@ -123,7 +125,7 @@ namespace Microsoft.AspNetCore.Http.Generated
                 async Task RequestHandler(HttpContext httpContext)
                 {
                     var wasParamCheckFailure = false;
-                    // Endpoint Parameter: x (Type = Microsoft.AspNetCore.Http.Generators.Tests.CustomMetadataEmitter, IsOptional = False, IsParsable = False, IsArray = False, Source = JsonBodyOrService)
+                                        // Endpoint Parameter: x (Type = Microsoft.AspNetCore.Http.Generators.Tests.CustomMetadataEmitter, IsOptional = False, IsParsable = False, IsArray = False, Source = JsonBodyOrService)
                     var x_resolveJsonBodyOrServiceResult = await x_JsonBodyOrServiceResolver(httpContext, false);
                     if (!x_resolveJsonBodyOrServiceResult.Item1)
                     {
@@ -142,7 +144,7 @@ namespace Microsoft.AspNetCore.Http.Generated
                 async Task RequestHandlerFiltered(HttpContext httpContext)
                 {
                     var wasParamCheckFailure = false;
-                    // Endpoint Parameter: x (Type = Microsoft.AspNetCore.Http.Generators.Tests.CustomMetadataEmitter, IsOptional = False, IsParsable = False, IsArray = False, Source = JsonBodyOrService)
+                                        // Endpoint Parameter: x (Type = Microsoft.AspNetCore.Http.Generators.Tests.CustomMetadataEmitter, IsOptional = False, IsParsable = False, IsArray = False, Source = JsonBodyOrService)
                     var x_resolveJsonBodyOrServiceResult = await x_JsonBodyOrServiceResolver(httpContext, false);
                     if (!x_resolveJsonBodyOrServiceResult.Item1)
                     {

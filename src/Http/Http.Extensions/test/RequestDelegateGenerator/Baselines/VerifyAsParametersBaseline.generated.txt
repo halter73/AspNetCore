@@ -61,7 +61,7 @@ namespace Microsoft.AspNetCore.Http.Generated
         private static readonly string[] PostVerb = new[] { global::Microsoft.AspNetCore.Http.HttpMethods.Post };
         private static readonly string[] PutVerb = new[] { global::Microsoft.AspNetCore.Http.HttpMethods.Put };
 
-        [InterceptsLocation(@"TestMapActions.cs", 45, 5)]
+                [InterceptsLocation(@"TestMapActions.cs", 45, 5)]
         internal static RouteHandlerBuilder MapGet0(
             this IEndpointRouteBuilder endpoints,
             [StringSyntax("Route")] string pattern,
@@ -107,8 +107,8 @@ namespace Microsoft.AspNetCore.Http.Generated
                 Task RequestHandler(HttpContext httpContext)
                 {
                     var wasParamCheckFailure = false;
-                    // Endpoint Parameter: args (Type = Microsoft.AspNetCore.Http.Generators.Tests.ParameterListWitDefaultValue, IsOptional = False, IsParsable = False, IsArray = False, Source = AsParameters)
-                    var HttpContext_local = httpContext;
+                                        // Endpoint Parameter: args (Type = Microsoft.AspNetCore.Http.Generators.Tests.ParameterListWitDefaultValue, IsOptional = False, IsParsable = False, IsArray = False, Source = AsParameters)
+                                        var HttpContext_local = httpContext;
                     // Endpoint Parameter: Value (Type = int, IsOptional = True, IsParsable = True, IsArray = False, Source = Route)
                     if (options?.RouteParameterNames?.Contains("Value", StringComparer.OrdinalIgnoreCase) != true)
                     {
@@ -145,8 +145,8 @@ namespace Microsoft.AspNetCore.Http.Generated
                 async Task RequestHandlerFiltered(HttpContext httpContext)
                 {
                     var wasParamCheckFailure = false;
-                    // Endpoint Parameter: args (Type = Microsoft.AspNetCore.Http.Generators.Tests.ParameterListWitDefaultValue, IsOptional = False, IsParsable = False, IsArray = False, Source = AsParameters)
-                    var HttpContext_local = httpContext;
+                                        // Endpoint Parameter: args (Type = Microsoft.AspNetCore.Http.Generators.Tests.ParameterListWitDefaultValue, IsOptional = False, IsParsable = False, IsArray = False, Source = AsParameters)
+                                        var HttpContext_local = httpContext;
                     // Endpoint Parameter: Value (Type = int, IsOptional = True, IsParsable = True, IsArray = False, Source = Route)
                     if (options?.RouteParameterNames?.Contains("Value", StringComparer.OrdinalIgnoreCase) != true)
                     {
@@ -195,7 +195,7 @@ namespace Microsoft.AspNetCore.Http.Generated
                 createRequestDelegate);
         }
 
-        [InterceptsLocation(@"TestMapActions.cs", 46, 5)]
+                [InterceptsLocation(@"TestMapActions.cs", 46, 5)]
         internal static RouteHandlerBuilder MapPost1(
             this IEndpointRouteBuilder endpoints,
             [StringSyntax("Route")] string pattern,
@@ -242,8 +242,8 @@ namespace Microsoft.AspNetCore.Http.Generated
                 Task RequestHandler(HttpContext httpContext)
                 {
                     var wasParamCheckFailure = false;
-                    // Endpoint Parameter: args (Type = Microsoft.AspNetCore.Http.Generators.Tests.ParameterListRecordStruct, IsOptional = False, IsParsable = False, IsArray = False, Source = AsParameters)
-                    var HttpContext_local = httpContext;
+                                        // Endpoint Parameter: args (Type = Microsoft.AspNetCore.Http.Generators.Tests.ParameterListRecordStruct, IsOptional = False, IsParsable = False, IsArray = False, Source = AsParameters)
+                                        var HttpContext_local = httpContext;
                     // Endpoint Parameter: Value (Type = int, IsOptional = False, IsParsable = True, IsArray = False, Source = RouteOrQuery)
                     var Value_raw = Value_RouteOrQueryResolver(httpContext);
                     if (Value_raw is StringValues { Count: 0 })
@@ -276,8 +276,8 @@ namespace Microsoft.AspNetCore.Http.Generated
                 async Task RequestHandlerFiltered(HttpContext httpContext)
                 {
                     var wasParamCheckFailure = false;
-                    // Endpoint Parameter: args (Type = Microsoft.AspNetCore.Http.Generators.Tests.ParameterListRecordStruct, IsOptional = False, IsParsable = False, IsArray = False, Source = AsParameters)
-                    var HttpContext_local = httpContext;
+                                        // Endpoint Parameter: args (Type = Microsoft.AspNetCore.Http.Generators.Tests.ParameterListRecordStruct, IsOptional = False, IsParsable = False, IsArray = False, Source = AsParameters)
+                                        var HttpContext_local = httpContext;
                     // Endpoint Parameter: Value (Type = int, IsOptional = False, IsParsable = True, IsArray = False, Source = RouteOrQuery)
                     var Value_raw = Value_RouteOrQueryResolver(httpContext);
                     if (Value_raw is StringValues { Count: 0 })
@@ -322,7 +322,7 @@ namespace Microsoft.AspNetCore.Http.Generated
                 createRequestDelegate);
         }
 
-        [InterceptsLocation(@"TestMapActions.cs", 47, 5)]
+                [InterceptsLocation(@"TestMapActions.cs", 47, 5)]
         internal static RouteHandlerBuilder MapPut2(
             this IEndpointRouteBuilder endpoints,
             [StringSyntax("Route")] string pattern,
@@ -368,8 +368,8 @@ namespace Microsoft.AspNetCore.Http.Generated
                 Task RequestHandler(HttpContext httpContext)
                 {
                     var wasParamCheckFailure = false;
-                    // Endpoint Parameter: args (Type = Microsoft.AspNetCore.Http.Generators.Tests.ParametersListWithHttpContext, IsOptional = False, IsParsable = False, IsArray = False, Source = AsParameters)
-                    var HttpContext_local = httpContext;
+                                        // Endpoint Parameter: args (Type = Microsoft.AspNetCore.Http.Generators.Tests.ParametersListWithHttpContext, IsOptional = False, IsParsable = False, IsArray = False, Source = AsParameters)
+                                        var HttpContext_local = httpContext;
                     var User_local = httpContext.User;
                     var Request_local = httpContext.Request;
                     var Response_local = httpContext.Response;
@@ -388,8 +388,8 @@ namespace Microsoft.AspNetCore.Http.Generated
                 async Task RequestHandlerFiltered(HttpContext httpContext)
                 {
                     var wasParamCheckFailure = false;
-                    // Endpoint Parameter: args (Type = Microsoft.AspNetCore.Http.Generators.Tests.ParametersListWithHttpContext, IsOptional = False, IsParsable = False, IsArray = False, Source = AsParameters)
-                    var HttpContext_local = httpContext;
+                                        // Endpoint Parameter: args (Type = Microsoft.AspNetCore.Http.Generators.Tests.ParametersListWithHttpContext, IsOptional = False, IsParsable = False, IsArray = False, Source = AsParameters)
+                                        var HttpContext_local = httpContext;
                     var User_local = httpContext.User;
                     var Request_local = httpContext.Request;
                     var Response_local = httpContext.Response;
@@ -420,7 +420,7 @@ namespace Microsoft.AspNetCore.Http.Generated
                 createRequestDelegate);
         }
 
-        [InterceptsLocation(@"TestMapActions.cs", 48, 5)]
+                [InterceptsLocation(@"TestMapActions.cs", 48, 5)]
         internal static RouteHandlerBuilder MapPatch3(
             this IEndpointRouteBuilder endpoints,
             [StringSyntax("Route")] string pattern,
@@ -469,8 +469,8 @@ namespace Microsoft.AspNetCore.Http.Generated
                 async Task RequestHandler(HttpContext httpContext)
                 {
                     var wasParamCheckFailure = false;
-                    // Endpoint Parameter: args (Type = Microsoft.AspNetCore.Http.Generators.Tests.ParametersListWithImplicitFromBody, IsOptional = False, IsParsable = False, IsArray = False, Source = AsParameters)
-                    var HttpContext_local = httpContext;
+                                        // Endpoint Parameter: args (Type = Microsoft.AspNetCore.Http.Generators.Tests.ParametersListWithImplicitFromBody, IsOptional = False, IsParsable = False, IsArray = False, Source = AsParameters)
+                                        var HttpContext_local = httpContext;
                     // Endpoint Parameter: Todo (Type = Microsoft.AspNetCore.Http.Generators.Tests.TodoStruct, IsOptional = False, IsParsable = False, IsArray = False, Source = JsonBodyOrService)
                     var Todo_resolveJsonBodyOrServiceResult = await Todo_JsonBodyOrServiceResolver(httpContext, false);
                     if (!Todo_resolveJsonBodyOrServiceResult.Item1)
@@ -501,8 +501,8 @@ namespace Microsoft.AspNetCore.Http.Generated
                 async Task RequestHandlerFiltered(HttpContext httpContext)
                 {
                     var wasParamCheckFailure = false;
-                    // Endpoint Parameter: args (Type = Microsoft.AspNetCore.Http.Generators.Tests.ParametersListWithImplicitFromBody, IsOptional = False, IsParsable = False, IsArray = False, Source = AsParameters)
-                    var HttpContext_local = httpContext;
+                                        // Endpoint Parameter: args (Type = Microsoft.AspNetCore.Http.Generators.Tests.ParametersListWithImplicitFromBody, IsOptional = False, IsParsable = False, IsArray = False, Source = AsParameters)
+                                        var HttpContext_local = httpContext;
                     // Endpoint Parameter: Todo (Type = Microsoft.AspNetCore.Http.Generators.Tests.TodoStruct, IsOptional = False, IsParsable = False, IsArray = False, Source = JsonBodyOrService)
                     var Todo_resolveJsonBodyOrServiceResult = await Todo_JsonBodyOrServiceResolver(httpContext, false);
                     if (!Todo_resolveJsonBodyOrServiceResult.Item1)
@@ -537,7 +537,7 @@ namespace Microsoft.AspNetCore.Http.Generated
                 createRequestDelegate);
         }
 
-        [InterceptsLocation(@"TestMapActions.cs", 49, 5)]
+                [InterceptsLocation(@"TestMapActions.cs", 49, 5)]
         internal static RouteHandlerBuilder MapGet4(
             this IEndpointRouteBuilder endpoints,
             [StringSyntax("Route")] string pattern,
@@ -590,8 +590,8 @@ namespace Microsoft.AspNetCore.Http.Generated
                 async Task RequestHandler(HttpContext httpContext)
                 {
                     var wasParamCheckFailure = false;
-                    // Endpoint Parameter: args (Type = Microsoft.AspNetCore.Http.Generators.Tests.ParametersListWithMetadataType, IsOptional = False, IsParsable = False, IsArray = False, Source = AsParameters)
-                    var HttpContext_local = httpContext;
+                                        // Endpoint Parameter: args (Type = Microsoft.AspNetCore.Http.Generators.Tests.ParametersListWithMetadataType, IsOptional = False, IsParsable = False, IsArray = False, Source = AsParameters)
+                                        var HttpContext_local = httpContext;
                     // Endpoint Parameter: Value (Type = Microsoft.AspNetCore.Http.Generators.Tests.AddsCustomParameterMetadataAsProperty, IsOptional = False, IsParsable = False, IsArray = False, Source = JsonBodyOrService)
                     var Value_resolveJsonBodyOrServiceResult = await Value_JsonBodyOrServiceResolver(httpContext, false);
                     if (!Value_resolveJsonBodyOrServiceResult.Item1)
@@ -613,8 +613,8 @@ namespace Microsoft.AspNetCore.Http.Generated
                 async Task RequestHandlerFiltered(HttpContext httpContext)
                 {
                     var wasParamCheckFailure = false;
-                    // Endpoint Parameter: args (Type = Microsoft.AspNetCore.Http.Generators.Tests.ParametersListWithMetadataType, IsOptional = False, IsParsable = False, IsArray = False, Source = AsParameters)
-                    var HttpContext_local = httpContext;
+                                        // Endpoint Parameter: args (Type = Microsoft.AspNetCore.Http.Generators.Tests.ParametersListWithMetadataType, IsOptional = False, IsParsable = False, IsArray = False, Source = AsParameters)
+                                        var HttpContext_local = httpContext;
                     // Endpoint Parameter: Value (Type = Microsoft.AspNetCore.Http.Generators.Tests.AddsCustomParameterMetadataAsProperty, IsOptional = False, IsParsable = False, IsArray = False, Source = JsonBodyOrService)
                     var Value_resolveJsonBodyOrServiceResult = await Value_JsonBodyOrServiceResolver(httpContext, false);
                     if (!Value_resolveJsonBodyOrServiceResult.Item1)
@@ -649,7 +649,7 @@ namespace Microsoft.AspNetCore.Http.Generated
                 createRequestDelegate);
         }
 
-        [InterceptsLocation(@"TestMapActions.cs", 50, 5)]
+                [InterceptsLocation(@"TestMapActions.cs", 50, 5)]
         internal static RouteHandlerBuilder MapPost5(
             this IEndpointRouteBuilder endpoints,
             [StringSyntax("Route")] string pattern,
@@ -699,8 +699,8 @@ namespace Microsoft.AspNetCore.Http.Generated
                 async Task RequestHandler(HttpContext httpContext)
                 {
                     var wasParamCheckFailure = false;
-                    // Endpoint Parameter: args (Type = Microsoft.AspNetCore.Http.Generators.Tests.ParameterRecordStructWithJsonBodyOrService, IsOptional = False, IsParsable = False, IsArray = False, Source = AsParameters)
-                    // Endpoint Parameter: Todo (Type = Microsoft.AspNetCore.Http.Generators.Tests.TodoStruct, IsOptional = False, IsParsable = False, IsArray = False, Source = JsonBodyOrService)
+                                        // Endpoint Parameter: args (Type = Microsoft.AspNetCore.Http.Generators.Tests.ParameterRecordStructWithJsonBodyOrService, IsOptional = False, IsParsable = False, IsArray = False, Source = AsParameters)
+                                        // Endpoint Parameter: Todo (Type = Microsoft.AspNetCore.Http.Generators.Tests.TodoStruct, IsOptional = False, IsParsable = False, IsArray = False, Source = JsonBodyOrService)
                     var Todo_resolveJsonBodyOrServiceResult = await Todo_JsonBodyOrServiceResolver(httpContext, false);
                     if (!Todo_resolveJsonBodyOrServiceResult.Item1)
                     {
@@ -737,8 +737,8 @@ namespace Microsoft.AspNetCore.Http.Generated
                 async Task RequestHandlerFiltered(HttpContext httpContext)
                 {
                     var wasParamCheckFailure = false;
-                    // Endpoint Parameter: args (Type = Microsoft.AspNetCore.Http.Generators.Tests.ParameterRecordStructWithJsonBodyOrService, IsOptional = False, IsParsable = False, IsArray = False, Source = AsParameters)
-                    // Endpoint Parameter: Todo (Type = Microsoft.AspNetCore.Http.Generators.Tests.TodoStruct, IsOptional = False, IsParsable = False, IsArray = False, Source = JsonBodyOrService)
+                                        // Endpoint Parameter: args (Type = Microsoft.AspNetCore.Http.Generators.Tests.ParameterRecordStructWithJsonBodyOrService, IsOptional = False, IsParsable = False, IsArray = False, Source = AsParameters)
+                                        // Endpoint Parameter: Todo (Type = Microsoft.AspNetCore.Http.Generators.Tests.TodoStruct, IsOptional = False, IsParsable = False, IsArray = False, Source = JsonBodyOrService)
                     var Todo_resolveJsonBodyOrServiceResult = await Todo_JsonBodyOrServiceResolver(httpContext, false);
                     if (!Todo_resolveJsonBodyOrServiceResult.Item1)
                     {

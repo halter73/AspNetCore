@@ -58,7 +58,7 @@ namespace Microsoft.AspNetCore.Http.Generated
         private static readonly JsonOptions FallbackJsonOptions = new();
         private static readonly string[] GetVerb = new[] { global::Microsoft.AspNetCore.Http.HttpMethods.Get };
 
-        [InterceptsLocation(@"TestMapActions.cs", 26, 13)]
+                [InterceptsLocation(@"TestMapActions.cs", 26, 13)]
         internal static RouteHandlerBuilder MapGet0(
             this IEndpointRouteBuilder endpoints,
             [StringSyntax("Route")] string pattern,
@@ -104,7 +104,7 @@ namespace Microsoft.AspNetCore.Http.Generated
                 Task RequestHandler(HttpContext httpContext)
                 {
                     var wasParamCheckFailure = false;
-                    // Endpoint Parameter: queryValue (Type = string, IsOptional = False, IsParsable = False, IsArray = False, Source = Query)
+                                        // Endpoint Parameter: queryValue (Type = string, IsOptional = False, IsParsable = False, IsArray = False, Source = Query)
                     var queryValue_raw = httpContext.Request.Query["queryValue"];
                     if (StringValues.IsNullOrEmpty(queryValue_raw))
                     {
@@ -134,7 +134,7 @@ namespace Microsoft.AspNetCore.Http.Generated
                 async Task RequestHandlerFiltered(HttpContext httpContext)
                 {
                     var wasParamCheckFailure = false;
-                    // Endpoint Parameter: queryValue (Type = string, IsOptional = False, IsParsable = False, IsArray = False, Source = Query)
+                                        // Endpoint Parameter: queryValue (Type = string, IsOptional = False, IsParsable = False, IsArray = False, Source = Query)
                     var queryValue_raw = httpContext.Request.Query["queryValue"];
                     if (StringValues.IsNullOrEmpty(queryValue_raw))
                     {
@@ -168,7 +168,7 @@ namespace Microsoft.AspNetCore.Http.Generated
                 createRequestDelegate);
         }
 
-        [InterceptsLocation(@"TestMapActions.cs", 27, 5)]
+                [InterceptsLocation(@"TestMapActions.cs", 27, 5)]
         internal static RouteHandlerBuilder MapGet1(
             this IEndpointRouteBuilder endpoints,
             [StringSyntax("Route")] string pattern,
@@ -214,7 +214,7 @@ namespace Microsoft.AspNetCore.Http.Generated
                 Task RequestHandler(HttpContext httpContext)
                 {
                     var wasParamCheckFailure = false;
-                    // Endpoint Parameter: headerValue (Type = string, IsOptional = False, IsParsable = False, IsArray = False, Source = Header)
+                                        // Endpoint Parameter: headerValue (Type = string, IsOptional = False, IsParsable = False, IsArray = False, Source = Header)
                     var headerValue_raw = httpContext.Request.Headers["headerValue"];
                     if (StringValues.IsNullOrEmpty(headerValue_raw))
                     {
@@ -244,7 +244,7 @@ namespace Microsoft.AspNetCore.Http.Generated
                 async Task RequestHandlerFiltered(HttpContext httpContext)
                 {
                     var wasParamCheckFailure = false;
-                    // Endpoint Parameter: headerValue (Type = string, IsOptional = False, IsParsable = False, IsArray = False, Source = Header)
+                                        // Endpoint Parameter: headerValue (Type = string, IsOptional = False, IsParsable = False, IsArray = False, Source = Header)
                     var headerValue_raw = httpContext.Request.Headers["headerValue"];
                     if (StringValues.IsNullOrEmpty(headerValue_raw))
                     {
@@ -278,7 +278,7 @@ namespace Microsoft.AspNetCore.Http.Generated
                 createRequestDelegate);
         }
 
-        [InterceptsLocation(@"TestMapActions.cs", 28, 5)]
+                [InterceptsLocation(@"TestMapActions.cs", 28, 5)]
         internal static RouteHandlerBuilder MapGet2(
             this IEndpointRouteBuilder endpoints,
             [StringSyntax("Route")] string pattern,
@@ -324,7 +324,7 @@ namespace Microsoft.AspNetCore.Http.Generated
                 Task RequestHandler(HttpContext httpContext)
                 {
                     var wasParamCheckFailure = false;
-                    // Endpoint Parameter: routeValue (Type = string, IsOptional = False, IsParsable = False, IsArray = False, Source = Route)
+                                        // Endpoint Parameter: routeValue (Type = string, IsOptional = False, IsParsable = False, IsArray = False, Source = Route)
                     if (options?.RouteParameterNames?.Contains("routeValue", StringComparer.OrdinalIgnoreCase) != true)
                     {
                         throw new InvalidOperationException($"'routeValue' is not a route parameter.");
@@ -358,7 +358,7 @@ namespace Microsoft.AspNetCore.Http.Generated
                 async Task RequestHandlerFiltered(HttpContext httpContext)
                 {
                     var wasParamCheckFailure = false;
-                    // Endpoint Parameter: routeValue (Type = string, IsOptional = False, IsParsable = False, IsArray = False, Source = Route)
+                                        // Endpoint Parameter: routeValue (Type = string, IsOptional = False, IsParsable = False, IsArray = False, Source = Route)
                     if (options?.RouteParameterNames?.Contains("routeValue", StringComparer.OrdinalIgnoreCase) != true)
                     {
                         throw new InvalidOperationException($"'routeValue' is not a route parameter.");
@@ -396,7 +396,7 @@ namespace Microsoft.AspNetCore.Http.Generated
                 createRequestDelegate);
         }
 
-        [InterceptsLocation(@"TestMapActions.cs", 29, 5)]
+                [InterceptsLocation(@"TestMapActions.cs", 29, 5)]
         [InterceptsLocation(@"TestMapActions.cs", 30, 5)]
         internal static RouteHandlerBuilder MapGet3(
             this IEndpointRouteBuilder endpoints,
@@ -444,7 +444,7 @@ namespace Microsoft.AspNetCore.Http.Generated
                 Task RequestHandler(HttpContext httpContext)
                 {
                     var wasParamCheckFailure = false;
-                    // Endpoint Parameter: value (Type = string, IsOptional = False, IsParsable = False, IsArray = False, Source = RouteOrQuery)
+                                        // Endpoint Parameter: value (Type = string, IsOptional = False, IsParsable = False, IsArray = False, Source = RouteOrQuery)
                     var value_raw = value_RouteOrQueryResolver(httpContext);
                     if (value_raw is StringValues { Count: 0 })
                     {
@@ -474,7 +474,7 @@ namespace Microsoft.AspNetCore.Http.Generated
                 async Task RequestHandlerFiltered(HttpContext httpContext)
                 {
                     var wasParamCheckFailure = false;
-                    // Endpoint Parameter: value (Type = string, IsOptional = False, IsParsable = False, IsArray = False, Source = RouteOrQuery)
+                                        // Endpoint Parameter: value (Type = string, IsOptional = False, IsParsable = False, IsArray = False, Source = RouteOrQuery)
                     var value_raw = value_RouteOrQueryResolver(httpContext);
                     if (value_raw is StringValues { Count: 0 })
                     {

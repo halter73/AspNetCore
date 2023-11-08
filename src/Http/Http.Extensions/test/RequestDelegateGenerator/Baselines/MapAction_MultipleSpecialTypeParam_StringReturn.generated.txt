@@ -58,7 +58,7 @@ namespace Microsoft.AspNetCore.Http.Generated
         private static readonly JsonOptions FallbackJsonOptions = new();
         private static readonly string[] GetVerb = new[] { global::Microsoft.AspNetCore.Http.HttpMethods.Get };
 
-        [InterceptsLocation(@"TestMapActions.cs", 26, 13)]
+                [InterceptsLocation(@"TestMapActions.cs", 26, 13)]
         internal static RouteHandlerBuilder MapGet0(
             this IEndpointRouteBuilder endpoints,
             [StringSyntax("Route")] string pattern,
@@ -103,7 +103,7 @@ namespace Microsoft.AspNetCore.Http.Generated
                 Task RequestHandler(HttpContext httpContext)
                 {
                     var wasParamCheckFailure = false;
-                    var req_local = httpContext.Request;
+                                        var req_local = httpContext.Request;
                     var res_local = httpContext.Response;
 
                     if (wasParamCheckFailure)
@@ -126,7 +126,7 @@ namespace Microsoft.AspNetCore.Http.Generated
                 async Task RequestHandlerFiltered(HttpContext httpContext)
                 {
                     var wasParamCheckFailure = false;
-                    var req_local = httpContext.Request;
+                                        var req_local = httpContext.Request;
                     var res_local = httpContext.Response;
 
                     if (wasParamCheckFailure)

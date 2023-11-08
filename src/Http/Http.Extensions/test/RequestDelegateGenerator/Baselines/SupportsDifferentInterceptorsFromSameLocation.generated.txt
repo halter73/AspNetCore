@@ -58,7 +58,7 @@ namespace Microsoft.AspNetCore.Http.Generated
         private static readonly JsonOptions FallbackJsonOptions = new();
         private static readonly string[] GetVerb = new[] { global::Microsoft.AspNetCore.Http.HttpMethods.Get };
 
-        [InterceptsLocation(@"TestMapActions.cs", 26, 13)]
+                [InterceptsLocation(@"TestMapActions.cs", 26, 13)]
         internal static RouteHandlerBuilder MapGet0(
             this IEndpointRouteBuilder endpoints,
             [StringSyntax("Route")] string pattern,
@@ -105,7 +105,7 @@ namespace Microsoft.AspNetCore.Http.Generated
                 Task RequestHandler(HttpContext httpContext)
                 {
                     var wasParamCheckFailure = false;
-                    // Endpoint Parameter: name (Type = string, IsOptional = False, IsParsable = False, IsArray = False, Source = RouteOrQuery)
+                                        // Endpoint Parameter: name (Type = string, IsOptional = False, IsParsable = False, IsArray = False, Source = RouteOrQuery)
                     var name_raw = name_RouteOrQueryResolver(httpContext);
                     if (name_raw is StringValues { Count: 0 })
                     {
@@ -135,7 +135,7 @@ namespace Microsoft.AspNetCore.Http.Generated
                 async Task RequestHandlerFiltered(HttpContext httpContext)
                 {
                     var wasParamCheckFailure = false;
-                    // Endpoint Parameter: name (Type = string, IsOptional = False, IsParsable = False, IsArray = False, Source = RouteOrQuery)
+                                        // Endpoint Parameter: name (Type = string, IsOptional = False, IsParsable = False, IsArray = False, Source = RouteOrQuery)
                     var name_raw = name_RouteOrQueryResolver(httpContext);
                     if (name_raw is StringValues { Count: 0 })
                     {
@@ -169,7 +169,7 @@ namespace Microsoft.AspNetCore.Http.Generated
                 createRequestDelegate);
         }
 
-        [InterceptsLocation(@"OtherTestMapActions.cs", 26, 13)]
+                [InterceptsLocation(@"OtherTestMapActions.cs", 26, 13)]
         internal static RouteHandlerBuilder MapGet1(
             this IEndpointRouteBuilder endpoints,
             [StringSyntax("Route")] string pattern,
@@ -216,7 +216,7 @@ namespace Microsoft.AspNetCore.Http.Generated
                 Task RequestHandler(HttpContext httpContext)
                 {
                     var wasParamCheckFailure = false;
-                    // Endpoint Parameter: age (Type = int, IsOptional = False, IsParsable = True, IsArray = False, Source = RouteOrQuery)
+                                        // Endpoint Parameter: age (Type = int, IsOptional = False, IsParsable = True, IsArray = False, Source = RouteOrQuery)
                     var age_raw = age_RouteOrQueryResolver(httpContext);
                     if (age_raw is StringValues { Count: 0 })
                     {
@@ -254,7 +254,7 @@ namespace Microsoft.AspNetCore.Http.Generated
                 async Task RequestHandlerFiltered(HttpContext httpContext)
                 {
                     var wasParamCheckFailure = false;
-                    // Endpoint Parameter: age (Type = int, IsOptional = False, IsParsable = True, IsArray = False, Source = RouteOrQuery)
+                                        // Endpoint Parameter: age (Type = int, IsOptional = False, IsParsable = True, IsArray = False, Source = RouteOrQuery)
                     var age_raw = age_RouteOrQueryResolver(httpContext);
                     if (age_raw is StringValues { Count: 0 })
                     {

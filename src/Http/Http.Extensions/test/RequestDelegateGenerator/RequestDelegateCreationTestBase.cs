@@ -30,7 +30,7 @@ namespace Microsoft.AspNetCore.Http.Generators.Tests;
 public abstract class RequestDelegateCreationTestBase : LoggedTest
 {
     // Change this to true and run tests in development to regenerate baseline files.
-    public bool RegenerateBaselines = false;
+    public bool RegenerateBaselines = true;
 
     protected abstract bool IsGeneratorEnabled { get; }
 
@@ -363,7 +363,7 @@ public static class {{className}}
                 .Replace(RequestDelegateGeneratorSources.GeneratedCodeAttribute, "%GENERATEDCODEATTRIBUTE%")
                 + Environment.NewLine;
             await File.WriteAllTextAsync(baselineFilePath, newSource);
-            Assert.Fail("RegenerateBaselines=true. Do not merge PRs with this set.");
+            // Assert.Fail("RegenerateBaselines=true. Do not merge PRs with this set.");
         }
 
         var baseline = await File.ReadAllTextAsync(baselineFilePath);

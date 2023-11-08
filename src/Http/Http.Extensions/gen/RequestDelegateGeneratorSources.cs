@@ -513,8 +513,8 @@ namespace Microsoft.AspNetCore.Http.Generated
     file static class GeneratedRouteBuilderExtensionsCore
     {
         private static readonly JsonOptions FallbackJsonOptions = new();
-        {{GetVerbs(verbs)}}
-        {{endpoints}}
+{{GetVerbs(verbs)}}
+{{endpoints}}
 
         internal static RouteHandlerBuilder MapCore(
             this IEndpointRouteBuilder routes,

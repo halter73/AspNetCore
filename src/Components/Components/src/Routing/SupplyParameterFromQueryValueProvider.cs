@@ -49,7 +49,6 @@ internal sealed class SupplyParameterFromQueryValueProvider(NavigationManager na
 
     public void Unsubscribe(ComponentState subscriber, in CascadingParameterInfo parameterInfo)
     {
-        Debug.Assert(_subscribers is not null);
         _pendingSubscribers?.Remove(subscriber);
 
         if (_subscribers?.Remove(subscriber) == true && _subscribers.Count == 0)

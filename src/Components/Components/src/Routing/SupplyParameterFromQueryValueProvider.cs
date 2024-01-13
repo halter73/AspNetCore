@@ -11,7 +11,7 @@ internal sealed class SupplyParameterFromQueryValueProvider(NavigationManager na
 {
     private QueryParameterValueSupplier? _queryParameterValueSupplier;
     private HashSet<ComponentState>? _subscribers;
-    private HashSet<ComponentState>? _pendingSubscribers;
+    private List<ComponentState>? _pendingSubscribers;
     private string? _lastUri;
 
     public bool IsFixed => false;
@@ -32,7 +32,7 @@ internal sealed class SupplyParameterFromQueryValueProvider(NavigationManager na
     {
         if (_pendingSubscribers?.Count > 0 || (TryUpdateQueryParameters() && _subscribers?.Count > 0))
         {
-            // This branch is only taken if there's a pending OnLocationChanged event for the current Uri that we're subscribed to.
+            // This branch is only taken if there's a pending OnLocationChanged event for the current Uri that we're already subscribed to.
             _pendingSubscribers ??= new();
             _pendingSubscribers.Add(subscriber);
             return;
@@ -49,9 +49,11 @@ internal sealed class SupplyParameterFromQueryValueProvider(NavigationManager na
 
     public void Unsubscribe(ComponentState subscriber, in CascadingParameterInfo parameterInfo)
     {
+        Debug.Assert(_subscribers is not null);
+        _subscribers.Remove(subscriber);
         _pendingSubscribers?.Remove(subscriber);
 
-        if (_subscribers?.Remove(subscriber) == true && _subscribers.Count == 0)
+        if (_subscribers.Count == 0 && !(_pendingSubscribers?.Count > 0))
         {
             navigationManager.LocationChanged -= OnLocationChanged;
         }
@@ -109,7 +111,7 @@ internal sealed class SupplyParameterFromQueryValueProvider(NavigationManager na
 
     public void Dispose()
     {
-        if (_subscribers?.Count > 0)
+        if (_subscribers?.Count > 0 || _pendingSubscribers?.Count > 0)
         {
             navigationManager.LocationChanged -= OnLocationChanged;
         }

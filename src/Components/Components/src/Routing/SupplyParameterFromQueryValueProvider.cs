@@ -10,7 +10,6 @@ internal sealed class SupplyParameterFromQueryValueProvider : ICascadingValueSup
     private readonly QueryParameterValueSupplier _queryParameterValueSupplier = new();
     private readonly NavigationManager _navigationManager;
     private HashSet<ComponentState>? _subscribers;
-    private bool _isSubscribedToLocationChanges;
     private string? _lastUri;
 
     public SupplyParameterFromQueryValueProvider(NavigationManager navigationManager)
@@ -25,6 +24,8 @@ internal sealed class SupplyParameterFromQueryValueProvider : ICascadingValueSup
 
     public object? GetCurrentValue(in CascadingParameterInfo parameterInfo)
     {
+        // Router.OnLocationChanged calls this before our own OnLocationChanged handler,
+        // so we have to compare strings rather than rely on a bool set in OnLocationChanged.
         if (_navigationManager.Uri != _lastUri)
         {
             UpdateQueryParameters();
@@ -38,10 +39,13 @@ internal sealed class SupplyParameterFromQueryValueProvider : ICascadingValueSup
 
     public void Subscribe(ComponentState subscriber, in CascadingParameterInfo parameterInfo)
     {
-        SubscribeToLocationChanges();
-
         _subscribers ??= new();
         _subscribers.Add(subscriber);
+
+        if (_subscribers.Count == 1)
+        {
+            _navigationManager.LocationChanged += OnLocationChanged;
+        }
     }
 
     public void Unsubscribe(ComponentState subscriber, in CascadingParameterInfo parameterInfo)
@@ -50,7 +54,7 @@ internal sealed class SupplyParameterFromQueryValueProvider : ICascadingValueSup
 
         if (_subscribers.Count == 0)
         {
-            UnsubscribeFromLocationChanges();
+            _navigationManager.LocationChanged -= OnLocationChanged;
         }
     }
 
@@ -74,31 +78,9 @@ internal sealed class SupplyParameterFromQueryValueProvider : ICascadingValueSup
         }
     }
 
-    private void SubscribeToLocationChanges()
-    {
-        if (_isSubscribedToLocationChanges)
-        {
-            return;
-        }
-
-        _isSubscribedToLocationChanges = true;
-        _navigationManager.LocationChanged += OnLocationChanged;
-    }
-
-    private void UnsubscribeFromLocationChanges()
-    {
-        if (!_isSubscribedToLocationChanges)
-        {
-            return;
-        }
-
-        _isSubscribedToLocationChanges = false;
-        _navigationManager.LocationChanged -= OnLocationChanged;
-    }
-
     private void OnLocationChanged(object? sender, LocationChangedEventArgs args)
     {
-        if (_subscribers is not null && _navigationManager.Uri != _lastUri)
+        if (_subscribers is not null)
         {
             foreach (var subscriber in _subscribers)
             {
@@ -109,6 +91,9 @@ internal sealed class SupplyParameterFromQueryValueProvider : ICascadingValueSup
 
     public void Dispose()
     {
-        UnsubscribeFromLocationChanges();
+        if (_subscribers?.Count > 0)
+        {
+            _navigationManager.LocationChanged -= OnLocationChanged;
+        }
     }
 }

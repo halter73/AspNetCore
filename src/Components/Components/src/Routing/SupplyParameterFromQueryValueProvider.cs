@@ -6,18 +6,12 @@ using Microsoft.AspNetCore.Components.Rendering;
 
 namespace Microsoft.AspNetCore.Components.Routing;
 
-internal sealed class SupplyParameterFromQueryValueProvider : ICascadingValueSupplier, IDisposable
+internal sealed class SupplyParameterFromQueryValueProvider(NavigationManager navigationManager) : ICascadingValueSupplier, IDisposable
 {
-    private readonly QueryParameterValueSupplier _queryParameterValueSupplier = new();
-    private readonly NavigationManager _navigationManager;
+    private QueryParameterValueSupplier? _queryParameterValueSupplier;
     private HashSet<ComponentState>? _subscribers;
     private HashSet<ComponentState>? _pendingSubscribers;
     private string? _lastUri;
-
-    public SupplyParameterFromQueryValueProvider(NavigationManager navigationManager)
-    {
-        _navigationManager = navigationManager;
-    }
 
     public bool IsFixed => false;
 
@@ -28,12 +22,13 @@ internal sealed class SupplyParameterFromQueryValueProvider : ICascadingValueSup
     {
         // Router.OnLocationChanged calls this before our own OnLocationChanged handler,
         // so we have to compare strings rather than rely on a bool set in OnLocationChanged.
-        if (_navigationManager.Uri != _lastUri)
+        if (navigationManager.Uri != _lastUri)
         {
             UpdateQueryParameters();
-            _lastUri = _navigationManager.Uri;
+            _lastUri = navigationManager.Uri;
         }
 
+        Debug.Assert(_queryParameterValueSupplier is not null);
         var attribute = (SupplyParameterFromQueryAttribute)parameterInfo.Attribute; // Must be a valid cast because we check in CanSupplyValue
         var queryParameterName = attribute.Name ?? parameterInfo.PropertyName;
         return _queryParameterValueSupplier.GetQueryParameterValue(parameterInfo.PropertyType, queryParameterName);
@@ -41,7 +36,7 @@ internal sealed class SupplyParameterFromQueryValueProvider : ICascadingValueSup
 
     public void Subscribe(ComponentState subscriber, in CascadingParameterInfo parameterInfo)
     {
-        if (_pendingSubscribers?.Count > 0 || _subscribers?.Count > 0 && _navigationManager.Uri != _lastUri)
+        if (_pendingSubscribers?.Count > 0 || (_subscribers?.Count > 0 && navigationManager.Uri != _lastUri))
         {
             // This branch is only taken if there's a pending OnLocationChanged event for the current Uri.
             _pendingSubscribers ??= new();
@@ -54,24 +49,26 @@ internal sealed class SupplyParameterFromQueryValueProvider : ICascadingValueSup
 
         if (_subscribers.Count == 1)
         {
-            _navigationManager.LocationChanged += OnLocationChanged;
+            navigationManager.LocationChanged += OnLocationChanged;
         }
     }
 
     public void Unsubscribe(ComponentState subscriber, in CascadingParameterInfo parameterInfo)
     {
+        Debug.Assert(_subscribers is not null);
         _pendingSubscribers?.Remove(subscriber);
 
         if (_subscribers?.Remove(subscriber) == true && _subscribers.Count == 0)
         {
-            _navigationManager.LocationChanged -= OnLocationChanged;
+            navigationManager.LocationChanged -= OnLocationChanged;
         }
     }
 
     private void UpdateQueryParameters()
     {
-        var query = GetQueryString(_navigationManager.Uri);
+        var query = GetQueryString(navigationManager.Uri);
 
+        _queryParameterValueSupplier ??= new();
         _queryParameterValueSupplier.ReadParametersFromQuery(query);
 
         static ReadOnlyMemory<char> GetQueryString(string url)
@@ -111,7 +108,7 @@ internal sealed class SupplyParameterFromQueryValueProvider : ICascadingValueSup
     {
         if (_subscribers?.Count > 0)
         {
-            _navigationManager.LocationChanged -= OnLocationChanged;
+            navigationManager.LocationChanged -= OnLocationChanged;
         }
     }
 }

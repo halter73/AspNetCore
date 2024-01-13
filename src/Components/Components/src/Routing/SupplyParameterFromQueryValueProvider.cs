@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Components.Rendering;
 
 namespace Microsoft.AspNetCore.Components.Routing;
@@ -20,15 +21,8 @@ internal sealed class SupplyParameterFromQueryValueProvider(NavigationManager na
 
     public object? GetCurrentValue(in CascadingParameterInfo parameterInfo)
     {
-        // Router.OnLocationChanged calls this before our own OnLocationChanged handler,
-        // so we have to compare strings rather than rely on a bool set in OnLocationChanged.
-        if (navigationManager.Uri != _lastUri)
-        {
-            UpdateQueryParameters();
-            _lastUri = navigationManager.Uri;
-        }
+        TryUpdateQueryParameters();
 
-        Debug.Assert(_queryParameterValueSupplier is not null);
         var attribute = (SupplyParameterFromQueryAttribute)parameterInfo.Attribute; // Must be a valid cast because we check in CanSupplyValue
         var queryParameterName = attribute.Name ?? parameterInfo.PropertyName;
         return _queryParameterValueSupplier.GetQueryParameterValue(parameterInfo.PropertyType, queryParameterName);
@@ -36,9 +30,9 @@ internal sealed class SupplyParameterFromQueryValueProvider(NavigationManager na
 
     public void Subscribe(ComponentState subscriber, in CascadingParameterInfo parameterInfo)
     {
-        if (_pendingSubscribers?.Count > 0 || (_subscribers?.Count > 0 && navigationManager.Uri != _lastUri))
+        if (_pendingSubscribers?.Count > 0 || (TryUpdateQueryParameters() && _subscribers?.Count > 0))
         {
-            // This branch is only taken if there's a pending OnLocationChanged event for the current Uri.
+            // This branch is only taken if there's a pending OnLocationChanged event for the current Uri that we're subscribed to.
             _pendingSubscribers ??= new();
             _pendingSubscribers.Add(subscriber);
             return;
@@ -64,12 +58,22 @@ internal sealed class SupplyParameterFromQueryValueProvider(NavigationManager na
         }
     }
 
-    private void UpdateQueryParameters()
+    [MemberNotNull(nameof(_queryParameterValueSupplier))]
+    private bool TryUpdateQueryParameters()
     {
-        var query = GetQueryString(navigationManager.Uri);
-
         _queryParameterValueSupplier ??= new();
+
+        // Router.OnLocationChanged calls GetCurrentValue before our own OnLocationChanged handler,
+        // so we have to compare strings rather than rely on a bool set in OnLocationChanged.
+        if (navigationManager.Uri == _lastUri)
+        {
+            return false;
+        }
+
+        var query = GetQueryString(navigationManager.Uri);
         _queryParameterValueSupplier.ReadParametersFromQuery(query);
+        _lastUri = navigationManager.Uri;
+        return true;
 
         static ReadOnlyMemory<char> GetQueryString(string url)
         {

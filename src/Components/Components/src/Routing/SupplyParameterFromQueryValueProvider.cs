@@ -1,6 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Diagnostics;
 using Microsoft.AspNetCore.Components.Rendering;
 
 namespace Microsoft.AspNetCore.Components.Routing;
@@ -10,6 +11,7 @@ internal sealed class SupplyParameterFromQueryValueProvider : ICascadingValueSup
     private readonly QueryParameterValueSupplier _queryParameterValueSupplier = new();
     private readonly NavigationManager _navigationManager;
     private HashSet<ComponentState>? _subscribers;
+    private HashSet<ComponentState>? _pendingSubscribers;
     private string? _lastUri;
 
     public SupplyParameterFromQueryValueProvider(NavigationManager navigationManager)
@@ -39,6 +41,14 @@ internal sealed class SupplyParameterFromQueryValueProvider : ICascadingValueSup
 
     public void Subscribe(ComponentState subscriber, in CascadingParameterInfo parameterInfo)
     {
+        if (_pendingSubscribers?.Count > 0 || _subscribers?.Count > 0 && _navigationManager.Uri != _lastUri)
+        {
+            // This branch is only taken if there's a pending OnLocationChanged event for the current Uri.
+            _pendingSubscribers ??= new();
+            _pendingSubscribers.Add(subscriber);
+            return;
+        }
+
         _subscribers ??= new();
         _subscribers.Add(subscriber);
 
@@ -50,9 +60,9 @@ internal sealed class SupplyParameterFromQueryValueProvider : ICascadingValueSup
 
     public void Unsubscribe(ComponentState subscriber, in CascadingParameterInfo parameterInfo)
     {
-        _subscribers!.Remove(subscriber);
+        _pendingSubscribers?.Remove(subscriber);
 
-        if (_subscribers.Count == 0)
+        if (_subscribers?.Remove(subscriber) == true && _subscribers.Count == 0)
         {
             _navigationManager.LocationChanged -= OnLocationChanged;
         }
@@ -80,12 +90,20 @@ internal sealed class SupplyParameterFromQueryValueProvider : ICascadingValueSup
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs args)
     {
-        if (_subscribers is not null)
+        Debug.Assert(_subscribers is not null);
+        foreach (var subscriber in _subscribers)
         {
-            foreach (var subscriber in _subscribers)
+            subscriber.NotifyCascadingValueChanged(ParameterViewLifetime.Unbound);
+        }
+
+        if (_pendingSubscribers is not null)
+        {
+            foreach (var subscriber in _pendingSubscribers)
             {
-                subscriber.NotifyCascadingValueChanged(ParameterViewLifetime.Unbound);
+                _subscribers.Add(subscriber);
             }
+
+            _pendingSubscribers.Clear();
         }
     }
 

@@ -1,0 +1,23 @@
+﻿@page "/nav/TestInt"
+
+<PageTitle>TestInt</PageTitle>
+
+<h1>TestInt</h1>
+
+<div>
+    <a href="nav/TestInt?p=123">TestInt 123</a>
+</div>
+<div>
+    <a href="nav/TestGuid?p=47259a22-9fd8-4938-b40d-e5c8d8642a3d">TestGuid 47259a22-9fd8-4938-b40d-e5c8d8642a3d</a>
+</div>
+
+<div>
+    Parameter: @p
+</div>
+
+@code {
+
+    [Parameter]
+    [SupplyParameterFromQuery]
+    public int? p { get; set; }
+}

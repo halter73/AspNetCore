@@ -11,7 +11,8 @@ internal sealed class SupplyParameterFromQueryValueProvider(NavigationManager na
 {
     private QueryParameterValueSupplier? _queryParameterValueSupplier;
     private HashSet<ComponentState>? _subscribers;
-    private List<ComponentState>? _pendingSubscribers;
+    private HashSet<ComponentState>? _pendingSubscribers;
+    private bool _isSubscribedToLocationChanges;
     private string? _lastUri;
 
     public bool IsFixed => false;
@@ -30,9 +31,10 @@ internal sealed class SupplyParameterFromQueryValueProvider(NavigationManager na
 
     public void Subscribe(ComponentState subscriber, in CascadingParameterInfo parameterInfo)
     {
-        if (_pendingSubscribers?.Count > 0 || (TryUpdateQueryParameters() && _subscribers?.Count > 0))
+        if (_pendingSubscribers?.Count > 0 || (TryUpdateQueryParameters() && _isSubscribedToLocationChanges))
         {
             // This branch is only taken if there's a pending OnLocationChanged event for the current Uri that we're already subscribed to.
+            // We'll add the _pendingSubscribers to _subscribers and clear _pendingSubscribers during the upcoming call to OnLocationChanged.
             _pendingSubscribers ??= new();
             _pendingSubscribers.Add(subscriber);
             return;
@@ -40,22 +42,19 @@ internal sealed class SupplyParameterFromQueryValueProvider(NavigationManager na
 
         _subscribers ??= new();
         _subscribers.Add(subscriber);
-
-        if (_subscribers.Count == 1)
-        {
-            navigationManager.LocationChanged += OnLocationChanged;
-        }
+        SubscribeToLocationChanges();
     }
 
     public void Unsubscribe(ComponentState subscriber, in CascadingParameterInfo parameterInfo)
     {
-        Debug.Assert(_subscribers is not null);
-        _subscribers.Remove(subscriber);
+        // _subscribers should never be null here in practice, but ICascadingValueSupplier is public
+        // so anyone could call this in theory
+        _subscribers?.Remove(subscriber);
         _pendingSubscribers?.Remove(subscriber);
 
-        if (_subscribers.Count == 0 && !(_pendingSubscribers?.Count > 0))
+        if (!(_subscribers?.Count > 0) && !(_pendingSubscribers?.Count > 0))
         {
-            navigationManager.LocationChanged -= OnLocationChanged;
+            UnsubscribeFromLocationChanges();
         }
     }
 
@@ -90,6 +89,28 @@ internal sealed class SupplyParameterFromQueryValueProvider(NavigationManager na
         }
     }
 
+    private void SubscribeToLocationChanges()
+    {
+        if (_isSubscribedToLocationChanges)
+        {
+            return;
+        }
+
+        _isSubscribedToLocationChanges = true;
+        navigationManager.LocationChanged += OnLocationChanged;
+    }
+
+    private void UnsubscribeFromLocationChanges()
+    {
+        if (!_isSubscribedToLocationChanges)
+        {
+            return;
+        }
+
+        _isSubscribedToLocationChanges = false;
+        navigationManager.LocationChanged -= OnLocationChanged;
+    }
+
     private void OnLocationChanged(object? sender, LocationChangedEventArgs args)
     {
         Debug.Assert(_subscribers is not null);
@@ -109,11 +130,5 @@ internal sealed class SupplyParameterFromQueryValueProvider(NavigationManager na
         }
     }
 
-    public void Dispose()
-    {
-        if (_subscribers?.Count > 0 || _pendingSubscribers?.Count > 0)
-        {
-            navigationManager.LocationChanged -= OnLocationChanged;
-        }
-    }
+    public void Dispose() => UnsubscribeFromLocationChanges();
 }

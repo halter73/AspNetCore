@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>$(DefaultNetCoreTargetFramework)</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <StaticWebAssetBasePath>WasmRemoteAuthentication</StaticWebAssetBasePath>
@@ -10,10 +10,6 @@
   <ItemGroup>
     <Reference Include="Microsoft.AspNetCore.Components.WebAssembly" />
     <Reference Include="Microsoft.AspNetCore.Components.WebAssembly.Authentication" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\TestContentPackage\TestContentPackage.csproj" />
   </ItemGroup>
 
 </Project>

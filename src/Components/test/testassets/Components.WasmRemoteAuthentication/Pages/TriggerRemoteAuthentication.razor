@@ -1,0 +1,11 @@
+﻿@page "/trigger-remote-authentication"
+
+<AuthorizeView>
+    <Authorized>
+        <h1>Hello, @context.User.Identity?.Name!</h1>
+    </Authorized>
+    <NotAuthorized>
+        @* Do this rather than rely on the [Authorize] attribute to avoid endpoint routing. *@
+        <RedirectToLogin />
+    </NotAuthorized>
+</AuthorizeView>

@@ -1,7 +1,6 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System.Diagnostics;
 using System.Reflection;
 using Microsoft.AspNetCore.Components.E2ETest.Infrastructure;
 using Microsoft.AspNetCore.Components.E2ETest.Infrastructure.ServerFixtures;
@@ -31,13 +30,10 @@ public class RemoteAuthenticationTest :
         ITestOutputHelper output)
         : base(browserFixture, serverFixture, output)
     {
-        //Debugger.Launch();
-
-        browserFixture.EnsureNotHeadless = true;
+        serverFixture.ApplicationAssembly = typeof(RemoteAuthenticationStartup).Assembly;
 
         if (TestTrimmedApps)
         {
-            serverFixture.ApplicationAssembly = typeof(RemoteAuthenticationStartup).Assembly;
             serverFixture.BuildWebHostMethod = BuildPublishedWebHost;
             serverFixture.GetContentRootMethod = GetPublishedContentRoot;
         }
@@ -50,9 +46,7 @@ public class RemoteAuthenticationTest :
         // the OIDC endpoints will fail to authenticate the user.
         Navigate("/subdir/test-remote-authentication");
 
-        //Debugger.Launch();
         var heading = Browser.Exists(By.TagName("h1"));
-        var test = heading.Text;
         Browser.Equal("Hello, Jane Doe!", () => heading.Text);
     }
 
@@ -67,7 +61,7 @@ public class RemoteAuthenticationTest :
             .ConfigureWebHostDefaults(webHostBuilder =>
             {
                 webHostBuilder.UseStartup<RemoteAuthenticationStartup>();
-                // Avoid UseStaticAssets or we won't use the trimmed, published output.
+                // Avoid UseStaticAssets or we won't use the trimmed published output.
             })
             .Build();
 
@@ -80,7 +74,6 @@ public class RemoteAuthenticationTest :
             throw new DirectoryNotFoundException($"Test is configured to use trimmed outputs, but trimmed outputs were not found in {contentRoot}.");
         }
 
-        //Debugger.Launch();
         return contentRoot;
     }
 }

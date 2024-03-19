@@ -60,7 +60,6 @@
     <ProjectReference Include="..\testassets\BasicTestApp\BasicTestApp.csproj" />
     <ProjectReference Include="..\testassets\GlobalizationWasmApp\GlobalizationWasmApp.csproj" />
     <ProjectReference Include="..\..\WebAssembly\testassets\Wasm.Prerendered.Server\Wasm.Prerendered.Server.csproj" />
-    <ProjectReference Include="..\testassets\Components.WasmRemoteAuthentication\Components.WasmRemoteAuthentication.csproj" />
     <ProjectReference Include="..\testassets\Components.TestServer\Components.TestServer.csproj" />
   </ItemGroup>
 
@@ -93,11 +92,6 @@
       Include="..\..\WebAssembly\testassets\ThreadingApp\ThreadingApp.csproj"
       Targets="Build;Publish"
       Properties="BuildProjectReferences=false;TestTrimmedOrMultithreadingApps=false;PublishDir=$(MSBuildThisFileDirectory)$(OutputPath)trimmed-or-threading\ThreadingApp\;" />
-
-    <ProjectReference
-      Include="..\testassets\Components.WasmRemoteAuthentication\Components.WasmRemoteAuthentication.csproj"
-      Targets="Build;Publish"
-      Properties="BuildProjectReferences=false;TestTrimmedOrMultithreadingApps=true;PublishDir=$(MSBuildThisFileDirectory)$(OutputPath)trimmed-or-threading\Components.WasmRemoteAuthentication\;" />
 
     <ProjectReference
       Include="..\testassets\Components.TestServer\Components.TestServer.csproj"

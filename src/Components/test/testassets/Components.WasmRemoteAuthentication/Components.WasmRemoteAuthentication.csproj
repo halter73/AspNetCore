@@ -7,6 +7,11 @@
     <StaticWebAssetBasePath>WasmRemoteAuthentication</StaticWebAssetBasePath>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(TestTrimmedOrMultithreadingApps)' == 'true'">
+    <!-- Avoid spending time brotli compression publish output.-->
+    <_BlazorBrotliCompressionLevel>NoCompression</_BlazorBrotliCompressionLevel>
+  </PropertyGroup>
+
   <ItemGroup>
     <Reference Include="Microsoft.AspNetCore.Components.WebAssembly" />
     <Reference Include="Microsoft.AspNetCore.Components.WebAssembly.Authentication" />

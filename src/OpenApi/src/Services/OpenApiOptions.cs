@@ -1,8 +1,10 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.OpenApi;
+using Microsoft.OpenApi.Models;
 
 namespace Microsoft.AspNetCore.OpenApi;
 
@@ -11,6 +13,7 @@ namespace Microsoft.AspNetCore.OpenApi;
 /// </summary>
 public sealed class OpenApiOptions
 {
+    private readonly List<IOpenApiDocumentTransformer> _documentTransformers = new();
     /// <summary>
     /// Initializes a new instance of the <see cref="OpenApiOptions"/> class
     /// with the default <see cref="ShouldInclude"/> predicate.
@@ -34,4 +37,60 @@ public sealed class OpenApiOptions
     /// A delegate to determine whether a given <see cref="ApiDescription"/> should be included in the given OpenAPI document.
     /// </summary>
     public Func<ApiDescription, bool> ShouldInclude { get; set; }
+
+    /// <summary>
+    /// Registers a new document transformer on the current <see cref="OpenApiOptions"/> instance.
+    /// </summary>
+    /// <typeparam name="TTransformerType"></typeparam>
+    /// <returns></returns>
+    public OpenApiOptions UseTransformer<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TTransformerType>()
+        where TTransformerType : IOpenApiDocumentTransformer
+    {
+        _documentTransformers.Add(Activator.CreateInstance<TTransformerType>());
+        return this;
+    }
+
+    /// <summary>
+    /// Registers a given instance of <see cref="IOpenApiDocumentTransformer"/> on the current <see cref="OpenApiOptions"/> instance.
+    /// </summary>
+    /// <param name="transformer"></param>
+    /// <returns></returns>
+    public OpenApiOptions UseTransformer(IOpenApiDocumentTransformer transformer)
+    {
+        _documentTransformers.Add(transformer);
+        return this;
+    }
+
+    /// <summary>
+    /// Registers a given delegate as a document transformer on the current <see cref="OpenApiOptions"/> instance.
+    /// </summary>
+    /// <param name="transformer"></param>
+    /// <returns></returns>
+    public OpenApiOptions UseTransformer(Func<OpenApiDocument, OpenApiDocumentTransformerContext, CancellationToken, Task> transformer)
+    {
+        _documentTransformers.Add(new DelegateOpenApiDocumentTransformer(transformer));
+        return this;
+    }
+
+    /// <summary>
+    /// Registers a given delegate as an operation transformer on the current <see cref="OpenApiOptions"/> instance.
+    /// </summary>
+    /// <param name="transformer"></param>
+    /// <returns></returns>
+    public OpenApiOptions UseTransformer(Func<OpenApiOperation, OpenApiOperationTransformerContext, CancellationToken, Task> transformer)
+    {
+        _documentTransformers.Add(new DelegateOpenApiDocumentTransformer(transformer));
+        return this;
+    }
+
+    /// <summary>
+    /// Registers a given delegate as a schema transformer on the current <see cref="OpenApiOptions"/> instance.
+    /// </summary>
+    /// <param name="transformer"></param>
+    /// <returns></returns>
+    public OpenApiOptions UseTransformer(Func<OpenApiSchema, OpenApiSchemaTransformerContext, CancellationToken, Task> transformer)
+    {
+        _documentTransformers.Add(new DelegateOpenApiDocumentTransformer(transformer));
+        return this;
+    }
 }

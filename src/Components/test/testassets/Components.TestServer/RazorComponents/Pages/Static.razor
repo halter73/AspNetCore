@@ -1,9 +1,8 @@
 ﻿@page "/static"
 
-<h3>Statically Rendered</h3>
+@*  This should be statically rendered by GlobalInteractivityApp. *@
+<h1>Statically Rendered</h1>
 
-<NavLink href="persist-wasm-state">Client-rendered page.</NavLink>
-
-@code {
-    // This should be statically rendered by the Root.razor component.
-}
+<ul>
+    <li><NavLink href="dynamic">Dynamic page</NavLink></li>
+</ul>

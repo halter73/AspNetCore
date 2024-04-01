@@ -6,5 +6,13 @@ using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.Services.AddSingleton<AsyncOperationService>();
+builder.Logging.SetMinimumLevel(LogLevel.Trace);
 
-await builder.Build().RunAsync();
+var host = builder.Build();
+
+var logger = host.Services.GetRequiredService<ILoggerFactory>()
+    .CreateLogger<Program>();
+
+logger.LogInformation("Logged after the app is built in the Program file.");
+
+await host.RunAsync();

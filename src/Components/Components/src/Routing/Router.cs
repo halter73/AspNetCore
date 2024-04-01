@@ -214,6 +214,9 @@ public partial class Router : IComponent, IHandleAfterRender, IDisposable
 
         RefreshRouteTable();
 
+        //Console.WriteLine($"Router.Refresh({isNavigationIntercepted}), locationPath = '{locationPath}'");
+        //Console.WriteLine(Environment.StackTrace);
+        Console.WriteLine($"LoggerFactory.GetType() = {LoggerFactory.GetType()}");
         var context = new RouteContext(locationPath);
         Routes.Route(context);
 

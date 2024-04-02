@@ -169,7 +169,7 @@ public class AuthorizationMiddleware
         }
 
         // Allow Anonymous still wants to run authorization to populate the User but skips any failure/challenge handling
-        if (endpoint?.Metadata.GetMetadata<IAllowAnonymous>() != null)
+        if (AllowAnonymous(endpoint))
         {
             await _next(context);
             return;
@@ -195,4 +195,29 @@ public class AuthorizationMiddleware
         await authorizationMiddlewareResultHandler.HandleAsync(_next, context, policy, authorizeResult);
     }
 
+    private static bool AllowAnonymous(Endpoint? endpoint)
+    {
+        if (endpoint is null)
+        {
+            return false;
+        }
+
+        // Require that AllowAnonymous is more local to the endpoint than IAuthorizeData by default.
+        var allowAnonymous = false;
+
+        foreach (var metadata in endpoint.Metadata)
+        {
+            // If metadata implements IAllowAnonymous and IAuthorizeData, prefer IAllowAnonymous
+            if (metadata is IAllowAnonymous)
+            {
+                allowAnonymous = true;
+            }
+            else if (metadata is IAuthorizeData)
+            {
+                allowAnonymous = false;
+            }
+        }
+
+        return allowAnonymous;
+    }
 }

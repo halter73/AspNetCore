@@ -560,7 +560,7 @@ public class AuthorizationMiddlewareTests
     }
 
     [Fact]
-    public async Task HasEndpointWithAuthAndAllowAnonymous_AnonymousUser_Allows()
+    public async Task HasEndpointWithAuthBeforeAllowAnonymous_AnonymousUser_Allows()
     {
         // Arrange
         var policy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build();
@@ -571,6 +571,48 @@ public class AuthorizationMiddlewareTests
 
         var middleware = CreateMiddleware(next.Invoke, policyProvider.Object);
         var context = GetHttpContext(anonymous: true, endpoint: CreateEndpoint(new AuthorizeAttribute(), new AllowAnonymousAttribute()), authenticationService: authenticationService);
+
+        // Act
+        await middleware.Invoke(context);
+
+        // Assert
+        Assert.True(next.Called);
+        Assert.False(authenticationService.ChallengeCalled);
+    }
+
+    [Fact]
+    public async Task HasEndpointWithAuthAfterAllowAnonymous_AnonymousUser_Challenges()
+    {
+        // Arrange
+        var policy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build();
+        var policyProvider = new Mock<IAuthorizationPolicyProvider>();
+        policyProvider.Setup(p => p.GetDefaultPolicyAsync()).ReturnsAsync(policy);
+        var next = new TestRequestDelegate();
+        var authenticationService = new TestAuthenticationService();
+
+        var middleware = CreateMiddleware(next.Invoke, policyProvider.Object);
+        var context = GetHttpContext(anonymous: true, endpoint: CreateEndpoint(new AllowAnonymousAttribute(), new AuthorizeAttribute()), authenticationService: authenticationService);
+
+        // Act
+        await middleware.Invoke(context);
+
+        // Assert
+        Assert.False(next.Called);
+        Assert.True(authenticationService.ChallengeCalled);
+    }
+
+    [Fact]
+    public async Task HasEndpointWithAuthAndAllowAnonymousImplementedBySameMetadata_AnonymousUser_Allows()
+    {
+        // Arrange
+        var policy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build();
+        var policyProvider = new Mock<IAuthorizationPolicyProvider>();
+        policyProvider.Setup(p => p.GetDefaultPolicyAsync()).ReturnsAsync(policy);
+        var next = new TestRequestDelegate();
+        var authenticationService = new TestAuthenticationService();
+
+        var middleware = CreateMiddleware(next.Invoke, policyProvider.Object);
+        var context = GetHttpContext(anonymous: true, endpoint: CreateEndpoint(new AuthorizeAndAllowAnonymous()), authenticationService: authenticationService);
 
         // Act
         await middleware.Invoke(context);
@@ -1081,5 +1123,12 @@ public class AuthorizationMiddlewareTests
             context.Response.StatusCode = _statusCode;
             return Task.CompletedTask;
         }
+    }
+
+    private class AuthorizeAndAllowAnonymous : IAuthorizeData, IAllowAnonymous
+    {
+        public string Policy { get; set; }
+        public string Roles { get; set; }
+        public string AuthenticationSchemes { get; set; }
     }
 }

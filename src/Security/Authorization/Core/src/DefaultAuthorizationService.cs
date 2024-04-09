@@ -21,7 +21,7 @@ public class DefaultAuthorizationService : IAuthorizationService
     private readonly IAuthorizationHandlerProvider _handlers;
     private readonly IAuthorizationEvaluator _evaluator;
     private readonly IAuthorizationPolicyProvider _policyProvider;
-    private readonly ILogger _logger;
+    private readonly ILogger<DefaultAuthorizationService> _logger;
 
     /// <summary>
     /// Creates a new instance of <see cref="DefaultAuthorizationService"/>.

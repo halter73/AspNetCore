@@ -175,9 +175,9 @@ public class AuthorizationMiddleware
             return;
         }
 
-        if (authenticateResult != null && !authenticateResult.Succeeded && _logger is ILogger log && log.IsEnabled(LogLevel.Debug))
+        if (authenticateResult != null && !authenticateResult.Succeeded)
         {
-            log.LogDebug("Policy authentication schemes {policyName} did not succeed", String.Join(", ", policy.AuthenticationSchemes));
+            _logger?.PolicyAuthenticationSchemesDidNotSucceed(policy.AuthenticationSchemes);
         }
 
         object? resource;
@@ -195,7 +195,7 @@ public class AuthorizationMiddleware
         await authorizationMiddlewareResultHandler.HandleAsync(_next, context, policy, authorizeResult);
     }
 
-    private static bool AllowAnonymous(Endpoint? endpoint)
+    private bool AllowAnonymous(Endpoint? endpoint)
     {
         if (endpoint is null)
         {
@@ -207,14 +207,15 @@ public class AuthorizationMiddleware
 
         foreach (var metadata in endpoint.Metadata)
         {
-            // If metadata implements IAllowAnonymous and IAuthorizeData, prefer IAllowAnonymous
+            // If metadata implements IAllowAnonymous and IAuthorizeData, prefer IAllowAnonymous.
             if (metadata is IAllowAnonymous)
             {
                 allowAnonymous = true;
             }
-            else if (metadata is IAuthorizeData)
+            else if (allowAnonymous && metadata is IAuthorizeData)
             {
                 allowAnonymous = false;
+                _logger?.AllowAnonymousIgnored(endpoint);
             }
         }
 

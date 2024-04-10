@@ -46,7 +46,7 @@ public static class PolicyServiceCollectionExtensions
 
         services.AddAuthorizationCore();
         services.AddAuthorizationPolicyEvaluator();
-        services.TryAddSingleton<AuthorizationPolicyCache>();
+        services.TryAddSingleton<AuthorizationMiddlewareCache>();
         return services;
     }
 
@@ -62,7 +62,7 @@ public static class PolicyServiceCollectionExtensions
 
         services.AddAuthorizationCore(configure);
         services.AddAuthorizationPolicyEvaluator();
-        services.TryAddSingleton<AuthorizationPolicyCache>();
+        services.TryAddSingleton<AuthorizationMiddlewareCache>();
         return services;
     }
 }

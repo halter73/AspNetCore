@@ -35,8 +35,8 @@ public class AuthorizationMiddleware
 
     private readonly RequestDelegate _next;
     private readonly IAuthorizationPolicyProvider _policyProvider;
-    private readonly bool _canCache;
-    private readonly AuthorizationPolicyCache? _policyCache;
+    private readonly bool _canCachePolicies;
+    private readonly AuthorizationMiddlewareCache? _cache;
     private readonly ILogger<AuthorizationMiddleware>? _logger;
 
     /// <summary>
@@ -49,7 +49,7 @@ public class AuthorizationMiddleware
     {
         _next = next ?? throw new ArgumentNullException(nameof(next));
         _policyProvider = policyProvider ?? throw new ArgumentNullException(nameof(policyProvider));
-        _canCache = false;
+        _canCachePolicies = false;
     }
 
     /// <summary>
@@ -79,10 +79,11 @@ public class AuthorizationMiddleware
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        _cache = services.GetService<AuthorizationMiddlewareCache>();
+
         if (_policyProvider.AllowsCachingPolicies)
         {
-            _policyCache = services.GetService<AuthorizationPolicyCache>();
-            _canCache = _policyCache != null;
+            _canCachePolicies = _cache != null;
         }
     }
 
@@ -104,10 +105,10 @@ public class AuthorizationMiddleware
 
         // Use the computed policy for this endpoint if we can
         AuthorizationPolicy? policy = null;
-        var canCachePolicy = _canCache && endpoint != null;
+        var canCachePolicy = _canCachePolicies && endpoint != null;
         if (canCachePolicy)
         {
-            policy = _policyCache!.Lookup(endpoint!);
+            policy = _cache!.Lookup(endpoint!);
         }
 
         if (policy == null)
@@ -140,7 +141,7 @@ public class AuthorizationMiddleware
             // Cache the computed policy
             if (policy != null && canCachePolicy)
             {
-                _policyCache!.Store(endpoint!, policy);
+                _cache!.Store(endpoint!, policy);
             }
         }
 

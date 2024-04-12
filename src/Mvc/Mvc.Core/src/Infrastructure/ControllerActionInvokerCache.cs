@@ -4,6 +4,7 @@
 #nullable enable
 
 using System.Linq;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
@@ -20,6 +21,7 @@ internal sealed class ControllerActionInvokerCache
     private readonly IFilterProvider[] _filterProviders;
     private readonly IControllerFactoryProvider _controllerFactoryProvider;
     private readonly MvcOptions _mvcOptions;
+    private readonly AuthorizationOptions _authorizationOptions;
 
     public ControllerActionInvokerCache(
         ParameterBinder parameterBinder,
@@ -27,7 +29,8 @@ internal sealed class ControllerActionInvokerCache
         IModelMetadataProvider modelMetadataProvider,
         IEnumerable<IFilterProvider> filterProviders,
         IControllerFactoryProvider factoryProvider,
-        IOptions<MvcOptions> mvcOptions)
+        IOptions<MvcOptions> mvcOptions,
+        IOptions<AuthorizationOptions> authorizationOptions)
     {
         _parameterBinder = parameterBinder;
         _modelBinderFactory = modelBinderFactory;
@@ -35,6 +38,7 @@ internal sealed class ControllerActionInvokerCache
         _filterProviders = filterProviders.OrderBy(item => item.Order).ToArray();
         _controllerFactoryProvider = factoryProvider;
         _mvcOptions = mvcOptions.Value;
+        _authorizationOptions = authorizationOptions.Value;
     }
 
     public (ControllerActionInvokerCacheEntry cacheEntry, IFilterMetadata[] filters) GetCachedResult(ControllerContext controllerContext)

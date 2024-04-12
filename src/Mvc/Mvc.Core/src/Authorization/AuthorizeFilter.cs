@@ -97,6 +97,8 @@ public class AuthorizeFilter : IAsyncAuthorizationFilter, IFilterFactory
 
     bool IFilterFactory.IsReusable => true;
 
+    internal bool PreferAllowAnonymous { get; set; }
+
     // Computes the actual policy for this filter using either Policy or PolicyProvider + AuthorizeData
     private async ValueTask<AuthorizationPolicy> ComputePolicyAsync()
     {

@@ -9,7 +9,7 @@ namespace Microsoft.AspNetCore.Authorization.Policy;
 
 internal sealed class AuthorizationMiddlewareCache : IDisposable
 {
-    // Caches AuthorizationPolicy instances and the presence of IAllowAnonymousMetadata closer to the 
+    // Caches AuthorizationPolicy instances and the presence of valid IAllowAnonymous metadata.
     private readonly DataSourceDependentCache<ConcurrentDictionary<Endpoint, AuthorizationMiddlewareCacheEntry>> _cache;
 
     public AuthorizationMiddlewareCache(EndpointDataSource dataSource)
@@ -42,6 +42,6 @@ internal sealed class AuthorizationMiddlewareCache : IDisposable
 
 internal struct AuthorizationMiddlewareCacheEntry
 {
-    public AuthorizationPolicy? AuthorizationPolicy { get; init; }
-    public bool AllowAnonymous { get; set; }
+    public required AuthorizationPolicy? AuthorizationPolicy { get; init; }
+    public required bool AllowAnonymous { get; init; }
 }

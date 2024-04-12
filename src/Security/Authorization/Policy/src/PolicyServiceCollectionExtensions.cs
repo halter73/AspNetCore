@@ -59,10 +59,9 @@ public static class PolicyServiceCollectionExtensions
     public static IServiceCollection AddAuthorization(this IServiceCollection services, Action<AuthorizationOptions> configure)
     {
         ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configure);
 
-        services.AddAuthorizationCore(configure);
-        services.AddAuthorizationPolicyEvaluator();
-        services.TryAddSingleton<AuthorizationMiddlewareCache>();
-        return services;
+        services.Configure(configure);
+        return services.AddAuthorization();
     }
 }

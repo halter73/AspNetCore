@@ -80,11 +80,7 @@ public class AuthorizationMiddleware
         ArgumentNullException.ThrowIfNull(services);
 
         _cache = services.GetService<AuthorizationMiddlewareCache>();
-
-        if (_policyProvider.AllowsCachingPolicies)
-        {
-            _canCachePolicies = _cache != null;
-        }
+        _canCachePolicies = _policyProvider.AllowsCachingPolicies && _cache != null;
     }
 
     /// <summary>
@@ -103,17 +99,21 @@ public class AuthorizationMiddleware
             context.Items[AuthorizationMiddlewareInvokedWithEndpointKey] = AuthorizationMiddlewareWithEndpointInvokedValue;
         }
 
-        // Use the computed policy for this endpoint if we can
+        var foundCacheEntry = false;
+        var allowAnonymous = false;
         AuthorizationPolicy? policy = null;
-        var canCachePolicy = _canCachePolicies && endpoint != null;
-        if (canCachePolicy)
+
+        if (endpoint != null && _cache != null && _cache.TryGet(endpoint, out var cacheEntry))
         {
-            policy = _cache!.Lookup(endpoint!);
+            foundCacheEntry = true;
+            allowAnonymous = cacheEntry.AllowAnonymous;
+            policy = cacheEntry.AuthorizationPolicy;
         }
 
-        if (policy == null)
+        // Use the computed policy for this endpoint if we can
+        if (!foundCacheEntry || !_canCachePolicies)
         {
-            // IMPORTANT: Changes to authorization logic should be mirrored in MVC's AuthorizeFilter
+            // IMPORTANT: Changes to authorization logic should be mirrored in MVC's AuthorizeFilter and Blazor's AuthorizeRouteView.
             var authorizeData = endpoint?.Metadata.GetOrderedMetadata<IAuthorizeData>() ?? Array.Empty<IAuthorizeData>();
 
             var policies = endpoint?.Metadata.GetOrderedMetadata<AuthorizationPolicy>() ?? Array.Empty<AuthorizationPolicy>();
@@ -137,12 +137,21 @@ public class AuthorizationMiddleware
                     ? reqPolicy.Build()
                     : AuthorizationPolicy.Combine(policy, reqPolicy.Build());
             }
+        }
 
-            // Cache the computed policy
-            if (policy != null && canCachePolicy)
+        if (!foundCacheEntry && endpoint != null)
+        {
+            // IAllowAnonymous is irrelevant if there is no policy, so we'll avoid computing it if we're caching a null policy.
+            if (policy != null || !_canCachePolicies)
             {
-                _cache!.Store(endpoint!, policy);
+                allowAnonymous = AllowAnonymous(endpoint);
             }
+
+            _cache?.Store(endpoint, new AuthorizationMiddlewareCacheEntry
+            {
+                AllowAnonymous = allowAnonymous,
+                AuthorizationPolicy = _canCachePolicies ? policy : null,
+            });
         }
 
         if (policy == null)
@@ -170,7 +179,7 @@ public class AuthorizationMiddleware
         }
 
         // Allow Anonymous still wants to run authorization to populate the User but skips any failure/challenge handling
-        if (AllowAnonymous(endpoint))
+        if (allowAnonymous)
         {
             await _next(context);
             return;
@@ -196,9 +205,9 @@ public class AuthorizationMiddleware
         await authorizationMiddlewareResultHandler.HandleAsync(_next, context, policy, authorizeResult);
     }
 
-    private bool AllowAnonymous(Endpoint? endpoint)
+    private bool AllowAnonymous(Endpoint endpoint)
     {
-        if (endpoint is null)
+        if (endpoint.Metadata.GetMetadata<IAllowAnonymous>() is null)
         {
             return false;
         }

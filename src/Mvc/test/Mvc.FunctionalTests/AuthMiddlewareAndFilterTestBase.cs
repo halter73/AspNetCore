@@ -24,7 +24,7 @@ public abstract class AuthMiddlewareAndFilterTestBase<TStartup> : IClassFixture<
     public async Task AllowAnonymousOnActionsWork()
     {
         // Arrange & Act
-        var response = await Client.GetAsync("AuthorizedActions/ActionWithoutAllowAnonymous");
+        var response = await Client.GetAsync("AuthorizedActions/ActionWithAllowAnonymousAttribute");
 
         // Assert
         await response.AssertStatusCodeAsync(HttpStatusCode.OK);

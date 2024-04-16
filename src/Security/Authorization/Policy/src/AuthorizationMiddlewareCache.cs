@@ -39,9 +39,3 @@ internal sealed class AuthorizationMiddlewareCache : IDisposable
         _cache.Dispose();
     }
 }
-
-internal struct AuthorizationMiddlewareCacheEntry
-{
-    public required AuthorizationPolicy? AuthorizationPolicy { get; init; }
-    public required bool AllowAnonymous { get; init; }
-}

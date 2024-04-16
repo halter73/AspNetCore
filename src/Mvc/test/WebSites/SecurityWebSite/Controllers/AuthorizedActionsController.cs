@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using Microsoft.AspNetCore.Authorization;
@@ -9,7 +9,7 @@ namespace SecurityWebSite.Controllers;
 public class AuthorizedActionsController : ControllerBase
 {
     [AllowAnonymous]
-    public IActionResult ActionWithoutAllowAnonymous() => Ok();
+    public IActionResult ActionWithAllowAnonymousAttribute() => Ok();
 
     public IActionResult ActionWithoutAuthAttribute() => Ok();
 

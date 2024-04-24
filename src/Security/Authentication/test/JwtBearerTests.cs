@@ -31,17 +31,13 @@ public class JwtBearerTests : SharedAuthenticationTests<JwtBearerOptions>
     protected override bool SupportsSignIn { get => false; }
     protected override bool SupportsSignOut { get => false; }
 
-    protected override void RegisterAuth(AuthenticationBuilder services, Action<JwtBearerOptions> configure)
+    protected override void RegisterAuth(AuthenticationBuilder services, Action<JwtBearerOptions> configure = null)
     {
         services.AddJwtBearer(o =>
         {
-            ConfigureDefaults(o);
-            configure.Invoke(o);
+            o.UseSecurityTokenValidators = true;
+            configure?.Invoke(o);
         });
-    }
-
-    private void ConfigureDefaults(JwtBearerOptions o)
-    {
     }
 
     [Fact]
@@ -1156,7 +1152,7 @@ public class JwtBearerTests : SharedAuthenticationTests<JwtBearerOptions>
         }
     }
 
-    private static async Task<IHost> CreateHost(Action<JwtBearerOptions> options = null, Func<HttpContext, Func<Task>, Task> handlerBeforeAuth = null)
+    private async Task<IHost> CreateHost(Action<JwtBearerOptions> options = null, Func<HttpContext, Func<Task>, Task> handlerBeforeAuth = null)
     {
         var host = new HostBuilder()
             .ConfigureWebHost(builder =>
@@ -1237,7 +1233,7 @@ public class JwtBearerTests : SharedAuthenticationTests<JwtBearerOptions>
                             }
                         });
                     })
-                    .ConfigureServices(services => services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options)))
+                    .ConfigureServices(services => RegisterAuth(services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme), options)))
             .Build();
 
         await host.StartAsync();

@@ -1,6 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Endpoints.FormMapping;
 
 namespace Microsoft.AspNetCore.Components.Endpoints;
@@ -83,5 +84,26 @@ public sealed class RazorComponentsServiceOptions
         }
     }
 
+    /// <summary>
+    /// 
+    /// </summary>
+    public bool SerializeAuthenticationStateToClient { get; set; }
+
+    /// <summary>
+    /// 
+    /// </summary>
+    public Func<AuthenticationState, Task<IEnumerable<KeyValuePair<string, string>>>> SerializeAuthenticationState { get; set; } = SerializeClaimsAsync;
+
     internal string? JavaScriptInitializers { get; set; }
+
+    private static Task<IEnumerable<KeyValuePair<string, string>>> SerializeClaimsAsync(AuthenticationState authenticationState)
+        => Task.FromResult(SerializeClaims(authenticationState));
+
+    private static IEnumerable<KeyValuePair<string, string>> SerializeClaims(AuthenticationState authenticationState)
+    {
+        foreach (var claim in authenticationState.User.Claims)
+        {
+            yield return new KeyValuePair<string, string>(claim.Type, claim.Value);
+        }
+    }
 }

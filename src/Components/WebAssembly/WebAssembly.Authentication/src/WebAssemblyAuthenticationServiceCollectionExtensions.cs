@@ -18,6 +18,23 @@ namespace Microsoft.Extensions.DependencyInjection;
 public static class WebAssemblyAuthenticationServiceCollectionExtensions
 {
     /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="services"></param>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public static IServiceCollection AddAuthenticationStateDeserialization(this IServiceCollection services, Action<AuthenticationStateDeserializationOptions>? configure = null)
+    {
+        services.AddOptions();
+        if (configure != null)
+        {
+            services.Configure(configure);
+        }
+        services.TryAddScoped<AuthenticationStateProvider, PersistentAuthenticationStateProvider>();
+        return services;
+    }
+
+    /// <summary>
     /// Adds support for authentication for SPA applications using the given <typeparamref name="TProviderOptions"/> and
     /// <typeparamref name="TRemoteAuthenticationState"/>.
     /// </summary>

@@ -23,12 +23,13 @@ public class RemoteAuthenticationStartup
     {
         app.Map("/subdir", app =>
         {
+            app.UseStaticFiles();
             app.UseRouting();
 
             app.UseAntiforgery();
             app.UseEndpoints(endpoints =>
             {
-                endpoints.MapStaticAssets(Path.Combine("trimmed-or-threading", "Components.TestServer", "Components.TestServer.staticwebassets.endpoints.json"));
+                //endpoints.MapStaticAssets(Path.Combine("trimmed-or-threading", "Components.TestServer", "Components.TestServer.staticwebassets.endpoints.json"));
                 endpoints.MapRazorComponents<RemoteAuthenticationApp>()
                     .AddAdditionalAssemblies(Assembly.Load("Components.WasmRemoteAuthentication"))
                     .AddInteractiveWebAssemblyRenderMode(options => options.PathPrefix = "/WasmRemoteAuthentication");

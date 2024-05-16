@@ -1,0 +1,69 @@
+﻿@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject NavigationManager Nav
+
+<h1>Cascading authentication state</h1>
+
+@if (user == null)
+{
+    <span id="auth-state-pending">Requesting authentication state...</span>
+}
+else
+{
+    <p>
+        Authenticated:
+        <strong id="identity-authenticated">@user.Identity.IsAuthenticated</strong>
+    </p>
+
+    <p>
+        Name:
+        <strong id="identity-name">@user.Identity.Name</strong>
+    </p>
+
+    <p>
+        Test claim:
+        @if (user.HasClaim(TestClaimPredicate))
+        {
+            <strong id="test-claim">@user.Claims.Single(c => TestClaimPredicate(c)).Value</strong>
+        }
+        else
+        {
+            <strong id="test-claim">(none)</strong>
+        }
+    </p>
+}
+
+<p>
+    Interactive:
+    <strong id="is-interactive">@_interactive</strong>
+</p>
+
+<hr />
+
+<a href="@Nav.GetUriWithQueryParameter("username", "YourUsername")" data-enhance-nav="false">Log in</a> |
+<a href="@Nav.GetUriWithQueryParameter("username", "")" data-enhance-nav="false">Log out</a>
+
+@code
+{
+    static readonly Predicate<Claim> TestClaimPredicate = c => c.Type == "test-claim";
+
+    ClaimsPrincipal user;
+    bool _interactive = false;
+
+    [CascadingParameter] Task<AuthenticationState> AuthenticationStateTask { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        user = (await AuthenticationStateTask).User;
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _interactive = true;
+            StateHasChanged();
+        }
+    }
+}

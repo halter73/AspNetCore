@@ -31,6 +31,7 @@ public class RazorComponentEndpointsStartup<TRootComponent>
             options.MaxFormMappingErrorCount = 10;
             options.MaxFormMappingRecursionDepth = 5;
             options.MaxFormMappingCollectionSize = 100;
+            options.SerializeAuthenticationStateToClient = true;
         })
             .AddInteractiveWebAssemblyComponents()
             .AddInteractiveServerComponents();

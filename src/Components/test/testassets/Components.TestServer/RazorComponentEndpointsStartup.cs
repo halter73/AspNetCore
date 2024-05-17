@@ -130,8 +130,8 @@ public class RazorComponentEndpointsStartup<TRootComponent>
                 }
             }
 
-            var nameClaimType = GetQueryOrDefault("name-claim-Type", ClaimTypes.Name);
-            var roleClaimType = GetQueryOrDefault("role-claim-Type", ClaimTypes.Role);
+            var nameClaimType = GetQueryOrDefault("nameClaimType", ClaimTypes.Name);
+            var roleClaimType = GetQueryOrDefault("roleClaimType", ClaimTypes.Role);
 
             if (!string.IsNullOrEmpty(username))
             {

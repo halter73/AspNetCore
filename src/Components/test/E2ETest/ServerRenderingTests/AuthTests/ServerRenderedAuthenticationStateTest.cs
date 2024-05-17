@@ -22,44 +22,46 @@ public class ServerRenderedAuthenticationStateTest
     {
     }
 
-    [Fact]
-    public void CanUseServerAuthenticationState_Static()
+    [Theory]
+    [InlineData("Static")]
+    [InlineData("Server")]
+    [InlineData("WebAssembly")]
+    public void CanUseServerAuthenticationState(string platform)
     {
-        Navigate($"{ServerPathBase}/auth/static-authentication-state");
+        var isInteractive = platform != "Static";
 
-        Browser.Equal("False", () => Browser.FindElement(By.Id("identity-authenticated")).Text);
-        Browser.Equal("", () => Browser.FindElement(By.Id("identity-name")).Text);
-        Browser.Equal("(none)", () => Browser.FindElement(By.Id("test-claim")).Text);
+        void VerifyPlatform()
+        {
+            Browser.Equal(isInteractive.ToString(), () => Browser.FindElement(By.Id("is-interactive")).Text);
+            Browser.Equal(platform, () => Browser.FindElement(By.Id("platform")).Text);
+        }
+
+        void VerifyLoggedOut()
+        {
+            VerifyPlatform();
+            Browser.Equal("False", () => Browser.FindElement(By.Id("identity-authenticated")).Text);
+            Browser.Equal("", () => Browser.FindElement(By.Id("identity-name")).Text);
+            Browser.Equal("(none)", () => Browser.FindElement(By.Id("test-claim")).Text);
+        }
+
+        void VerifyLoggedIn()
+        {
+            VerifyPlatform();
+            Browser.Equal("True", () => Browser.FindElement(By.Id("identity-authenticated")).Text);
+            Browser.Equal("YourUsername", () => Browser.FindElement(By.Id("identity-name")).Text);
+            Browser.Equal("Test claim value", () => Browser.FindElement(By.Id("test-claim")).Text);
+        }
+
+        Navigate($"{ServerPathBase}/auth/{platform}{(isInteractive ? "-interactive" : "")}-authentication-state");
+
+        VerifyLoggedOut();
         
         Browser.Click(By.LinkText("Log in"));
 
-        Browser.Equal("True", () => Browser.FindElement(By.Id("identity-authenticated")).Text);
-        Browser.Equal("YourUsername", () => Browser.FindElement(By.Id("identity-name")).Text);
-        Browser.Equal("Test claim value", () => Browser.FindElement(By.Id("test-claim")).Text);
+        VerifyLoggedIn();
 
         Browser.Click(By.LinkText("Log out"));
-        Browser.Equal("False", () => Browser.FindElement(By.Id("identity-authenticated")).Text);
-    }
 
-    [Fact]
-    public void CanUseServerAuthenticationState_Interactive()
-    {
-        Navigate($"{ServerPathBase}/auth/interactive-authentication-state");
-
-        Browser.Equal("True", () => Browser.FindElement(By.Id("is-interactive")).Text);
-        Browser.Equal("False", () => Browser.FindElement(By.Id("identity-authenticated")).Text);
-        Browser.Equal("", () => Browser.FindElement(By.Id("identity-name")).Text);
-        Browser.Equal("(none)", () => Browser.FindElement(By.Id("test-claim")).Text);
-
-        Browser.Click(By.LinkText("Log in"));
-
-        Browser.Equal("True", () => Browser.FindElement(By.Id("is-interactive")).Text);
-        Browser.Equal("True", () => Browser.FindElement(By.Id("identity-authenticated")).Text);
-        Browser.Equal("YourUsername", () => Browser.FindElement(By.Id("identity-name")).Text);
-        Browser.Equal("Test claim value", () => Browser.FindElement(By.Id("test-claim")).Text);
-
-        Browser.Click(By.LinkText("Log out"));
-        Browser.Equal("True", () => Browser.FindElement(By.Id("is-interactive")).Text);
-        Browser.Equal("False", () => Browser.FindElement(By.Id("identity-authenticated")).Text);
+        VerifyLoggedOut();
     }
 }

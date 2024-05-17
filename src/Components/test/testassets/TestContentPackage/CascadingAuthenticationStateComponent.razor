@@ -36,7 +36,13 @@ else
 
 <p>
     Interactive:
-    <strong id="is-interactive">@_interactive</strong>
+    <strong id="is-interactive">@Platform.IsInteractive</strong>
+</p>
+
+
+<p>
+    Platform:
+    <strong id="platform">@Platform.Name</strong>
 </p>
 
 <hr />
@@ -49,21 +55,11 @@ else
     static readonly Predicate<Claim> TestClaimPredicate = c => c.Type == "test-claim";
 
     ClaimsPrincipal user;
-    bool _interactive = false;
 
     [CascadingParameter] Task<AuthenticationState> AuthenticationStateTask { get; set; }
 
     protected override async Task OnParametersSetAsync()
     {
         user = (await AuthenticationStateTask).User;
-    }
-
-    protected override void OnAfterRender(bool firstRender)
-    {
-        if (firstRender)
-        {
-            _interactive = true;
-            StateHasChanged();
-        }
     }
 }

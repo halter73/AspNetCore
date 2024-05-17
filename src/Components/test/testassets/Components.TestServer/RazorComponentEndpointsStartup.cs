@@ -111,11 +111,14 @@ public class RazorComponentEndpointsStartup<TRootComponent>
             // Completely insecure fake auth system with no password for tests. Do not do anything like this in real apps.
             // It accepts a query parameter 'username' and then sets or deletes a cookie to hold that, and supplies a principal
             // using this username (taken either from the cookie or query param).
+            string GetQueryOrDefault(string queryKey, string defaultValue) =>
+                context.Request.Query.TryGetValue(queryKey, out var value) ? value : defaultValue;
+
             const string cookieKey = "fake_username";
-            context.Request.Cookies.TryGetValue(cookieKey, out var username);
-            if (context.Request.Query.TryGetValue("username", out var usernameFromQuery))
+            var username = GetQueryOrDefault("username", context.Request.Cookies[cookieKey]);
+
+            if (context.Request.Query.ContainsKey("username"))
             {
-                username = usernameFromQuery;
                 if (string.IsNullOrEmpty(username))
                 {
                     context.Response.Cookies.Delete(cookieKey);
@@ -127,15 +130,19 @@ public class RazorComponentEndpointsStartup<TRootComponent>
                 }
             }
 
+            var nameClaimType = GetQueryOrDefault("name-claim-Type", ClaimTypes.Name);
+            var roleClaimType = GetQueryOrDefault("role-claim-Type", ClaimTypes.Role);
+
             if (!string.IsNullOrEmpty(username))
             {
                 var claims = new List<Claim>
                 {
-                    new Claim(ClaimTypes.Name, username),
+                    new Claim(nameClaimType, username),
+                    new Claim(roleClaimType, "test-role"),
                     new Claim("test-claim", "Test claim value"),
                 };
 
-                context.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "FakeAuthenticationType"));
+                context.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "FakeAuthenticationType", nameClaimType, roleClaimType));
             }
 
             return next();

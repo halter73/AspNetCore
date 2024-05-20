@@ -4,8 +4,10 @@
 namespace Microsoft.AspNetCore.Components.Authorization;
 
 /// <summary>
-/// An interface implemented by <see cref="AuthenticationStateProvider"/> classes that can receive authentication
+/// An interface usually implemented by <see cref="AuthenticationStateProvider"/> classes that can receive authentication
 /// state information from the host environment.
+/// If a service registered directly as an <see cref="IHostEnvironmentAuthenticationStateProvider"/>, <see cref="SetAuthenticationState"/>
+/// with the authentication state returned by <see cref="AuthenticationStateProvider.GetAuthenticationStateAsync"/> during initial rendering.
 /// </summary>
 public interface IHostEnvironmentAuthenticationStateProvider
 {

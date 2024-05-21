@@ -104,7 +104,7 @@ public class RazorComponentEndpointsStartup<TRootComponent>
         });
     }
 
-    private static void UseFakeAuthState(IApplicationBuilder app)
+    internal static void UseFakeAuthState(IApplicationBuilder app)
     {
         app.Use((HttpContext context, Func<Task> next) =>
         {

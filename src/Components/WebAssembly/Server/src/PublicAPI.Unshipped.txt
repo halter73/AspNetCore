@@ -1,7 +1,9 @@
 #nullable enable
 Microsoft.AspNetCore.Components.WebAssembly.Server.AuthenticationStateSerializationOptions
 Microsoft.AspNetCore.Components.WebAssembly.Server.AuthenticationStateSerializationOptions.AuthenticationStateSerializationOptions() -> void
-Microsoft.AspNetCore.Components.WebAssembly.Server.AuthenticationStateSerializationOptions.SerializeCallback.get -> System.Func<Microsoft.AspNetCore.Components.Authorization.AuthenticationState!, System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string!, string!>>!>!>!
+Microsoft.AspNetCore.Components.WebAssembly.Server.AuthenticationStateSerializationOptions.SerializeAllClaims.get -> bool
+Microsoft.AspNetCore.Components.WebAssembly.Server.AuthenticationStateSerializationOptions.SerializeAllClaims.set -> void
+Microsoft.AspNetCore.Components.WebAssembly.Server.AuthenticationStateSerializationOptions.SerializeCallback.get -> System.Func<Microsoft.AspNetCore.Components.Authorization.AuthenticationState!, System.Threading.Tasks.ValueTask<Microsoft.AspNetCore.Components.Authorization.AuthenticationStateData?>>!
 Microsoft.AspNetCore.Components.WebAssembly.Server.AuthenticationStateSerializationOptions.SerializeCallback.set -> void
 Microsoft.AspNetCore.Components.WebAssembly.Server.WebAssemblyComponentsEndpointOptions.ServeMultithreadingHeaders.get -> bool
 Microsoft.AspNetCore.Components.WebAssembly.Server.WebAssemblyComponentsEndpointOptions.ServeMultithreadingHeaders.set -> void

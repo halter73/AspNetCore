@@ -8,19 +8,32 @@ using Microsoft.AspNetCore.Components.Authorization;
 namespace Microsoft.AspNetCore.Components.WebAssembly.Authentication;
 
 /// <summary>
-/// 
+/// Provides options for configuring the JSON deserialization of the client's <see cref="AuthenticationState"/> from the server using <see cref="PersistentComponentState"/>.
 /// </summary>
 public sealed class AuthenticationStateDeserializationOptions
 {
-    /// <summary>
-    /// 
-    /// </summary>
-    public Func<IEnumerable<KeyValuePair<string, string>>, Task<AuthenticationState>> DeserializeAuthenticationState { get; set; } = DeserializeAuthenticationStateDefault;
+    private static readonly Task<AuthenticationState> _defaultUnauthenticatedStateTask =
+        Task.FromResult(new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity())));
 
-    private static Task<AuthenticationState> DeserializeAuthenticationStateDefault(IEnumerable<KeyValuePair<string, string>> claims)
+    /// <summary>
+    /// Default implementation for converting the <see cref="AuthenticationStateData"/> that was JSON deserialized from the server
+    /// using <see cref="PersistentComponentState"/> to an <see cref="AuthenticationState"/> object to be returned by the WebAssembly
+    /// client's <see cref="AuthenticationStateProvider"/>.
+    /// </summary>
+    public Func<AuthenticationStateData?, Task<AuthenticationState>> DeserializeAuthenticationState { get; set; } = DeserializeAuthenticationStateAsync;
+
+    private static Task<AuthenticationState> DeserializeAuthenticationStateAsync(AuthenticationStateData? authenticationStateData)
     {
+        if (authenticationStateData is null)
+        {
+            return _defaultUnauthenticatedStateTask;
+        }
+
         return Task.FromResult(
-            new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity(claims.Select(c => new Claim(c.Key, c.Value)),
-                authenticationType: "DeserializedAuthenticationState"))));
+            new AuthenticationState(new ClaimsPrincipal(
+                new ClaimsIdentity(authenticationStateData.Claims.Select(c => new Claim(c.Key, c.Value)),
+                    authenticationType: "DeserializedAuthenticationState",
+                    nameType: authenticationStateData.NameClaimType,
+                    roleType: authenticationStateData.RoleClaimType))));
     }
 }

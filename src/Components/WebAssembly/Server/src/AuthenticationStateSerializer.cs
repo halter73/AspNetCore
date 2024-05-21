@@ -12,7 +12,7 @@ internal sealed class AuthenticationStateSerializer : IHostEnvironmentAuthentica
     internal const string PersistenceKey = $"__internal__{nameof(AuthenticationState)}";
 
     private readonly PersistentComponentState _state;
-    private readonly Func<AuthenticationState, Task<IEnumerable<KeyValuePair<string, string>>>> _serializeCallback;
+    private readonly Func<AuthenticationState, ValueTask<AuthenticationStateData?>> _serializeCallback;
     private readonly PersistingComponentStateSubscription _subscription;
 
     private Task<AuthenticationState>? _authenticationStateTask;
@@ -31,7 +31,11 @@ internal sealed class AuthenticationStateSerializer : IHostEnvironmentAuthentica
             throw new InvalidOperationException($"{nameof(SetAuthenticationState)} must be called before the {nameof(PersistentComponentState)}.{nameof(PersistentComponentState.RegisterOnPersisting)} callback.");
         }
 
-        _state.PersistAsJson(PersistenceKey, await _serializeCallback(await _authenticationStateTask));
+        var authenticationStateData = await _serializeCallback(await _authenticationStateTask);
+        if (authenticationStateData is not null)
+        {
+            _state.PersistAsJson(PersistenceKey, authenticationStateData);
+        }
     }
 
     /// <inheritdoc />

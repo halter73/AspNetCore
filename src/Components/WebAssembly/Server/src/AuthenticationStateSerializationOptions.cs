@@ -18,11 +18,11 @@ public class AuthenticationStateSerializationOptions
     /// </summary>
     public AuthenticationStateSerializationOptions()
     {
-        SerializeCallback = SerializeAuthenticationStateAsync;
+        SerializationCallback = SerializeAuthenticationStateAsync;
     }
 
     /// <summary>
-    /// If <see langword="true"/>, the default <see cref="SerializeCallback"/> will serialize all claims; otherwise, it will only serialize
+    /// If <see langword="true"/>, the default <see cref="SerializationCallback"/> will serialize all claims; otherwise, it will only serialize
     /// the <see cref="ClaimsIdentity.NameClaimType"/> and <see cref="ClaimsIdentity.RoleClaimType"/> claims.
     /// </summary>
     public bool SerializeAllClaims { get; set; }
@@ -31,7 +31,7 @@ public class AuthenticationStateSerializationOptions
     /// Default implementation for converting the server's <see cref="AuthenticationState"/> to an <see cref="AuthenticationStateData"/> object
     /// for JSON serialization to the client using <see cref="PersistentComponentState"/>."/>
     /// </summary>
-    public Func<AuthenticationState, ValueTask<AuthenticationStateData?>> SerializeCallback { get; set; }
+    public Func<AuthenticationState, ValueTask<AuthenticationStateData?>> SerializationCallback { get; set; }
 
     private ValueTask<AuthenticationStateData?> SerializeAuthenticationStateAsync(AuthenticationState authenticationState)
     {

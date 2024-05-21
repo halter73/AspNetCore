@@ -20,6 +20,9 @@ public class ServerRenderedAuthenticationStateTest
         ITestOutputHelper output)
         : base(browserFixture, serverFixture, output)
     {
+        // Test with AuthenticationStateSerializationOptions.SerializeAllClaims = true since that keeps the Server and WebAssembly
+        // behavior as similar as possible. The default behavior is tested by DefaultAuthenticationStateSerializationOptionsTest.
+        serverFixture.AdditionalArguments.Add("SerializeAllClaims=true");
     }
 
     [Theory]

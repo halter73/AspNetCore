@@ -29,7 +29,7 @@ internal sealed class PersistentAuthenticationStateProvider : AuthenticationStat
             return;
         }
 
-        _authenticationStateTask = options.Value.DeserializeAuthenticationState(authenticationStateData);
+        _authenticationStateTask = options.Value.DeserializationCallback(authenticationStateData);
     }
 
     public override Task<AuthenticationState> GetAuthenticationStateAsync() => _authenticationStateTask;

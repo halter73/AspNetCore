@@ -36,7 +36,8 @@ public class RazorComponentEndpointsStartup<TRootComponent>
             .AddInteractiveServerComponents()
             .AddAuthenticationStateSerialization(options =>
             {
-                options.SerializeAllClaims = true;
+                bool.TryParse(Configuration["SerializeAllClaims"], out var serializeAllClaims);
+                options.SerializeAllClaims = serializeAllClaims;
             });
 
         services.AddHttpContextAccessor();

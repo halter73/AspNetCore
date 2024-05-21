@@ -20,7 +20,7 @@ public sealed class AuthenticationStateDeserializationOptions
     /// using <see cref="PersistentComponentState"/> to an <see cref="AuthenticationState"/> object to be returned by the WebAssembly
     /// client's <see cref="AuthenticationStateProvider"/>.
     /// </summary>
-    public Func<AuthenticationStateData?, Task<AuthenticationState>> DeserializeAuthenticationState { get; set; } = DeserializeAuthenticationStateAsync;
+    public Func<AuthenticationStateData?, Task<AuthenticationState>> DeserializationCallback { get; set; } = DeserializeAuthenticationStateAsync;
 
     private static Task<AuthenticationState> DeserializeAuthenticationStateAsync(AuthenticationStateData? authenticationStateData)
     {

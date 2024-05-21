@@ -20,7 +20,7 @@ internal sealed class AuthenticationStateSerializer : IHostEnvironmentAuthentica
     public AuthenticationStateSerializer(PersistentComponentState persistentComponentState, IOptions<AuthenticationStateSerializationOptions> options)
     {
         _state = persistentComponentState;
-        _serializeCallback = options.Value.SerializeCallback;
+        _serializeCallback = options.Value.SerializationCallback;
         _subscription = persistentComponentState.RegisterOnPersisting(OnPersistingAsync, RenderMode.InteractiveWebAssembly);
     }
 

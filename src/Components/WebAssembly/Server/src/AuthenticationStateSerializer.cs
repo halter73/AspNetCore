@@ -9,8 +9,8 @@ namespace Microsoft.AspNetCore.Components.WebAssembly.Server;
 
 internal sealed class AuthenticationStateSerializer : IHostEnvironmentAuthenticationStateProvider, IDisposable
 {
-    // Do not change. This must match all versions of the server-side DeserializedAuthenticationStateProvider.PersistenceKey.
-    internal const string PersistenceKey = $"__internal__{nameof(AuthenticationState)}";
+    // Do not change. This must match the client-side DeserializedAuthenticationStateProvider.PersistenceKey.
+    private const string PersistenceKey = $"__internal__{nameof(AuthenticationState)}";
 
     private readonly PersistentComponentState _state;
     private readonly Func<AuthenticationState, ValueTask<AuthenticationStateData?>> _serializeCallback;

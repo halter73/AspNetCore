@@ -10,7 +10,7 @@ namespace Microsoft.AspNetCore.Components.WebAssembly.Authentication;
 
 internal sealed class DeserializedAuthenticationStateProvider : AuthenticationStateProvider
 {
-    // Do not change. This must match all versions of the server-side AuthenticationStateSerializer.PersistenceKey.
+    // Do not change. This must match the server-side AuthenticationStateSerializer.PersistenceKey.
     private const string PersistenceKey = $"__internal__{nameof(AuthenticationState)}";
 
     private static readonly Task<AuthenticationState> _defaultUnauthenticatedTask =

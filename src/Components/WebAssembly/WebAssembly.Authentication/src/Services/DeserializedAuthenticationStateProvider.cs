@@ -8,9 +8,9 @@ using Microsoft.Extensions.Options;
 
 namespace Microsoft.AspNetCore.Components.WebAssembly.Authentication;
 
-internal sealed class PersistentAuthenticationStateProvider : AuthenticationStateProvider
+internal sealed class DeserializedAuthenticationStateProvider : AuthenticationStateProvider
 {
-    // Do not change. This must match all versions of the server-side PersistingAuthenticationStateProvider.PersistenceKey.
+    // Do not change. This must match all versions of the server-side AuthenticationStateSerializer.PersistenceKey.
     private const string PersistenceKey = $"__internal__{nameof(AuthenticationState)}";
 
     private static readonly Task<AuthenticationState> _defaultUnauthenticatedTask =
@@ -21,8 +21,8 @@ internal sealed class PersistentAuthenticationStateProvider : AuthenticationStat
     [UnconditionalSuppressMessage(
         "Trimming",
         "IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-        Justification = $"{nameof(PersistentAuthenticationStateProvider)} uses the {nameof(PersistentComponentState)} APIs to deserialize the token, which are already annotated.")]
-    public PersistentAuthenticationStateProvider(PersistentComponentState state, IOptions<AuthenticationStateDeserializationOptions> options)
+        Justification = $"{nameof(DeserializedAuthenticationStateProvider)} uses the {nameof(PersistentComponentState)} APIs to deserialize the token, which are already annotated.")]
+    public DeserializedAuthenticationStateProvider(PersistentComponentState state, IOptions<AuthenticationStateDeserializationOptions> options)
     {
         if (!state.TryTakeFromJson<AuthenticationStateData?>(PersistenceKey, out var authenticationStateData) || authenticationStateData is null)
         {

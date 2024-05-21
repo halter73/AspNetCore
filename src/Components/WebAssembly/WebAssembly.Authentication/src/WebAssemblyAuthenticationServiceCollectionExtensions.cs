@@ -29,7 +29,7 @@ public static class WebAssemblyAuthenticationServiceCollectionExtensions
     public static IServiceCollection AddAuthenticationStateDeserialization(this IServiceCollection services, Action<AuthenticationStateDeserializationOptions>? configure = null)
     {
         services.AddOptions();
-        services.TryAddScoped<AuthenticationStateProvider, PersistentAuthenticationStateProvider>();
+        services.TryAddScoped<AuthenticationStateProvider, DeserializedAuthenticationStateProvider>();
         if (configure != null)
         {
             services.Configure(configure);

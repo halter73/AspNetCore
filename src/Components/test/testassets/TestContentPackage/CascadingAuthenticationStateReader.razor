@@ -34,6 +34,18 @@ else
     </p>
 
     <p>
+        Additional claim:
+        @if (user.HasClaim(AdditionalClaimPredicate))
+        {
+            <strong id="additional-claim">@user.Claims.Single(c => AdditionalClaimPredicate(c)).Value</strong>
+        }
+        else
+        {
+            <strong id="additional-claim">(none)</strong>
+        }
+    </p>
+
+    <p>
         Is in test-role-1:
         <strong id="is-in-test-role-1">@user.IsInRole("test-role-1")</strong>
     </p>
@@ -63,6 +75,7 @@ else
 @code
 {
     static readonly Predicate<Claim> TestClaimPredicate = c => c.Type == "test-claim";
+    static readonly Predicate<Claim> AdditionalClaimPredicate = c => c.Type == "additional-claim";
 
     ClaimsPrincipal user;
 

@@ -32,7 +32,7 @@ public sealed class AuthenticationStateDeserializationOptions
         return Task.FromResult(
             new AuthenticationState(new ClaimsPrincipal(
                 new ClaimsIdentity(authenticationStateData.Claims.Select(c => new Claim(c.Key, c.Value)),
-                    authenticationType: "DeserializedAuthenticationState",
+                    authenticationType: nameof(DeserializedAuthenticationStateProvider),
                     nameType: authenticationStateData.NameClaimType,
                     roleType: authenticationStateData.RoleClaimType))));
     }

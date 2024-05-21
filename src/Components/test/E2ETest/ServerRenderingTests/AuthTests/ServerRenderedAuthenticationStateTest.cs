@@ -55,10 +55,30 @@ public class ServerRenderedAuthenticationStateTest
         Browser.Click(By.LinkText("Log in"));
 
         VerifyLoggedIn("WebAssembly");
+        Browser.Equal("(none)", () => Browser.FindElement(By.Id("additional-claim")).Text);
 
         Browser.Click(By.LinkText("Log out"));
 
         VerifyLoggedOut("WebAssembly");
+    }
+
+    [Fact]
+    public void CanCustomizeAuthenticationStateDeserialization()
+    {
+        Navigate($"{ServerPathBase}/auth/webassembly-interactive-authentication-state?additionalClaim=Custom%20claim%20value");
+
+        VerifyLoggedOut("WebAssembly");
+        Browser.Equal("(none)", () => Browser.FindElement(By.Id("additional-claim")).Text);
+
+        Browser.Click(By.LinkText("Log in"));
+
+        VerifyLoggedIn("WebAssembly");
+        Browser.Equal("Custom claim value", () => Browser.FindElement(By.Id("additional-claim")).Text);
+
+        Browser.Click(By.LinkText("Log out"));
+
+        VerifyLoggedOut("WebAssembly");
+        Browser.Equal("(none)", () => Browser.FindElement(By.Id("additional-claim")).Text);
     }
 
     private void VerifyPlatform(string platform)

@@ -70,7 +70,8 @@ public class ServerRenderedAuthenticationStateTest
         Browser.Equal("False", () => Browser.FindElement(By.Id("identity-authenticated")).Text);
         Browser.Equal("", () => Browser.FindElement(By.Id("identity-name")).Text);
         Browser.Equal("(none)", () => Browser.FindElement(By.Id("test-claim")).Text);
-        Browser.Equal("False", () => Browser.FindElement(By.Id("is-in-test-role")).Text);
+        Browser.Equal("False", () => Browser.FindElement(By.Id("is-in-test-role-1")).Text);
+        Browser.Equal("False", () => Browser.FindElement(By.Id("is-in-test-role-2")).Text);
     }
 
     private void VerifyLoggedIn(string platform)
@@ -79,6 +80,7 @@ public class ServerRenderedAuthenticationStateTest
         Browser.Equal("True", () => Browser.FindElement(By.Id("identity-authenticated")).Text);
         Browser.Equal("YourUsername", () => Browser.FindElement(By.Id("identity-name")).Text);
         Browser.Equal("Test claim value", () => Browser.FindElement(By.Id("test-claim")).Text);
-        Browser.Equal("True", () => Browser.FindElement(By.Id("is-in-test-role")).Text);
+        Browser.Equal("True", () => Browser.FindElement(By.Id("is-in-test-role-1")).Text);
+        Browser.Equal("True", () => Browser.FindElement(By.Id("is-in-test-role-2")).Text);
     }
 }

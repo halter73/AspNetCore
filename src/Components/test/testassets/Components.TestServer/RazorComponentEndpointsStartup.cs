@@ -34,7 +34,11 @@ public class RazorComponentEndpointsStartup<TRootComponent>
         })
             .AddInteractiveWebAssemblyComponents()
             .AddInteractiveServerComponents()
-            .AddAuthenticationStateSerialization();
+            .AddAuthenticationStateSerialization(options =>
+            {
+                options.SerializeAllClaims = true;
+            });
+
         services.AddHttpContextAccessor();
         services.AddSingleton<AsyncOperationService>();
         services.AddCascadingAuthenticationState();
@@ -138,7 +142,8 @@ public class RazorComponentEndpointsStartup<TRootComponent>
                 var claims = new List<Claim>
                 {
                     new Claim(nameClaimType, username),
-                    new Claim(roleClaimType, "test-role"),
+                    new Claim(roleClaimType, "test-role-1"),
+                    new Claim(roleClaimType, "test-role-2"),
                     new Claim("test-claim", "Test claim value"),
                 };
 

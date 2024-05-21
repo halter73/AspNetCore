@@ -7,3 +7,7 @@ Microsoft.AspNetCore.Components.Authorization.AuthenticationStateData.NameClaimT
 Microsoft.AspNetCore.Components.Authorization.AuthenticationStateData.NameClaimType.set -> void
 Microsoft.AspNetCore.Components.Authorization.AuthenticationStateData.RoleClaimType.get -> string!
 Microsoft.AspNetCore.Components.Authorization.AuthenticationStateData.RoleClaimType.set -> void
+Microsoft.AspNetCore.Components.Server.ServerAuthenticationStateProvider
+Microsoft.AspNetCore.Components.Server.ServerAuthenticationStateProvider.ServerAuthenticationStateProvider() -> void
+Microsoft.AspNetCore.Components.Server.ServerAuthenticationStateProvider.SetAuthenticationState(System.Threading.Tasks.Task<Microsoft.AspNetCore.Components.Authorization.AuthenticationState!>! authenticationStateTask) -> void
+override Microsoft.AspNetCore.Components.Server.ServerAuthenticationStateProvider.GetAuthenticationStateAsync() -> System.Threading.Tasks.Task<Microsoft.AspNetCore.Components.Authorization.AuthenticationState!>!

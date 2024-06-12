@@ -35,10 +35,27 @@ public partial class MvcAnalyzer
             anonymousControllerType.Name));
     }
 
+    //public static IMethodSymbol? GetNearestMethodWithAttribute(this IMethodSymbol methodSymbol, ITypeSymbol attributeInterface)
+    //{
+    //    attributeInterface = attributeInterface ?? throw new ArgumentNullException(nameof(attributeInterface));
+
+    //    IMethodSymbol? current = methodSymbol;
+    //    while (current != null)
+    //    {
+    //        foreach (var attributeData in current.GetAttributes(attributeInterface))
+    //        {
+    //            yield return attributeData;
+    //        }
+
+    //        current = current.IsOverride ? current.OverriddenMethod : null;
+    //    }
+    //}
+
     private static ITypeSymbol? GetNearestTypeWithAttribute(ITypeSymbol? typeSymbol, ITypeSymbol attributeInterface)
     {
         while (typeSymbol is not null)
         {
+            // TODO: Count direct non-inherited attributes as well.
             if (typeSymbol.GetAttributes(attributeInterface).Any(IsAttributeInherited))
             {
                 return typeSymbol;

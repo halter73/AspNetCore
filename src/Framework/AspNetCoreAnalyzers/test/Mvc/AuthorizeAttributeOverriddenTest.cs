@@ -36,6 +36,22 @@ public class MyController
     }
 
     [Fact]
+    public async Task AuthorizeOnController_AllowAnonymousOnAction_NoDiagnostics()
+    {
+        var source = $$"""
+{{CommonPrefix}}
+[{|#0:Authorize|}]
+public class MyController
+{
+    [AllowAnonymous]
+    public object Get() => new();
+}
+""";
+
+        await VerifyCS.VerifyAnalyzerAsync(source);
+    }
+
+    [Fact]
     public async Task AuthorizeOnAction_AllowAnonymousOnControllerParentType_HasDiagnostics()
     {
         var source = $$"""
@@ -48,6 +64,28 @@ public class MyControllerBase
 public class MyController : MyControllerBase
 {
     [{|#0:Authorize|}]
+    public object Get() => new();
+}
+""";
+
+        await VerifyCS.VerifyAnalyzerAsync(source,
+            new DiagnosticResult(DiagnosticDescriptors.AuthorizeAttributeOverridden).WithArguments("MyControllerBase").WithLocation(0)
+        );
+    }
+
+    [Fact]
+    public async Task AuthorizeOnController_AllowAnonymousOnControllerParentType_HasDiagnostics()
+    {
+        var source = $$"""
+{{CommonPrefix}}
+[AllowAnonymous]
+public class MyControllerBase
+{
+}
+
+[{|#0:Authorize|}]
+public class MyController : MyControllerBase
+{
     public object Get() => new();
 }
 """;
@@ -140,7 +178,7 @@ public class MyController : MyControllerBase
 public class MyController
 {
     [AllowAnonymous]
-    [{|#0:Authorize(AuthenticationSchemes = ""foo"")|}]
+    [{|#0:Authorize|}]
     public object Get() => new();
 }
 """;
@@ -164,6 +202,49 @@ public class MyControllerBase
 public class MyController : MyControllerBase
 {
     [{|#0:Authorize|}]
+    public override object Get() => new();
+}
+""";
+
+        await VerifyCS.VerifyAnalyzerAsync(source,
+            new DiagnosticResult(DiagnosticDescriptors.AuthorizeAttributeOverridden).WithArguments("MyControllerBase").WithLocation(0)
+        );
+    }
+
+    [Fact]
+    public async Task AuthorizeOnController_AllowAnonymousOnBaseMethod_NoDiagnostics()
+    {
+        var source = $$"""
+{{CommonPrefix}}
+public class MyControllerBase
+{
+    [AllowAnonymous]
+    public virtual object Get() => new();
+}
+
+[Authorize]
+public class MyController : MyControllerBase
+{
+}
+""";
+
+        await VerifyCS.VerifyAnalyzerAsync(source);
+    }
+
+    [Fact]
+    public async Task AuthorizeOnController_AllowAnonymousOnOverriddenBaseMethod_HasDiagnostics()
+    {
+        var source = $$"""
+{{CommonPrefix}}
+public class MyControllerBase
+{
+    [AllowAnonymous]
+    public virtual object Get() => new();
+}
+
+[{|#0:Authorize|}]
+public class MyController : MyControllerBase
+{
     public override object Get() => new();
 }
 """;

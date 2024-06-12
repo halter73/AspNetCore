@@ -1,6 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System;
 using System.Linq;
 using Microsoft.AspNetCore.App.Analyzers.Infrastructure;
 using Microsoft.CodeAnalysis;
@@ -22,7 +23,7 @@ public partial class MvcAnalyzer
             return;
         }
 
-        var anonymousControllerType = GetNearestTypeWithInheritedAttribute(controllerSymbol, wellKnownTypes.Get(WellKnownType.Microsoft_AspNetCore_Authorization_IAllowAnonymous));
+        var anonymousControllerType = GetNearestTypeWithAttribute(controllerSymbol, wellKnownTypes.Get(WellKnownType.Microsoft_AspNetCore_Authorization_IAllowAnonymous));
         if (anonymousControllerType is null)
         {
             return;
@@ -34,15 +35,40 @@ public partial class MvcAnalyzer
             anonymousControllerType.Name));
     }
 
-    private static ITypeSymbol? GetNearestTypeWithInheritedAttribute(ITypeSymbol? typeSymbol, ITypeSymbol attribute)
+    private static ITypeSymbol? GetNearestTypeWithAttribute(ITypeSymbol? typeSymbol, ITypeSymbol attributeInterface)
     {
-        while (typeSymbol is not null && !typeSymbol.GetAttributes(attribute).Any())
+        while (typeSymbol is not null)
         {
+            if (typeSymbol.GetAttributes(attributeInterface).Any(IsAttributeInherited))
+            {
+                return typeSymbol;
+            }
             typeSymbol = typeSymbol.BaseType;
         }
 
-        // TODO: https://stackoverflow.com/questions/55523130/roslyn-is-isymbol-getattributes-returns-inherited-attributes
+        return null;
+    }
 
-        return typeSymbol;
+    private static bool IsAttributeInherited(AttributeData attributeData)
+    {
+        var attributeUsage = attributeData.AttributeClass?.GetAttributes()
+            .FirstOrDefault(ad =>
+                ad.AttributeClass?.Name == nameof(AttributeUsageAttribute) &&
+                ad.AttributeClass.ContainingNamespace.Name == "System");
+
+        if (attributeUsage is not null)
+        {
+            foreach (var arg in attributeUsage.NamedArguments)
+            {
+                if (arg.Key == nameof(AttributeUsageAttribute.Inherited))
+                {
+                    return (bool)arg.Value.Value!;
+                }
+            }
+        }
+
+        // If the AttributeUsage is not found or the Inherited property is not set,
+        // the default is true for attribute inheritance.
+        return true;
     }
 }

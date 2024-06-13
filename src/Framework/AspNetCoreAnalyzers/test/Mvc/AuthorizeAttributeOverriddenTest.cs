@@ -15,6 +15,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
 
 WebApplication.Create().Run();
+
 """;
 
     [Fact]
@@ -36,11 +37,11 @@ public class MyController
     }
 
     [Fact]
-    public async Task AuthorizeOnController_AllowAnonymousOnAction_NoDiagnostics()
+    public async Task AllowAnonymousOnAction_AuthorizeOnController_NoDiagnostics()
     {
         var source = $$"""
 {{CommonPrefix}}
-[{|#0:Authorize|}]
+[Authorize]
 public class MyController
 {
     [AllowAnonymous]
@@ -52,7 +53,7 @@ public class MyController
     }
 
     [Fact]
-    public async Task AuthorizeOnAction_AllowAnonymousOnControllerParentType_HasDiagnostics()
+    public async Task AuthorizeOnAction_AllowAnonymousOnControllerBaseType_HasDiagnostics()
     {
         var source = $$"""
 {{CommonPrefix}}
@@ -74,7 +75,32 @@ public class MyController : MyControllerBase
     }
 
     [Fact]
-    public async Task AuthorizeOnController_AllowAnonymousOnControllerParentType_HasDiagnostics()
+    public async Task AuthorizeOnActionControllerAndBaseType_AllowAnonymousOnControllerBaseType_HasDiagnostics()
+    {
+        // The closest Authorize attribute to the action reported if multiple could be considered overridden.
+        var source = $$"""
+{{CommonPrefix}}
+[AllowAnonymous]
+[Authorize]
+public class MyControllerBase
+{
+}
+
+[Authorize]
+public class MyController : MyControllerBase
+{
+    [{|#0:Authorize|}]
+    public object Get() => new();
+}
+""";
+
+        await VerifyCS.VerifyAnalyzerAsync(source,
+            new DiagnosticResult(DiagnosticDescriptors.AuthorizeAttributeOverridden).WithArguments("MyControllerBase").WithLocation(0)
+        );
+    }
+
+    [Fact]
+    public async Task AuthorizeOnController_AllowAnonymousOnControllerBaseType_HasDiagnostics()
     {
         var source = $$"""
 {{CommonPrefix}}
@@ -136,7 +162,7 @@ public class MyControllerBase
 
 public class MyController : MyControllerBase
 {
-    [{|#0:Authorize|}]
+    [Authorize]
     public object Get() => new();
 }
 
@@ -150,18 +176,37 @@ public class MyAllowAnonymousAttribute : Attribute, IAllowAnonymous
     }
 
     [Fact]
-    public async Task AuthorizeOnAction_AllowAnonymousOnSameActionAfter_NoDiagnostics()
+    public async Task CustomAuthorizeCombinedWithAllowAnonymousOnAction_AllowAnonymousOnController_NoDiagnostics()
     {
         var source = $$"""
 {{CommonPrefix}}
 [AllowAnonymous]
-public class MyControllerBase
+public class MyController
 {
+    [MyAuthorize]
+    public object Get() => new();
 }
 
-public class MyController : MyControllerBase
+public class MyAuthorizeAttribute : Attribute, IAuthorizeData, IAllowAnonymous
 {
-    [Authorize(AuthenticationSchemes = ""foo"")]
+    public string? Policy { get; set; }
+    public string? Roles { get; set; }
+    public string? AuthenticationSchemes { get; set; }
+}
+""";
+
+        await VerifyCS.VerifyAnalyzerAsync(source);
+    }
+
+    [Fact]
+    public async Task AuthorizeBeforeAllowAnonymousOnAction_AllowAnonymousOnController_NoDiagnostics()
+    {
+        var source = $$"""
+{{CommonPrefix}}
+[AllowAnonymous]
+public class MyController
+{
+    [Authorize(AuthenticationSchemes = "foo")]
     [AllowAnonymous]
     public object Get() => new();
 }
@@ -171,7 +216,7 @@ public class MyController : MyControllerBase
     }
 
     [Fact]
-    public async Task AuthorizeOnAction_AllowAnonymousOnSameActionBefore_HasDiagnostics()
+    public async Task AuthorizeAfterAllowAnonymousOnAction_NoAttributeOnController_HasDiagnostics()
     {
         var source = $$"""
 {{CommonPrefix}}
@@ -184,7 +229,41 @@ public class MyController
 """;
 
         await VerifyCS.VerifyAnalyzerAsync(source,
-            new DiagnosticResult(DiagnosticDescriptors.AuthorizeAttributeOverridden).WithArguments("MyControllerBase").WithLocation(0)
+            new DiagnosticResult(DiagnosticDescriptors.AuthorizeAttributeOverridden).WithArguments("MyController.Get").WithLocation(0)
+        );
+    }
+
+    [Fact]
+    public async Task NoAttributeOnAction_AuthorizeBeforeAllowAnonymousOnController_NoDiagnostics()
+    {
+        var source = $$"""
+{{CommonPrefix}}
+[Authorize(AuthenticationSchemes = "foo")]
+[AllowAnonymous]
+public class MyController
+{
+    public object Get() => new();
+}
+""";
+
+        await VerifyCS.VerifyAnalyzerAsync(source);
+    }
+
+    [Fact]
+    public async Task NoAttributeOnAction_AuthorizeAfterAllowAnonymousOnController_HasDiagnostics()
+    {
+        var source = $$"""
+{{CommonPrefix}}
+[AllowAnonymous]
+[{|#0:Authorize|}]
+public class MyController
+{
+    public object Get() => new();
+}
+""";
+
+        await VerifyCS.VerifyAnalyzerAsync(source,
+            new DiagnosticResult(DiagnosticDescriptors.AuthorizeAttributeOverridden).WithArguments("MyController").WithLocation(0)
         );
     }
 
@@ -207,12 +286,12 @@ public class MyController : MyControllerBase
 """;
 
         await VerifyCS.VerifyAnalyzerAsync(source,
-            new DiagnosticResult(DiagnosticDescriptors.AuthorizeAttributeOverridden).WithArguments("MyControllerBase").WithLocation(0)
+            new DiagnosticResult(DiagnosticDescriptors.AuthorizeAttributeOverridden).WithArguments("MyControllerBase.Get").WithLocation(0)
         );
     }
 
     [Fact]
-    public async Task AuthorizeOnController_AllowAnonymousOnBaseMethod_NoDiagnostics()
+    public async Task AllowAnonymousOnVirtualBaseActionWithNoOverride_AuthorizeOnController_NoDiagnostics()
     {
         var source = $$"""
 {{CommonPrefix}}
@@ -232,7 +311,7 @@ public class MyController : MyControllerBase
     }
 
     [Fact]
-    public async Task AuthorizeOnController_AllowAnonymousOnOverriddenBaseMethod_HasDiagnostics()
+    public async Task AllowAnonymousOnVirtualBaseActionButNotOverride_AuthorizeOnController_HasDiagnostics()
     {
         var source = $$"""
 {{CommonPrefix}}
@@ -250,7 +329,29 @@ public class MyController : MyControllerBase
 """;
 
         await VerifyCS.VerifyAnalyzerAsync(source,
-            new DiagnosticResult(DiagnosticDescriptors.AuthorizeAttributeOverridden).WithArguments("MyControllerBase").WithLocation(0)
+            new DiagnosticResult(DiagnosticDescriptors.AuthorizeAttributeOverridden).WithArguments("MyControllerBase.Get").WithLocation(0)
         );
+    }
+
+    [Fact]
+    public async Task AllowAnonymousOnVirtualBaseActionAndOverride_AuthorizeOnController_NoDiagnostics()
+    {
+        var source = $$"""
+{{CommonPrefix}}
+public class MyControllerBase
+{
+    [AllowAnonymous]
+    public virtual object Get() => new();
+}
+
+[Authorize]
+public class MyController : MyControllerBase
+{
+    [AllowAnonymous]
+    public override object Get() => new();
+}
+""";
+
+        await VerifyCS.VerifyAnalyzerAsync(source);
     }
 }

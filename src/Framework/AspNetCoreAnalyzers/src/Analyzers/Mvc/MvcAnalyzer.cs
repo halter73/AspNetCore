@@ -37,7 +37,7 @@ public partial class MvcAnalyzer : DiagnosticAnalyzer
             var wellKnownTypes = WellKnownTypes.GetOrCreate(compilation);
             var routeUsageCache = RouteUsageCache.GetOrCreate(compilation);
 
-            var concurrentQueue = new ConcurrentQueue<List<ActionRoute>>();
+            var concurrentQueue = new ConcurrentQueue<(List<ActionRoute> ActionRoutes, List<AttributeInfo> AuthorizeAttributes)>();
 
             context.RegisterSymbolAction(context =>
             {
@@ -45,13 +45,25 @@ public partial class MvcAnalyzer : DiagnosticAnalyzer
                 if (MvcDetector.IsController(namedTypeSymbol, wellKnownTypes))
                 {
                     // Pool and reuse lists for each block.
-                    if (!concurrentQueue.TryDequeue(out var actionRoutes))
+                    if (!concurrentQueue.TryDequeue(out var pooledItems))
                     {
-                        actionRoutes = new List<ActionRoute>();
+                        pooledItems.ActionRoutes = [];
+                        pooledItems.AuthorizeAttributes = [];
                     }
 
-                    DetectOverriddenAuthorizeAttributeOnController(context, wellKnownTypes, namedTypeSymbol, out var allowAnonClass);
-                    VisitActions(context, wellKnownTypes, routeUsageCache, namedTypeSymbol, actionRoutes, allowAnonClass);
+                    DetectOverriddenAuthorizeAttributeOnController(context, wellKnownTypes, namedTypeSymbol, pooledItems.AuthorizeAttributes, out var allowAnonClass);
+                    pooledItems.AuthorizeAttributes.Clear();
+
+                    // Visit Actions
+                    foreach (var member in namedTypeSymbol.GetMembers())
+                    {
+                        if (member is IMethodSymbol methodSymbol && MvcDetector.IsAction(methodSymbol, wellKnownTypes))
+                        {
+                            PopulateActionRoutes(context, wellKnownTypes, routeUsageCache, pooledItems.ActionRoutes, methodSymbol);
+                            DetectOverriddenAuthorizeAttributeOnAction(context, wellKnownTypes, methodSymbol, pooledItems.AuthorizeAttributes, allowAnonClass);
+                            pooledItems.AuthorizeAttributes.Clear();
+                        }
+                    }
 
                     RoutePatternTree? controllerRoutePattern = null;
                     var controllerRouteAttribute = namedTypeSymbol.GetAttributes(wellKnownTypes.Get(WellKnownType.Microsoft_AspNetCore_Mvc_RouteAttribute), inherit: true).FirstOrDefault();
@@ -64,28 +76,14 @@ public partial class MvcAnalyzer : DiagnosticAnalyzer
                         }
                     }
 
-                    DetectAmbiguousActionRoutes(context, wellKnownTypes, controllerRoutePattern, actionRoutes);
+                    DetectAmbiguousActionRoutes(context, wellKnownTypes, controllerRoutePattern, pooledItems.ActionRoutes);
 
                     // Return to the pool.
-                    actionRoutes.Clear();
-                    concurrentQueue.Enqueue(actionRoutes);
+                    pooledItems.ActionRoutes.Clear();
+                    concurrentQueue.Enqueue(pooledItems);
                 }
             }, SymbolKind.NamedType);
         });
-    }
-
-    private static void VisitActions(SymbolAnalysisContext context, WellKnownTypes wellKnownTypes, RouteUsageCache routeUsageCache,
-        INamedTypeSymbol controllerSymbol, List<ActionRoute> actionRoutes, string? allowAnonClass)
-    {
-        foreach (var member in controllerSymbol.GetMembers())
-        {
-            if (member is IMethodSymbol methodSymbol &&
-                MvcDetector.IsAction(methodSymbol, wellKnownTypes))
-            {
-                PopulateActionRoutes(context, wellKnownTypes, routeUsageCache, actionRoutes, methodSymbol);
-                DetectOverriddenAuthorizeAttributeOnAction(context, wellKnownTypes, methodSymbol, allowAnonClass);
-            }
-        }
     }
 
     private static void PopulateActionRoutes(SymbolAnalysisContext context, WellKnownTypes wellKnownTypes, RouteUsageCache routeUsageCache, List<ActionRoute> actionRoutes, IMethodSymbol methodSymbol)
@@ -188,4 +186,5 @@ public partial class MvcAnalyzer : DiagnosticAnalyzer
     }
 
     private record struct ActionRoute(IMethodSymbol ActionSymbol, RouteUsageModel RouteUsageModel, ImmutableArray<string> HttpMethods);
+    private record struct AttributeInfo(AttributeData AttributeData, bool IsTargetingMethod);
 }

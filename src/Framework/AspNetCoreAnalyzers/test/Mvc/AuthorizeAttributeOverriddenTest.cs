@@ -75,28 +75,29 @@ public class MyController : MyControllerBase
     }
 
     [Fact]
-    public async Task AuthorizeOnActionControllerAndBaseType_AllowAnonymousOnControllerBaseType_HasMultipleDiagnostics()
+    public async Task AuthorizeOnActionControllerAndAction_AllowAnonymousOnControllerBaseType_HasMultipleDiagnostics()
     {
         // The closest Authorize attribute to the action reported if multiple could be considered overridden.
         var source = $$"""
 {{CommonPrefix}}
 [AllowAnonymous]
-[Authorize]
+[{|#0:Authorize|}]
 public class MyControllerBase
 {
 }
 
-[{|#0:Authorize|}]
+[{|#1:Authorize|}]
 public class MyController : MyControllerBase
 {
-    [{|#1:Authorize|}]
+    [{|#2:Authorize|}]
     public object Get() => new();
 }
 """;
 
         await VerifyCS.VerifyAnalyzerAsync(source,
             new DiagnosticResult(DiagnosticDescriptors.AuthorizeAttributeOverridden).WithArguments("MyControllerBase").WithLocation(0),
-            new DiagnosticResult(DiagnosticDescriptors.AuthorizeAttributeOverridden).WithArguments("MyControllerBase").WithLocation(1)
+            new DiagnosticResult(DiagnosticDescriptors.AuthorizeAttributeOverridden).WithArguments("MyControllerBase").WithLocation(1),
+            new DiagnosticResult(DiagnosticDescriptors.AuthorizeAttributeOverridden).WithArguments("MyControllerBase").WithLocation(2)
         );
     }
 

@@ -2,9 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using Microsoft.AspNetCore.App.Analyzers.Infrastructure;
 using Microsoft.CodeAnalysis;
@@ -20,8 +18,8 @@ public partial class MvcAnalyzer
     /// This tries to detect [Authorize] attributes that are unwittingly overridden by [AllowAnonymous] attributes that are "farther" away from a controller.
     /// </summary>
     /// <returns>The name of the controller or base class with [AllowAnonymous] if any.</returns>
-    private static void DetectOverriddenAuthorizeAttributeOnController(SymbolAnalysisContext context, WellKnownTypes wellKnownTypes, INamedTypeSymbol controllerSymbol,
-        HashSet<Location> reportedLocations, out string? allowAnonClass)
+    private static void DetectOverriddenAuthorizeAttributeOnController(SymbolAnalysisContext context, WellKnownTypes wellKnownTypes,
+        INamedTypeSymbol controllerSymbol, out string? allowAnonClass)
     {
         Location? authorizeAttributeLocation = null;
         var isCheckingBaseType = false;
@@ -33,7 +31,7 @@ public partial class MvcAnalyzer
             if (foundAllowAnonymous)
             {
                 // Anything we find after this would be farther away, so we can short circuit.
-                if (IsNewDiagnosticLocation(authorizeAttributeLocation, reportedLocations))
+                if (authorizeAttributeLocation is not null)
                 {
                     context.ReportDiagnostic(Diagnostic.Create(
                         DiagnosticDescriptors.AuthorizeAttributeOverridden,
@@ -57,8 +55,8 @@ public partial class MvcAnalyzer
     /// If it already detected a closer [Authorize] attribute found, it reports a diagnostic at the [Authorize] attribute's location indicating that it will be overridden.
     /// </summary>
     /// <returns>True if an [AllowAnonymous] attribute was found on the action method or controller class.</returns>
-    private static void DetectOverriddenAuthorizeAttributeOnAction(SymbolAnalysisContext context, WellKnownTypes wellKnownTypes, IMethodSymbol actionSymbol,
-        HashSet<Location> reportedLocations, string? allowAnonClass)
+    private static void DetectOverriddenAuthorizeAttributeOnAction(SymbolAnalysisContext context, WellKnownTypes wellKnownTypes,
+        IMethodSymbol actionSymbol, string? allowAnonClass)
     {
         Location? authorizeAttributeLocation = null;
         var isCheckingBaseType = false;
@@ -74,7 +72,7 @@ public partial class MvcAnalyzer
                 {
                     // [AllowAnonymous] was found on the action method. Anything we find after this would be farther away,
                     // so we don't need to report any [Authorize] attributes unless we already found one.
-                    if (IsNewDiagnosticLocation(authorizeAttributeLocation, reportedLocations))
+                    if (authorizeAttributeLocation is not null)
                     {
                         context.ReportDiagnostic(Diagnostic.Create(
                             DiagnosticDescriptors.AuthorizeAttributeOverridden,
@@ -85,7 +83,7 @@ public partial class MvcAnalyzer
                     return;
                 }
 
-                if (allowAnonClass is not null && IsNewDiagnosticLocation(authorizeAttributeLocation, reportedLocations))
+                if (allowAnonClass is not null && authorizeAttributeLocation is not null)
                 {
                     context.ReportDiagnostic(Diagnostic.Create(
                         DiagnosticDescriptors.AuthorizeAttributeOverridden,
@@ -96,10 +94,10 @@ public partial class MvcAnalyzer
 
                 currentMethod = currentMethod.OverriddenMethod;
 
-                if (!isCheckingBaseType && currentMethod is null)
+                if (currentMethod is null && authorizeAttributeLocation is null)
                 {
-                    // If the action is not overriding anything, and [AllowAnonymous] was not found already found on the controller or base type,
-                    // there can be no [AllowAnonymous] attribute that would override an [Authorize] attribute farther away.
+                    // We've already checked the Controller and any base classes for overridden attributes in DetectOverriddenAuthorizeAttributeOnController.
+                    // If there are no method-level [Authorize] attributes that could be unexpectedly overridden, we're done.
                     return;
                 }
             }
@@ -107,7 +105,7 @@ public partial class MvcAnalyzer
             FindAuthorizeAndAllowAnonymous(context, wellKnownTypes, currentClass, isCheckingBaseType, ref authorizeAttributeLocation, out foundAllowAnonymous);
             if (foundAllowAnonymous)
             {
-                if (IsNewDiagnosticLocation(authorizeAttributeLocation, reportedLocations))
+                if (authorizeAttributeLocation is not null)
                 {
                     context.ReportDiagnostic(Diagnostic.Create(
                         DiagnosticDescriptors.AuthorizeAttributeOverridden,
@@ -129,18 +127,7 @@ public partial class MvcAnalyzer
 
     private static bool IsSameSymbol(ISymbol? x, ISymbol? y) => SymbolEqualityComparer.Default.Equals(x, y);
 
-    private static bool IsNewDiagnosticLocation([NotNullWhen(true)] Location? candidateLocation, HashSet<Location> reportedLocations)
-    {
-        if (candidateLocation is null || reportedLocations.Contains(candidateLocation))
-        {
-            return false;
-        }
-
-        reportedLocations.Add(candidateLocation);
-        return true;
-    }
-
-    private static bool IsAttributeInheritable(WellKnownTypes wellKnownTypes, INamedTypeSymbol attribute)
+    private static bool IsInheritableAttribute(WellKnownTypes wellKnownTypes, INamedTypeSymbol attribute)
     {
         // [AttributeUsage] is sealed but inheritable.
         var attributeUsageAttributeType = wellKnownTypes.Get(WellKnownType.System_AttributeUsageAttribute);
@@ -161,7 +148,8 @@ public partial class MvcAnalyzer
         return true;
     }
 
-    private static bool IsMatchingAttribute(WellKnownTypes wellKnownTypes, INamedTypeSymbol attribute, INamedTypeSymbol commonAttribute, ITypeSymbol attributeInterface, bool mustBeInheritable)
+    private static bool IsMatchingAttribute(WellKnownTypes wellKnownTypes, INamedTypeSymbol attribute,
+        INamedTypeSymbol commonAttribute, ITypeSymbol attributeInterface, bool mustBeInheritable)
     {
         // The "common" attribute is either [Authorize] or [AllowAnonymous] so we can skip the interface and inheritable checks.
         if (IsSameSymbol(attribute, commonAttribute))
@@ -174,11 +162,11 @@ public partial class MvcAnalyzer
             return false;
         }
 
-        return !mustBeInheritable || IsAttributeInheritable(wellKnownTypes, attribute);
+        return !mustBeInheritable || IsInheritableAttribute(wellKnownTypes, attribute);
     }
 
-    private static void FindAuthorizeAndAllowAnonymous(SymbolAnalysisContext context, WellKnownTypes wellKnownTypes, ISymbol symbol, bool isCheckingBaseType,
-        ref Location? authorizeAttributeLocation, out bool foundAllowAnonymous)
+    private static void FindAuthorizeAndAllowAnonymous(SymbolAnalysisContext context, WellKnownTypes wellKnownTypes,
+        ISymbol symbol, bool isCheckingBaseType, ref Location? authorizeAttributeLocation, out bool foundAllowAnonymous)
     {
         Location? localAuthorizeAttributeLocation = null;
         foundAllowAnonymous = false;

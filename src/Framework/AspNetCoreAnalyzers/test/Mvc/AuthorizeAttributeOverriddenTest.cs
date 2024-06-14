@@ -149,10 +149,6 @@ public class MyController : MyControllerBase
     [Fact]
     public async Task AuthorizeOnControllerBaseWithMultipleChildren_AllowAnonymousOnControllerBaseBaseType_HasMultipleDiagnostics()
     {
-        // This is not ideal. If someone comes along and fixes it to be a single diagnostic, feel free to update this test to end with
-        // "HasSingleDiagnostic" instead of "HasMultipleDiagnostics". I think fixing it will require disabling parallelization of the
-        // entire MvcAnalyzer which I don't think is a good tradeoff. I assume that this scenario is rare enough and that overreporting
-        // is benign enough to not warrant the performance hit.
         var source = $$"""
 {{CommonPrefix}}
 [AllowAnonymous]
@@ -178,6 +174,10 @@ public class MyOtherController : MyControllerBase
 }
 """;
 
+        // This is not ideal. If someone comes along and fixes it to be a single diagnostic, feel free to update this test to end with
+        // "HasSingleDiagnostic" instead of "HasMultipleDiagnostics". I think fixing it will require disabling parallelization of the
+        // entire MvcAnalyzer which I don't think is a good tradeoff. I assume that this scenario is rare enough and that overreporting
+        // is benign enough to not warrant the performance hit.
         await VerifyCS.VerifyAnalyzerAsync(source,
             new DiagnosticResult(DiagnosticDescriptors.AuthorizeAttributeOverridden).WithArguments("MyControllerBaseBase").WithLocation(0),
             new DiagnosticResult(DiagnosticDescriptors.AuthorizeAttributeOverridden).WithArguments("MyControllerBaseBase").WithLocation(0)
@@ -367,13 +367,13 @@ public class MyControllerBase
 [Authorize]
 public class MyController : MyControllerBase
 {
-    // I suspect [AllowAnonymous] on a specific action that never needs auth despite the child controller
-    // configuring auth is a fairly common pattern. However, if the action is explicitly overridden,
-    // you need to reapply [AllowAnonymous] on the override to silence the warning and clarify your intent.
-    // Making people do this when there isn't even an override is a bit onerous.
 }
 """;
 
+        // I suspect [AllowAnonymous] on a specific action that never needs auth despite the child controller
+        // configuring auth is a fairly common pattern. However, if the action is explicitly overridden,
+        // you need to reapply [AllowAnonymous] on the override to silence the warning and clarify your intent.
+        // Making people do this when there isn't even an override is a bit onerous.
         await VerifyCS.VerifyAnalyzerAsync(source);
     }
 

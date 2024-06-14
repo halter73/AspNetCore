@@ -71,8 +71,7 @@ public partial class MvcAnalyzer
                 {
                     // [AllowAnonymous] was found on the action method. Anything we find after this would be farther away, so we don't need to report any
                     // [Authorize] attributes unless we already found one on the very same method or an override.
-                    ReportAuthorizeAttributeOverriddenDiagnosticsIfAny(context, authorizeAttributes,
-                        $"{currentMethod.ContainingType.Name}.{currentMethod.Name}");
+                    ReportAuthorizeAttributeOverriddenDiagnosticsIfAny(context, authorizeAttributes, currentMethod.ContainingType.Name, currentMethod.Name);
                     return;
                 }
 
@@ -177,7 +176,7 @@ public partial class MvcAnalyzer
                 }
                 else
                 {
-                    // This is ony allocated if there are multiple of either [Authorize] attributes on the same symbol which we assume is rare.
+                    // This is ony allocated if there are multiple [Authorize] attributes on the same symbol which we assume is rare.
                     localAuthorizeAttributeOverflow ??= [];
                     localAuthorizeAttributeOverflow.Add(attribute);
                 }
@@ -210,16 +209,19 @@ public partial class MvcAnalyzer
     }
 
     private static void ReportAuthorizeAttributeOverriddenDiagnosticsIfAny(SymbolAnalysisContext context,
-        IEnumerable<AttributeInfo> authorizeAttributes, string allowAnonymousLocation)
+        IEnumerable<AttributeInfo> authorizeAttributes, string allowAnonClass, string? allowAnonMethod = null)
     {
+        string? allowAnonLocation = null;
+
         foreach (var authorizeAttribute in authorizeAttributes)
         {
+            allowAnonLocation ??= allowAnonMethod is null ? allowAnonClass : $"{allowAnonClass}.{allowAnonMethod}";
             if (authorizeAttribute.AttributeData.ApplicationSyntaxReference is { } syntaxReference)
             {
                 context.ReportDiagnostic(Diagnostic.Create(
                     DiagnosticDescriptors.AuthorizeAttributeOverridden,
                     syntaxReference.GetSyntax(context.CancellationToken).GetLocation(),
-                    allowAnonymousLocation));
+                    allowAnonLocation));
             }
         }
     }

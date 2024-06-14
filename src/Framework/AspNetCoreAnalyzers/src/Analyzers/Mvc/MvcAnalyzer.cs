@@ -37,7 +37,7 @@ public partial class MvcAnalyzer : DiagnosticAnalyzer
             var wellKnownTypes = WellKnownTypes.GetOrCreate(compilation);
             var routeUsageCache = RouteUsageCache.GetOrCreate(compilation);
 
-            var concurrentQueue = new ConcurrentQueue<List<ActionRoute>>();
+            var concurrentQueue = new ConcurrentQueue<(List<ActionRoute> ActionRoutes, HashSet<Location> ReportedAuthorizeLocations)>();
 
             context.RegisterSymbolAction(context =>
             {
@@ -45,12 +45,14 @@ public partial class MvcAnalyzer : DiagnosticAnalyzer
                 if (MvcDetector.IsController(namedTypeSymbol, wellKnownTypes))
                 {
                     // Pool and reuse lists for each block.
-                    if (!concurrentQueue.TryDequeue(out var actionRoutes))
+                    if (!concurrentQueue.TryDequeue(out var queueItem))
                     {
-                        actionRoutes = new List<ActionRoute>();
+                        queueItem.ActionRoutes = [];
+                        queueItem.ReportedAuthorizeLocations = [];
                     }
 
-                    VisitActions(context, wellKnownTypes, routeUsageCache, namedTypeSymbol, actionRoutes);
+                    DetectOverriddenAuthorizeAttributeOnController(context, wellKnownTypes, namedTypeSymbol, queueItem.ReportedAuthorizeLocations, out var allowAnonClass);
+                    VisitActions(context, wellKnownTypes, routeUsageCache, namedTypeSymbol, queueItem.ActionRoutes, queueItem.ReportedAuthorizeLocations, allowAnonClass);
 
                     RoutePatternTree? controllerRoutePattern = null;
                     var controllerRouteAttribute = namedTypeSymbol.GetAttributes(wellKnownTypes.Get(WellKnownType.Microsoft_AspNetCore_Mvc_RouteAttribute), inherit: true).FirstOrDefault();
@@ -63,17 +65,19 @@ public partial class MvcAnalyzer : DiagnosticAnalyzer
                         }
                     }
 
-                    DetectAmbiguousActionRoutes(context, wellKnownTypes, controllerRoutePattern, actionRoutes);
+                    DetectAmbiguousActionRoutes(context, wellKnownTypes, controllerRoutePattern, queueItem.ActionRoutes);
 
                     // Return to the pool.
-                    actionRoutes.Clear();
-                    concurrentQueue.Enqueue(actionRoutes);
+                    queueItem.ActionRoutes.Clear();
+                    queueItem.ReportedAuthorizeLocations.Clear();
+                    concurrentQueue.Enqueue(queueItem);
                 }
             }, SymbolKind.NamedType);
         });
     }
 
-    private static void VisitActions(SymbolAnalysisContext context, WellKnownTypes wellKnownTypes, RouteUsageCache routeUsageCache, INamedTypeSymbol controllerSymbol, List<ActionRoute> actionRoutes)
+    private static void VisitActions(SymbolAnalysisContext context, WellKnownTypes wellKnownTypes, RouteUsageCache routeUsageCache,
+        INamedTypeSymbol controllerSymbol, List<ActionRoute> actionRoutes, HashSet<Location> reportedAuthorizeLocations, string? allowAnonClass)
     {
         foreach (var member in controllerSymbol.GetMembers())
         {
@@ -81,7 +85,7 @@ public partial class MvcAnalyzer : DiagnosticAnalyzer
                 MvcDetector.IsAction(methodSymbol, wellKnownTypes))
             {
                 PopulateActionRoutes(context, wellKnownTypes, routeUsageCache, actionRoutes, methodSymbol);
-                DetectOverriddenAuthorizeAttribute(context, wellKnownTypes, controllerSymbol, methodSymbol);
+                DetectOverriddenAuthorizeAttributeOnAction(context, wellKnownTypes, methodSymbol, reportedAuthorizeLocations, allowAnonClass);
             }
         }
     }

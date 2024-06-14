@@ -75,7 +75,7 @@ public class MyController : MyControllerBase
     }
 
     [Fact]
-    public async Task AuthorizeOnActionControllerAndBaseType_AllowAnonymousOnControllerBaseType_HasDiagnostics()
+    public async Task AuthorizeOnActionControllerAndBaseType_AllowAnonymousOnControllerBaseType_HasMultipleDiagnostics()
     {
         // The closest Authorize attribute to the action reported if multiple could be considered overridden.
         var source = $$"""
@@ -86,16 +86,17 @@ public class MyControllerBase
 {
 }
 
-[Authorize]
+[{|#0:Authorize|}]
 public class MyController : MyControllerBase
 {
-    [{|#0:Authorize|}]
+    [{|#1:Authorize|}]
     public object Get() => new();
 }
 """;
 
         await VerifyCS.VerifyAnalyzerAsync(source,
-            new DiagnosticResult(DiagnosticDescriptors.AuthorizeAttributeOverridden).WithArguments("MyControllerBase").WithLocation(0)
+            new DiagnosticResult(DiagnosticDescriptors.AuthorizeAttributeOverridden).WithArguments("MyControllerBase").WithLocation(0),
+            new DiagnosticResult(DiagnosticDescriptors.AuthorizeAttributeOverridden).WithArguments("MyControllerBase").WithLocation(1)
         );
     }
 
@@ -113,6 +114,62 @@ public class MyControllerBase
 public class MyController : MyControllerBase
 {
     public object Get() => new();
+}
+""";
+
+        await VerifyCS.VerifyAnalyzerAsync(source,
+            new DiagnosticResult(DiagnosticDescriptors.AuthorizeAttributeOverridden).WithArguments("MyControllerBase").WithLocation(0)
+        );
+    }
+
+    [Fact]
+    public async Task AuthorizeOnControllerWithMultipleActions_AllowAnonymousOnControllerBaseType_HasSingleDiagnostic()
+    {
+        var source = $$"""
+{{CommonPrefix}}
+[AllowAnonymous]
+public class MyControllerBase
+{
+}
+
+[{|#0:Authorize|}]
+public class MyController : MyControllerBase
+{
+    public object Get() => new();
+    public object AnotherGet() => new();
+}
+""";
+
+        await VerifyCS.VerifyAnalyzerAsync(source,
+            new DiagnosticResult(DiagnosticDescriptors.AuthorizeAttributeOverridden).WithArguments("MyControllerBase").WithLocation(0)
+        );
+    }
+
+    [Fact]
+    public async Task AuthorizeOnControllerBaseTypeWithMultipleChildren_AllowAnonymousOnControllerBaseBaseType_HasSingleDiagnostic()
+    {
+        var source = $$"""
+{{CommonPrefix}}
+[AllowAnonymous]
+public class MyControllerBaseBase
+{
+}
+
+[{|#0:Authorize|}]
+public class MyControllerBase : MyControllerBaseBase
+{
+}
+
+public class MyController : MyControllerBase
+{
+    public object Get() => new();
+    public object AnotherGet() => new();
+}
+
+public class MyOtherController : MyControllerBase
+{
+    public object Get() => new();
+    public object AnotherGet() => new();
 }
 """;
 
@@ -330,6 +387,34 @@ public class MyController : MyControllerBase
 
         await VerifyCS.VerifyAnalyzerAsync(source,
             new DiagnosticResult(DiagnosticDescriptors.AuthorizeAttributeOverridden).WithArguments("MyControllerBase.Get").WithLocation(0)
+        );
+    }
+
+    [Fact]
+    public async Task AllowAnonymousOnVirtualBaseBaseActionButNotOverride_AuthorizeOnControllerBaseType_HasDiagnostics()
+    {
+        var source = $$"""
+{{CommonPrefix}}
+
+public class MyControllerBaseBase
+{
+    [AllowAnonymous]
+    public virtual object Get() => new();
+}
+
+[{|#0:Authorize|}]
+public class MyControllerBase : MyControllerBaseBase
+{
+}
+
+public class MyController : MyControllerBase
+{
+    public override object Get() => new();
+}
+""";
+
+        await VerifyCS.VerifyAnalyzerAsync(source,
+            new DiagnosticResult(DiagnosticDescriptors.AuthorizeAttributeOverridden).WithArguments("MyControllerBaseBase.Get").WithLocation(0)
         );
     }
 

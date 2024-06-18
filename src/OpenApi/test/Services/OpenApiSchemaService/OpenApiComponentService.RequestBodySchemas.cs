@@ -1,6 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.IO.Pipelines;
 using Microsoft.AspNetCore.Builder;
@@ -310,5 +311,85 @@ public partial class OpenApiComponentServiceTests : OpenApiDocumentServiceTestBa
                     Assert.Equal("string", property.Value.Type);
                 });
         });
+    }
+
+    [Fact]
+    public async Task GetOpenApiRequestBody_HandlesDescriptionAttributeOnProperties()
+    {
+        // Arrange
+        var builder = CreateBuilder();
+
+        // Act
+        builder.MapPost("/api", (DescriptionTodo todo) => { });
+
+        // Assert
+        await VerifyOpenApiDocument(builder, document =>
+        {
+            var operation = document.Paths["/api"].Operations[OperationType.Post];
+            Assert.NotNull(operation.RequestBody);
+            var requestBody = operation.RequestBody.Content;
+            Assert.True(requestBody.TryGetValue("application/json", out var mediaType));
+            Assert.Equal("object", mediaType.Schema.Type);
+            Assert.Collection(mediaType.Schema.Properties,
+                property =>
+                {
+                    Assert.Equal("id", property.Key);
+                    Assert.Equal("integer", property.Value.Type);
+                    Assert.Equal("int32", property.Value.Format);
+                    Assert.Equal("The unique identifier for a todo item.", property.Value.Description);
+                },
+                property =>
+                {
+                    Assert.Equal("title", property.Key);
+                    Assert.Equal("string", property.Value.Type);
+                    Assert.Equal("The title of the todo item.", property.Value.Description);
+                },
+                property =>
+                {
+                    Assert.Equal("completed", property.Key);
+                    Assert.Equal("boolean", property.Value.Type);
+                    Assert.Equal("The completion status of the todo item.", property.Value.Description);
+                },
+                property =>
+                {
+                    Assert.Equal("createdAt", property.Key);
+                    Assert.Equal("string", property.Value.Type);
+                    Assert.Equal("date-time", property.Value.Format);
+                    Assert.Equal("The date and time the todo item was created.", property.Value.Description);
+                });
+        });
+    }
+
+    [Fact]
+    public async Task GetOpenApiRequestBody_HandlesDescriptionAttributeOnParameter()
+    {
+        // Arrange
+        var builder = CreateBuilder();
+
+        // Act
+        builder.MapPost("/api", ([Description("The todo item to create.")] DescriptionTodo todo) => { });
+
+        // Assert
+        await VerifyOpenApiDocument(builder, document =>
+        {
+            var operation = document.Paths["/api"].Operations[OperationType.Post];
+            Assert.NotNull(operation.RequestBody);
+            Assert.Equal("The todo item to create.", operation.RequestBody.Description);
+        });
+    }
+
+    private class DescriptionTodo
+    {
+        [Description("The unique identifier for a todo item.")]
+        public int Id { get; set; }
+
+        [Description("The title of the todo item.")]
+        public string Title { get; set; }
+
+        [Description("The completion status of the todo item.")]
+        public bool Completed { get; set; }
+
+        [Description("The date and time the todo item was created.")]
+        public DateTime CreatedAt { get; set; }
     }
 }

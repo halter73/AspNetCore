@@ -24,6 +24,7 @@ internal sealed class DeserializedAuthenticationStateProvider : AuthenticationSt
         "IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
         Justification = $"{nameof(DeserializedAuthenticationStateProvider)} uses the {nameof(DynamicDependencyAttribute)} to preserve the necessary members.")]
     [DynamicDependency(JsonSerialized, typeof(AuthenticationStateData))]
+    [DynamicDependency(JsonSerialized, typeof(IList<ClaimData>))]
     [DynamicDependency(JsonSerialized, typeof(ClaimData))]
     public DeserializedAuthenticationStateProvider(PersistentComponentState state, IOptions<AuthenticationStateDeserializationOptions> options)
     {

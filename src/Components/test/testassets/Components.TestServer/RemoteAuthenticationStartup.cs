@@ -29,8 +29,7 @@ public class RemoteAuthenticationStartup
             app.UseEndpoints(endpoints =>
             {
 #if !DEBUG
-                endpoints.MapStaticAssets("Components.TestServer.staticwebassets.endpoints.json");
-                //endpoints.MapStaticAssets(Path.Combine("trimmed-or-threading", "Components.TestServer", "Components.TestServer.staticwebassets.endpoints.json"));
+                endpoints.MapStaticAssets(Path.Combine("trimmed-or-threading", "Components.TestServer", "Components.TestServer.staticwebassets.endpoints.json"));
 #else
                 endpoints.MapStaticAssets("Components.TestServer.staticwebassets.endpoints.json");
 #endif

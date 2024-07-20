@@ -84,6 +84,7 @@ internal sealed class OpenApiSchemaStore
         // Only capture top-level schemas by ref. Nested schemas will follow the
         // reference by duplicate rules.
         AddOrUpdateSchemaByReference(schema, captureSchemaByRef: captureSchemaByRef);
+        AddOrUpdateAnyOfSubSchemaByReference(schema);
         if (schema.AdditionalProperties is not null)
         {
             AddOrUpdateSchemaByReference(schema.AdditionalProperties);
@@ -99,11 +100,19 @@ internal sealed class OpenApiSchemaStore
                 AddOrUpdateSchemaByReference(allOfSchema);
             }
         }
+        if (schema.Properties is not null)
+        {
+            foreach (var property in schema.Properties.Values)
+            {
+                AddOrUpdateSchemaByReference(property);
+            }
+        }
+    }
+
+    private void AddOrUpdateAnyOfSubSchemaByReference(OpenApiSchema schema)
+    {
         if (schema.AnyOf is not null)
         {
-            // AnyOf schemas in a polymorphic type should contain a reference to the parent schema
-            // ID to support disambiguating between a derived type on its own and a derived type
-            // as part of a polymorphic schema.
             var baseTypeSchemaId = schema.Extensions.TryGetValue(OpenApiConstants.SchemaId, out var schemaId)
                 ? ((ScrubbedOpenApiAny)schemaId).Value
                 : null;
@@ -112,12 +121,31 @@ internal sealed class OpenApiSchemaStore
                 AddOrUpdateSchemaByReference(anyOfSchema, baseTypeSchemaId);
             }
         }
-        if (schema.Properties is not null)
+
+        if (schema.Items is not null)
+        {
+            AddOrUpdateAnyOfSubSchemaByReference(schema.Items);
+        }
+
+        if (schema.Properties is { Count: > 0 })
         {
             foreach (var property in schema.Properties.Values)
             {
-                AddOrUpdateSchemaByReference(property);
+                AddOrUpdateAnyOfSubSchemaByReference(property);
             }
+        }
+
+        if (schema.AllOf is not null)
+        {
+            foreach (var allOfSchema in schema.AllOf)
+            {
+                AddOrUpdateAnyOfSubSchemaByReference(allOfSchema);
+            }
+        }
+
+        if (schema.AdditionalProperties is not null)
+        {
+            AddOrUpdateAnyOfSubSchemaByReference(schema.AdditionalProperties);
         }
     }
 

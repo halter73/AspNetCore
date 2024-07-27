@@ -1,6 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http;
 using System.Net.WebSockets;
@@ -10,10 +11,11 @@ using Microsoft.AspNetCore.Connections;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.Http.Connections.Client;
+using Microsoft.AspNetCore.InternalTesting;
+using Microsoft.AspNetCore.SignalR.Internal;
 using Microsoft.AspNetCore.SignalR.Protocol;
 using Microsoft.AspNetCore.SignalR.Test.Internal;
 using Microsoft.AspNetCore.SignalR.Tests;
-using Microsoft.AspNetCore.InternalTesting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
@@ -110,6 +112,85 @@ public class HubConnectionTests : FunctionalTestBase
             {
                 await connection.DisposeAsync().DefaultTimeout();
             }
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(HubProtocolsAndTransportsAndHubPaths))]
+    public async Task InvokeAsync_SendTraceHeader(string protocolName, HttpTransportType transportType, string path)
+    {
+        var protocol = HubProtocols[protocolName];
+        await using (var server = await StartServer<Startup>())
+        {
+            var channel = Channel.CreateUnbounded<Activity>();
+            var serverSource = server.Services.GetRequiredService<SignalRActivitySource>().ActivitySource;
+
+            using var listener = new ActivityListener
+            {
+                ShouldListenTo = activitySource => ReferenceEquals(activitySource, serverSource),
+                Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
+                ActivityStarted = activity => channel.Writer.TryWrite(activity)
+            };
+            ActivitySource.AddActivityListener(listener);
+
+            var connectionBuilder = new HubConnectionBuilder()
+                .WithLoggerFactory(LoggerFactory)
+                .WithUrl(server.Url + path, transportType);
+            connectionBuilder.Services.AddSingleton(protocol);
+
+            var connection = connectionBuilder.Build();
+
+            using var clientActivity = new Activity("ClientActivity");
+            clientActivity.Start();
+
+            try
+            {
+                await connection.StartAsync().DefaultTimeout();
+
+                var result = await connection.InvokeAsync<string>(nameof(TestHub.HelloWorld)).DefaultTimeout();
+
+                Assert.Equal("Hello World!", result);
+            }
+            catch (Exception ex)
+            {
+                LoggerFactory.CreateLogger<HubConnectionTests>().LogError(ex, "{ExceptionType} from test", ex.GetType().FullName);
+                throw;
+            }
+            finally
+            {
+                clientActivity.Stop();
+                await connection.DisposeAsync().DefaultTimeout();
+            }
+
+            var activities = await channel.Reader.ReadAtLeastAsync(minimumCount: 3).DefaultTimeout();
+
+            var hubName = path switch
+            {
+                "/default" => typeof(TestHub).FullName,
+                "/hubT" => typeof(TestHubT).FullName,
+                "/dynamic" => typeof(DynamicTestHub).FullName,
+                _ => throw new InvalidOperationException("Unexpected path: " + path)
+            };
+
+            Assert.Collection(activities,
+                a =>
+                {
+                    Assert.Equal($"{hubName}/OnConnectedAsync", a.OperationName);
+                    Assert.Equal("Microsoft.AspNetCore.Hosting.HttpRequestIn", a.Parent.OperationName);
+                    Assert.False(a.HasRemoteParent);
+                },
+                a =>
+                {
+                    Assert.Equal($"{hubName}/HelloWorld", a.OperationName);
+                    Assert.True(a.HasRemoteParent);
+                    Assert.Equal(clientActivity.Id, a.ParentId);
+                },
+                a =>
+                {
+                    Assert.Equal($"{hubName}/OnDisconnectedAsync", a.OperationName);
+                    Assert.Equal("Microsoft.AspNetCore.Hosting.HttpRequestIn", a.Parent.OperationName);
+                    Assert.False(a.HasRemoteParent);
+                });
         }
     }
 
@@ -466,6 +547,86 @@ public class HubConnectionTests : FunctionalTestBase
             {
                 await connection.DisposeAsync().DefaultTimeout();
             }
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(HubProtocolsAndTransportsAndHubPaths))]
+    public async Task StreamAsyncCore_SendTraceHeader(string protocolName, HttpTransportType transportType, string path)
+    {
+        var protocol = HubProtocols[protocolName];
+        await using (var server = await StartServer<Startup>())
+        {
+            var channel = Channel.CreateUnbounded<Activity>();
+            var serverSource = server.Services.GetRequiredService<SignalRActivitySource>().ActivitySource;
+
+            using var listener = new ActivityListener
+            {
+                ShouldListenTo = activitySource => ReferenceEquals(activitySource, serverSource),
+                Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
+                ActivityStarted = activity => channel.Writer.TryWrite(activity)
+            };
+            ActivitySource.AddActivityListener(listener);
+
+            var connection = CreateHubConnection(server.Url, path, transportType, protocol, LoggerFactory);
+
+            using var clientActivity = new Activity("ClientActivity");
+            clientActivity.Start();
+
+            try
+            {
+                await connection.StartAsync().DefaultTimeout();
+                var expectedValue = 0;
+                var streamTo = 5;
+                var asyncEnumerable = connection.StreamAsyncCore<int>("Stream", new object[] { streamTo });
+                await foreach (var streamValue in asyncEnumerable)
+                {
+                    Assert.Equal(expectedValue, streamValue);
+                    expectedValue++;
+                }
+
+                Assert.Equal(streamTo, expectedValue);
+            }
+            catch (Exception ex)
+            {
+                LoggerFactory.CreateLogger<HubConnectionTests>().LogError(ex, "{ExceptionType} from test", ex.GetType().FullName);
+                throw;
+            }
+            finally
+            {
+                clientActivity.Stop();
+                await connection.DisposeAsync().DefaultTimeout();
+            }
+
+            var activities = await channel.Reader.ReadAtLeastAsync(minimumCount: 3).DefaultTimeout();
+
+            var hubName = path switch
+            {
+                "/default" => typeof(TestHub).FullName,
+                "/hubT" => typeof(TestHubT).FullName,
+                "/dynamic" => typeof(DynamicTestHub).FullName,
+                _ => throw new InvalidOperationException("Unexpected path: " + path)
+            };
+
+            Assert.Collection(activities,
+                a =>
+                {
+                    Assert.Equal($"{hubName}/OnConnectedAsync", a.OperationName);
+                    Assert.Equal("Microsoft.AspNetCore.Hosting.HttpRequestIn", a.Parent.OperationName);
+                    Assert.False(a.HasRemoteParent);
+                },
+                a =>
+                {
+                    Assert.Equal($"{hubName}/Stream", a.OperationName);
+                    Assert.True(a.HasRemoteParent);
+                    Assert.Equal(clientActivity.Id, a.ParentId);
+                },
+                a =>
+                {
+                    Assert.Equal($"{hubName}/OnDisconnectedAsync", a.OperationName);
+                    Assert.Equal("Microsoft.AspNetCore.Hosting.HttpRequestIn", a.Parent.OperationName);
+                    Assert.False(a.HasRemoteParent);
+                });
         }
     }
 

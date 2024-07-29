@@ -1087,7 +1087,7 @@ public partial class HubConnection : IAsyncDisposable
 
     private static void InjectHeaders(HubInvocationMessage invocationMessage)
     {
-        // TODO:
+        // TODO: Change when SignalR client has an activity.
         // This sends info about the current activity, regardless of the activity source, to the SignalR server.
         // When SignalR client supports client activities this logic should be updated to only send headers
         // if the SignalR client activity is created. The goal is to match the behavior of distributed tracing in HttpClient.

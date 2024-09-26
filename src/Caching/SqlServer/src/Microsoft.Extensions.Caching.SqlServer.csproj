@@ -20,6 +20,9 @@
     <Reference Include="Microsoft.Extensions.Options" />
     <Reference Include="Microsoft.Data.SqlClient" />
     <Reference Include="Azure.Identity" />
+    <!-- These 2 are included to avoid getting the transitive 6.8 versions thru the Microsoft.Data.Sqlclient Reference above -->
+    <Reference Include="Microsoft.IdentityModel.Protocols.OpenIdConnect" />
+    <Reference Include="System.IdentityModel.Tokens.Jwt" />
   </ItemGroup>
 
   <ItemGroup>

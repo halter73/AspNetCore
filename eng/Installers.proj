@@ -1,0 +1,72 @@
+<Project Sdk="Microsoft.Build.Traversal">
+
+  <PropertyGroup>
+    <_BuildWindowsInstallers Condition="'$(TargetOsName)' == 'win' and ('$(TargetArchitecture)' == 'x86' or '$(TargetArchitecture)' == 'x64' or '$(TargetArchitecture)' == 'arm64')">true</_BuildWindowsInstallers>
+    <_WixTargetPlatform Condition="'$(TargetArchitecture)' == 'x86' ">Win32</_WixTargetPlatform>
+    <_WixTargetPlatform Condition="'$(TargetArchitecture)' == 'x64' ">x64</_WixTargetPlatform>
+    <_WixTargetPlatform Condition="'$(TargetArchitecture)' == 'arm64' ">ARM64</_WixTargetPlatform>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(DotNetBuild)' != 'true' and '$(_BuildWindowsInstallers)' == 'true'">
+    <!-- Build the ANCM custom action -->
+    <ProjectReference Include="$(RepoRoot)src\Installers\Windows\AspNetCoreModule-Setup\CustomAction\aspnetcoreCA.vcxproj" AdditionalProperties="Platform=x64" />
+    <ProjectReference Include="$(RepoRoot)src\Installers\Windows\AspNetCoreModule-Setup\CustomAction\aspnetcoreCA.vcxproj" AdditionalProperties="Platform=Win32" />
+    <ProjectReference Include="$(RepoRoot)src\Installers\Windows\AspNetCoreModule-Setup\CustomAction\aspnetcoreCA.vcxproj" AdditionalProperties="Platform=ARM64" />
+
+    <!-- Build the ANCM msis -->
+    <ProjectReference Include="$(RepoRoot)src\Installers\Windows\AspNetCoreModule-Setup\ANCMIISExpressV2\AncmIISExpressV2.wixproj" AdditionalProperties="Platform=x64" />
+    <ProjectReference Include="$(RepoRoot)src\Installers\Windows\AspNetCoreModule-Setup\ANCMIISExpressV2\AncmIISExpressV2.wixproj" AdditionalProperties="Platform=x86" />
+    <ProjectReference Include="$(RepoRoot)src\Installers\Windows\AspNetCoreModule-Setup\ANCMIISExpressV2\AncmIISExpressV2.wixproj" AdditionalProperties="Platform=arm64" />
+    <ProjectReference Include="$(RepoRoot)src\Installers\Windows\AspNetCoreModule-Setup\ANCMV2\ANCMV2.wixproj" AdditionalProperties="Platform=x64" />
+    <ProjectReference Include="$(RepoRoot)src\Installers\Windows\AspNetCoreModule-Setup\ANCMV2\ANCMV2.wixproj" AdditionalProperties="Platform=x86" />
+    <ProjectReference Include="$(RepoRoot)src\Installers\Windows\AspNetCoreModule-Setup\ANCMV2\ANCMV2.wixproj" AdditionalProperties="Platform=arm64" />
+
+    <!-- Build the targeting pack installers -->
+    <ProjectReference Include="$(RepoRoot)src\Installers\Windows\TargetingPack\TargetingPack.wixproj" AdditionalProperties="Platform=x64" />
+    <ProjectReference Include="$(RepoRoot)src\Installers\Windows\TargetingPack\TargetingPack.wixproj" AdditionalProperties="Platform=x86" />
+    <!-- This really shouldn't be here, but instead of harvesting from the intermediate/output directories, the targeting pack installer logic
+    harvests from a zip of the reference assemblies. Producing it in each leg ends up with multiple targeting packs
+    getting produced and the BAR will reject the build. Centralize building the targeting pack in the x86/x64 leg. -->
+    <ProjectReference Include="$(RepoRoot)src\Installers\Windows\TargetingPack\TargetingPack.wixproj" AdditionalProperties="Platform=arm64" />
+
+    <!-- Build the SharedFramework installers -->
+    <ProjectReference Include="$(RepoRoot)src\Installers\Windows\SharedFrameworkBundle\SharedFrameworkBundle.wixproj" AdditionalProperties="Platform=x64" />
+    <ProjectReference Include="$(RepoRoot)src\Installers\Windows\SharedFrameworkBundle\SharedFrameworkBundle.wixproj" AdditionalProperties="Platform=x86" />
+    <ProjectReference Include="$(RepoRoot)src\Installers\Windows\SharedFrameworkBundle\SharedFrameworkBundle.wixproj" AdditionalProperties="Platform=arm64" />
+
+    <!-- Build the SharedFramework wixlib -->
+    <ProjectReference Include="$(RepoRoot)src\Installers\Windows\SharedFrameworkLib\SharedFrameworkLib.wixproj" AdditionalProperties="Platform=x64" />
+    <ProjectReference Include="$(RepoRoot)src\Installers\Windows\SharedFrameworkLib\SharedFrameworkLib.wixproj" AdditionalProperties="Platform=x86" />
+    <ProjectReference Include="$(RepoRoot)src\Installers\Windows\SharedFrameworkLib\SharedFrameworkLib.wixproj" AdditionalProperties="Platform=arm64" />
+
+    <!-- Windows hosting bundle -->
+    <ProjectReference Include="$(RepoRoot)src\Installers\Windows\WindowsHostingBundle\WindowsHostingBundle.wixproj" AdditionalProperties="Platform=x86" />
+  </ItemGroup>
+
+  <!-- In a vertical build, only build the MSIs for the current vertical in the first pass and build the hosting bundle in the second pass -->
+  <ItemGroup Condition="'$(DotNetBuild)' == 'true' and ('$(DotNetBuildPass)' == '' or '$(DotNetBuildPass)' == '1') and '$(_BuildWindowsInstallers)' == 'true'">
+    <!-- Build the ANCM custom action -->
+    <ProjectReference Include="$(RepoRoot)src\Installers\Windows\AspNetCoreModule-Setup\CustomAction\aspnetcoreCA.vcxproj" AdditionalProperties="Platform=$(_WixTargetPlatform)" />
+    <!-- Build the ANCM msis -->
+    <ProjectReference Include="$(RepoRoot)src\Installers\Windows\AspNetCoreModule-Setup\ANCMIISExpressV2\AncmIISExpressV2.wixproj" AdditionalProperties="Platform=$(_WixTargetPlatform)" />
+    <ProjectReference Include="$(RepoRoot)src\Installers\Windows\AspNetCoreModule-Setup\ANCMV2\ANCMV2.wixproj" AdditionalProperties="Platform=$(_WixTargetPlatform)" />
+    <!-- Build the targeting pack installers -->
+    <ProjectReference Include="$(RepoRoot)src\Installers\Windows\TargetingPack\TargetingPack.wixproj" AdditionalProperties="Platform=$(_WixTargetPlatform)" />
+    <!-- Build the SharedFramework installers -->
+    <ProjectReference Include="$(RepoRoot)src\Installers\Windows\SharedFrameworkBundle\SharedFrameworkBundle.wixproj" AdditionalProperties="Platform=$(_WixTargetPlatform)" />
+    <!-- Build the SharedFramework wixlib -->
+    <ProjectReference Include="$(RepoRoot)src\Installers\Windows\SharedFrameworkLib\SharedFrameworkLib.wixproj" AdditionalProperties="Platform=$(_WixTargetPlatform)" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(DotNetBuild)' == 'true' and ('$(DotNetBuildPass)' == '2') and '$(TargetOsName)' == 'win' and '$(TargetArchitecture)' == 'x64'">
+    <ProjectReference Include="$(RepoRoot)src\Installers\Windows\WindowsHostingBundle\WindowsHostingBundle.wixproj" AdditionalProperties="Platform=x86" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetRuntimeIdentifier)' == 'linux-x64' or '$(TargetRuntimeIdentifier)' == 'linux-arm64'">
+    <ProjectReference Condition=" '$(LinuxInstallerType)' == 'deb' "
+                    Include="$(RepoRoot)src\Installers\Debian\**\*.*proj" />
+    <ProjectReference Condition=" '$(LinuxInstallerType)' == 'rpm' "
+                    Include="$(RepoRoot)src\Installers\Rpm\**\*.*proj" />
+  </ItemGroup>
+
+</Project>

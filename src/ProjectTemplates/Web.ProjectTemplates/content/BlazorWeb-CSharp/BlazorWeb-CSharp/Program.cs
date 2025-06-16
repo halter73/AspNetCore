@@ -40,7 +40,6 @@ builder.Services.AddRazorComponents()
 
 #if (IndividualLocalAuth)
 builder.Services.AddCascadingAuthenticationState();
-builder.Services.AddScoped<IdentityUserAccessor>();
 builder.Services.AddScoped<IdentityRedirectManager>();
 #if (UseServer)
 builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
@@ -97,12 +96,12 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 #endif
 }
+app.UseStatusCodePagesWithReExecute("/not-found", createScopeForErrors: true);
 
 #if (HasHttpsProfile)
 app.UseHttpsRedirection();
 
 #endif
-
 app.UseAntiforgery();
 
 app.MapStaticAssets();
